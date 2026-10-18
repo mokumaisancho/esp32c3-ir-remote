@@ -96,6 +96,7 @@ bool rmtRxReady = true;
 uint32_t fake_time=0;
 int scenario=0;
 uint32_t millis() { return fake_time; }
+void delay(uint32_t n) { fake_time += n; }
 uint32_t pdMS_TO_TICKS(uint32_t ms) { return ms; }
 int xQueueReset(QueueHandle_t q) { assert(q == rxDoneQueue); return pdTRUE; }
 esp_err_t rmt_receive(rmt_channel_handle_t ch, void* data, size_t bytes, const rmt_receive_config_t* cfg) {
@@ -131,7 +132,7 @@ int main(){
   assert(!ok && elapsed<50 && attempts==1 && early==1 && rxLastStartError==ESP_ERR_INVALID_STATE);
   scenario=1; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
-  assert(!ok && elapsed<50 && attempts==1 && early==0 && rxLastSymbolCount==1);
+  assert(!ok && elapsed>=5000 && attempts>1 && early==0 && rxLastSymbolCount==1);
   scenario=2; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(ok && elapsed<50 && attempts==1 && s.pulses.size()==6);
