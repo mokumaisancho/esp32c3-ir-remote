@@ -22,6 +22,8 @@ jobs:
         shell: bash
       - run: python research/esp32c3_rom_public/run_all_with_full_logs.py
       - run: python research/esp32c3_rom_public/original_ac_adjudication.py
+      - run: python research/esp32c3_rom_public/ac05_source_audit.py 2>&1 | tee research/esp32c3_rom_public/ac05_source_audit.log
+        shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -29,4 +31,5 @@ jobs:
           path: |
             research/esp32c3_rom_public/output/
             research/esp32c3_rom_public/unit_tests.stdout.log
+            research/esp32c3_rom_public/ac05_source_audit.log
           if-no-files-found: warn
