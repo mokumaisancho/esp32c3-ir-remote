@@ -379,9 +379,13 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
   return false;
 }
 
+uint32_t lastTxDurationMs = 0;
+uint32_t txAttemptCount = 0;
 bool transmitSignal(const Signal &signal) {
-  Serial.printf("IR_TX_START t=%lu pulses=%u ready=%d carrier=%lu\n",
-                static_cast<unsigned long>(millis()), static_cast<unsigned>(signal.pulses.size()),
+  const uint32_t txBeginMs = millis();
+  ++txAttemptCount;
+  Serial.printf("IR_TX_START t=%lu attempt=%lu pulses=%u ready=%d carrier=%lu\n",
+                static_cast<unsigned long>(millis()), static_cast<unsigned long>(txAttemptCount), static_cast<unsigned>(signal.pulses.size()),
                 rmtTxReady ? 1 : 0, static_cast<unsigned long>(signal.carrierHz));
   if (!rmtTxReady || signal.pulses.empty()) {
     Serial.println("IR_TX_END result=FAIL reason=not_ready_or_empty");
@@ -436,8 +440,11 @@ bool transmitSignal(const Signal &signal) {
   }
   rmtSetEOT(ircfg::IR_TX_PIN, spaceLevel);
   const bool accepted = rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 1000);
-  Serial.printf("IR_TX_END result=%s symbols=%u gpio=%d\n",
-                accepted ? "DRIVER_OK" : "FAIL", static_cast<unsigned>(symbolCount), ircfg::IR_TX_PIN);
+  lastTxDurationMs = millis() - txBeginMs;
+  Serial.printf("IR_TX_END result=%s attempt=%lu symbols=%u gpio=%d duration_ms=%lu\n",
+                accepted ? "DRIVER_OK" : "FAIL", static_cast<unsigned long>(txAttemptCount),
+                static_cast<unsigned>(symbolCount), ircfg::IR_TX_PIN,
+                static_cast<unsigned long>(lastTxDurationMs));
   return accepted;
 }
 
@@ -618,7 +625,7 @@ void handleSendSaved() {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false}");
+  sendJson(200, String("{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false,\"tx_duration_ms\":") + String(lastTxDurationMs) + ",\"tx_attempt\":" + String(txAttemptCount) + "}");
 }
 
 void handleSendLast() {
