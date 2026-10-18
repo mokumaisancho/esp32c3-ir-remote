@@ -152,7 +152,7 @@ namespace ircfg {
   constexpr size_t MAX_RMT_SYMBOLS=96;
   constexpr size_t MAX_PULSES=192;
   constexpr uint32_t LEARN_WINDOW_MS=5000;
-  constexpr uint32_t RX_GLITCH_FILTER_US=80;
+  constexpr uint32_t RX_GLITCH_FILTER_US=1;
   constexpr uint32_t RX_IDLE_THRESHOLD_US=15000;
 }
 rmt_data_t rxSymbols[ircfg::MAX_RMT_SYMBOLS]{};
