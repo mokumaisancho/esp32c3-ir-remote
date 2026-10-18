@@ -5,6 +5,10 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <esp32-hal-rmt.h>
+#include <driver/rmt_rx.h>
+#include <esp_err.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 #include <algorithm>
 #include <vector>
@@ -31,6 +35,12 @@ bool stationMode = false;
 bool setupApReady = false;
 bool rmtRxReady = false;
 bool rmtTxReady = false;
+rmt_channel_handle_t rxChannel = nullptr;
+QueueHandle_t rxDoneQueue = nullptr;
+esp_err_t rxInitError = ESP_ERR_INVALID_STATE;
+esp_err_t rxLastStartError = ESP_OK;
+esp_err_t rxLastResetError = ESP_OK;
+uint32_t rxLastSymbolCount = 0;
 uint32_t rebootAt = 0;
 
 rmt_data_t rxSymbols[ircfg::MAX_RMT_SYMBOLS];
@@ -244,41 +254,59 @@ Signal normalizeReceived(const rmt_data_t *symbols, size_t count) {
   return signal;
 }
 
-// A single RMT read can finish early on noise, an invalid partial frame or a
-// driver error. Preserve the advertised receive window for an unsuccessful read.
+// ESP-IDF RX exposes rmt_receive() failures that Arduino's rmtRead()
+// wrapper does not report. A single in-flight receive is used per request.
+static bool onRxDone(rmt_channel_handle_t channel,
+                     const rmt_rx_done_event_data_t *event, void *context) {
+  (void)channel;
+  const size_t count = event->num_symbols;
+  BaseType_t wake = pdFALSE;
+  xQueueSendFromISR(static_cast<QueueHandle_t>(context), &count, &wake);
+  return wake == pdTRUE;
+}
+
 bool learnSignal(Signal &signal, uint32_t &elapsedMs,
                  uint32_t &readAttempts, uint32_t &earlyFailures) {
   const uint32_t start = millis();
+  elapsedMs = 0;
   readAttempts = 0;
   earlyFailures = 0;
-  elapsedMs = 0;
+  rxLastSymbolCount = 0;
+  rxLastStartError = ESP_OK;
+  rxLastResetError = ESP_OK;
+  if (!rxChannel || !rxDoneQueue) return false;
 
-  while ((millis() - start) < ircfg::LEARN_WINDOW_MS) {
-    const uint32_t remaining = ircfg::LEARN_WINDOW_MS - (millis() - start);
-    size_t symbolCount = ircfg::MAX_RMT_SYMBOLS;
-    const uint32_t readStart = millis();
-    const bool received =
-        rmtRead(ircfg::IR_RX_PIN, rxSymbols, &symbolCount, remaining);
-    ++readAttempts;
-
-    if (received && symbolCount > 0) {
-      Signal candidate = normalizeReceived(rxSymbols, symbolCount);
-      if (candidate.pulses.size() >= 6 &&
-          candidate.pulses.size() <= ircfg::MAX_PULSES) {
-        signal = std::move(candidate);
-        elapsedMs = millis() - start;
-        return true;
-      }
-    }
-
-    // Distinguish an immediate RMT failure from a normal receive timeout.
-    const uint32_t readElapsed = millis() - readStart;
-    if (!received && readElapsed < 50) ++earlyFailures;
-    if (readElapsed < 25) delay(25 - readElapsed);
+  // Do not start another receive until the previous callback has finished.
+  xQueueReset(rxDoneQueue);
+  const rmt_receive_config_t cfg = {
+      .signal_range_min_ns = ircfg::RX_GLITCH_FILTER_US * 1000U,
+      .signal_range_max_ns = ircfg::RX_IDLE_THRESHOLD_US * 1000U,
+  };
+  ++readAttempts;
+  rxLastStartError = rmt_receive(rxChannel, rxSymbols, sizeof(rxSymbols), &cfg);
+  if (rxLastStartError != ESP_OK) {
+    ++earlyFailures;
+    elapsedMs = millis() - start;
+    return false;
   }
 
+  size_t count = 0;
+  if (xQueueReceive(rxDoneQueue, &count,
+                    pdMS_TO_TICKS(ircfg::LEARN_WINDOW_MS)) != pdTRUE) {
+    // Stop and re-arm the IDF channel before accepting a new HTTP request.
+    rxLastResetError = rmt_disable(rxChannel);
+    if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
+    elapsedMs = millis() - start;
+    return false;
+  }
+  rxLastSymbolCount = static_cast<uint32_t>(count);
   elapsedMs = millis() - start;
-  return false;
+  if (count == 0 || count > ircfg::MAX_RMT_SYMBOLS) return false;
+  Signal candidate = normalizeReceived(rxSymbols, count);
+  if (candidate.pulses.size() < 6 || candidate.pulses.size() > ircfg::MAX_PULSES)
+    return false;
+  signal = std::move(candidate);
+  return true;
 }
 
 bool transmitSignal(const Signal &signal) {
@@ -372,8 +400,8 @@ void handleStatus() {
 
 void handleLearn() {
   if (!rmtRxReady) {
-    sendJson(503, "{\"ok\":false,\"reason\":\"rmt_not_ready\","
-                  "\"error\":\"GPIO5のRMT受信初期化に失敗しました\"}");
+    sendJson(503, String("{\\\"ok\\\":false,\\\"reason\\\":\\\"rmt_not_ready\\\",\\\"init_esp_err\\\":") +
+                  String(static_cast<int>(rxInitError)) + "}");
     return;
   }
 
@@ -382,16 +410,19 @@ void handleLearn() {
   uint32_t readAttempts = 0;
   uint32_t earlyFailures = 0;
   if (!learnSignal(captured, elapsedMs, readAttempts, earlyFailures)) {
-    const bool driverFail = readAttempts > 0 && earlyFailures == readAttempts;
-    String json = "{\"ok\":false,\"reason\":\"";
-    json += driverFail ? "rmt_read_failed" : "no_valid_signal";
-    json += "\",\"error\":\"";
-    json += driverFail ? "RMTが即時失敗を繰り返しました"
-                       : "5秒間、有効な赤外線信号を検出できませんでした";
-    json += "\",\"elapsed_ms\":" + String(elapsedMs);
-    json += ",\"read_attempts\":" + String(readAttempts);
-    json += ",\"early_failures\":" + String(earlyFailures) + "}";
-    sendJson(driverFail ? 503 : 408, json);
+    const bool startFailed = rxLastStartError != ESP_OK;
+    const bool resetFailed = rxLastResetError != ESP_OK;
+    const char *reason = startFailed ? "rmt_start_failed" :
+                         resetFailed ? "rmt_reset_failed" :
+                         rxLastSymbolCount > 0 ? "invalid_frame" : "rx_timeout";
+    String json = "{\\\"ok\\\":false,\\\"reason\\\":\\\"" + String(reason) + "\\\"";
+    json += ",\\\"elapsed_ms\\\":" + String(elapsedMs);
+    json += ",\\\"start_esp_err\\\":" + String(static_cast<int>(rxLastStartError));
+    json += ",\\\"reset_esp_err\\\":" + String(static_cast<int>(rxLastResetError));
+    json += ",\\\"symbol_count\\\":" + String(rxLastSymbolCount);
+    json += ",\\\"read_attempts\\\":" + String(readAttempts);
+    json += ",\\\"early_failures\\\":" + String(earlyFailures) + "}";
+    sendJson(startFailed || resetFailed ? 503 : 408, json);
     return;
   }
 
@@ -609,27 +640,34 @@ void startNetwork() {
 }
 
 void setupRmt() {
-  const bool rxOk = rmtInit(
-      ircfg::IR_RX_PIN,
-      RMT_RX_MODE,
-      RMT_MEM_NUM_BLOCKS_2,
-      ircfg::RMT_RESOLUTION_HZ);
+  rxDoneQueue = xQueueCreate(1, sizeof(size_t));
+  rmt_rx_channel_config_t rxCfg = {};
+  rxCfg.gpio_num = static_cast<gpio_num_t>(ircfg::IR_RX_PIN);
+  rxCfg.clk_src = RMT_CLK_SRC_DEFAULT;
+  rxCfg.resolution_hz = ircfg::RMT_RESOLUTION_HZ;
+  rxCfg.mem_block_symbols = ircfg::MAX_RMT_SYMBOLS;
+  rxInitError = rxDoneQueue ? rmt_new_rx_channel(&rxCfg, &rxChannel)
+                            : ESP_ERR_NO_MEM;
+  if (rxInitError == ESP_OK) {
+    rmt_rx_event_callbacks_t callbacks = {};
+    callbacks.on_recv_done = onRxDone;
+    rxInitError = rmt_rx_register_event_callbacks(rxChannel, &callbacks, rxDoneQueue);
+  }
+  if (rxInitError == ESP_OK) rxInitError = rmt_enable(rxChannel);
   const bool txOk = rmtInit(
       ircfg::IR_TX_PIN,
       RMT_TX_MODE,
       RMT_MEM_NUM_BLOCKS_2,
       ircfg::RMT_RESOLUTION_HZ);
 
-  rmtRxReady = rxOk &&
-      rmtSetRxMinThreshold(ircfg::IR_RX_PIN, ircfg::RX_GLITCH_FILTER_US) &&
-      rmtSetRxMaxThreshold(ircfg::IR_RX_PIN, ircfg::RX_IDLE_THRESHOLD_US);
+  rmtRxReady = rxInitError == ESP_OK;
   rmtTxReady = txOk &&
       rmtSetCarrier(ircfg::IR_TX_PIN, true, ircfg::TX_ACTIVE_HIGH,
                     ircfg::IR_CARRIER_HZ, ircfg::IR_DUTY);
   if (rmtTxReady) {
     rmtSetEOT(ircfg::IR_TX_PIN, ircfg::TX_ACTIVE_HIGH ? 0 : 1);
   }
-  Serial.printf("RMT readiness: RX=%d TX=%d\\n", rmtRxReady, rmtTxReady);
+  Serial.printf("RMT readiness: RX=%d TX=%d RX_INIT_ERR=%d\\n", rmtRxReady, rmtTxReady, static_cast<int>(rxInitError));
 }
 
 } // namespace
