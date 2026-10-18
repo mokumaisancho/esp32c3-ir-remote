@@ -35,6 +35,9 @@ with tarfile.open(fileobj=io.BytesIO(data),mode="r:gz") as tf:
    target=dec["target"]
    in_exec=any(x<=target<x+len(blob) for x,blob,_ in secs)
    names=func.get(target,[])
+   if row["symbol"] not in names:
+    raise RuntimeError("FAIL_CLOSED_ROM_NAME_MISMATCH:"+filename+":"+row["symbol"]+":"+str(names))
+   stats["matched_named_function"]+=1
    stats["valid_exec" if in_exec else "outside_exec"]+=1
    stats["exact_STT_FUNC" if names else "not_STT_FUNC"]+=1
    results.append({"known_rom_name":row["symbol"],"rom_entry":hex(a),"target":hex(target),
