@@ -15,12 +15,20 @@ fail() { echo "BLOCKED: $1" >&2; exit 2; }
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS only"
 command -v gh >/dev/null || fail "GitHub CLI gh missing"
-gh auth status >/dev/null 2>&1 || fail "GitHub authentication missing"
+# GitHub API verified by launcher; do not repeat unreliable keyring status preflight.
 
 echo "[1/5] Downloading CI-PASS firmware"
 mkdir -p "$WORK/artifact"
-gh run download "$RUN_ID" -R "$REPO" -n esp32c3-ir-remote-firmware -D "$WORK/artifact" \
-  || fail "Firmware artifact unavailable"
+downloaded=0
+for attempt in 1 2 3; do
+  if gh run download "$RUN_ID" -R "$REPO" -n esp32c3-ir-remote-firmware -D "$WORK/artifact"; then
+    downloaded=1
+    break
+  fi
+  echo "GH_ARTIFACT_DOWNLOAD_FAILED attempt=$attempt" >&2
+  (( attempt == 3 )) || sleep "$attempt"
+done
+(( downloaded == 1 )) || fail "Firmware artifact unavailable after 3 attempts"
 cd "$WORK/artifact"
 for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin SHA256SUMS.txt FLASH_LAYOUT.txt SOURCE_SHA.txt; do
   [[ -s "$file" ]] || fail "Missing artifact: $file"
