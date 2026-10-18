@@ -1,0 +1,146 @@
+{
+  "run_id": 39121459579,
+  "job_id": 117657754510,
+  "artifact_id": 12134069031,
+  "job_conclusion": "success",
+  "analysis": {
+    "source": "https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz",
+    "archive_sha256": "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46",
+    "targets": {
+      "esp32c3_rev0_rom.elf": {
+        "sha256": "11d565922e0a405b477756de748a14046f86dfb40d997766252a04cb378f0694",
+        "elf_functions": 1986,
+        "sections": [
+          {
+            "section": ".fixed.text",
+            "address": "0x40000000",
+            "size": 7296,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 7296,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".init.text",
+            "address": "0x40001c80",
+            "size": 460,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 460,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".bt_text",
+            "address": "0x40001e4c",
+            "size": 225200,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 225200,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".text",
+            "address": "0x40038dfc",
+            "size": 130576,
+            "undecoded_bytes": 106,
+            "decoded_bytes": 130470,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".wifi0iram.3",
+            "address": "0x40058c0c",
+            "size": 50,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 50,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          }
+        ],
+        "csr_control_instructions": 1939,
+        "source_tar_path": "esp32c3_rev0_rom.elf"
+      },
+      "esp32c3_rev101_rom.elf": {
+        "sha256": "9495e1453f36f7eec4112714ea1dca22d77808776adffa93dda7dda4393e8336",
+        "elf_functions": 2118,
+        "sections": [
+          {
+            "section": ".fixed.text",
+            "address": "0x40000000",
+            "size": 8064,
+            "undecoded_bytes": 2,
+            "decoded_bytes": 8062,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".init.text",
+            "address": "0x40001f80",
+            "size": 460,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 460,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".bt_text",
+            "address": "0x4000214c",
+            "size": 234892,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 234892,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".text",
+            "address": "0x4003b6d8",
+            "size": 123636,
+            "undecoded_bytes": 136,
+            "decoded_bytes": 123500,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          }
+        ],
+        "csr_control_instructions": 1879,
+        "source_tar_path": "esp32c3_rev101_rom.elf"
+      },
+      "esp32c3_rev3_rom.elf": {
+        "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c",
+        "elf_functions": 2058,
+        "sections": [
+          {
+            "section": ".fixed.text",
+            "address": "0x40000000",
+            "size": 7552,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 7552,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".init.text",
+            "address": "0x40001d80",
+            "size": 460,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 460,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".bt_text",
+            "address": "0x40001f4c",
+            "size": 224928,
+            "undecoded_bytes": 0,
+            "decoded_bytes": 224928,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          },
+          {
+            "section": ".text",
+            "address": "0x40038dec",
+            "size": 133028,
+            "undecoded_bytes": 132,
+            "decoded_bytes": 132896,
+            "coverage_note": "linear scan only; data embedded in executable sections possible"
+          }
+        ],
+        "csr_control_instructions": 1859,
+        "source_tar_path": "esp32c3_rev3_rom.elf"
+      }
+    }
+  },
+  "limitations": [
+    "linear scan only; no indirect call/dataflow",
+    "no documented linker function reconciliation",
+    "ELF functions may include aliases and internal symbols",
+    "no manual classification of undocumented registers"
+  ]
+}
