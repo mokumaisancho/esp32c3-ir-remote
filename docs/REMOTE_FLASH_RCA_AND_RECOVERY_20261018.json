@@ -4,16 +4,17 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "BLOCKED_BEFORE_FLASH",
+  "current_status": "CLOUD_BUILD_PASS_MAC_DEPLOY_AND_PHYSICAL_RX_BLOCKED",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
     "flasher_commit": "0a9002897e62d7e18c42de347227817be177c580",
-    "flasher_git_blob": "719a72ee9070f105b3f386d43ec9af2c008ae620",
+    "flasher_git_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
     "worker_repo": "mokumaisancho/GPT-Development-Suite",
     "worker_branch": "poc/native-local-bridge-v3",
     "worker_commit": "a90ddb1be36d48e6a968fe9d17b77953957d943c",
-    "issue_url": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11"
+    "issue_url": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11",
+    "ci_run_id": 39092905791
   },
   "evidence": [
     {
@@ -334,8 +335,12 @@
     "build": {
       "workflow_run_id": 39092905791,
       "source_commit": "e0a6b974ef82798f05d17031da5d3dd3661678df",
-      "reported_status": "IN_PROGRESS_AT_LAST_CHECK",
-      "url": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791"
+      "reported_status": "PASS_CLOUD_BUILD_ONLY",
+      "url": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791",
+      "artifact_id": 12123362708,
+      "artifact_size_bytes": 6035631,
+      "artifact_expired_at_check": false,
+      "artifact_url": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791"
     },
     "files": [
       "include/config.h",
@@ -365,7 +370,10 @@
         {
           "id": "IR-5S-03",
           "criterion": "Cloud firmware build passes for five-second capture revision",
-          "status": "PENDING"
+          "status": "PASS_CLOUD_BUILD",
+          "evidence": [
+            "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791"
+          ]
         },
         {
           "id": "IR-5S-04",
@@ -379,6 +387,15 @@
       ]
     },
     "note": "OpenOCD's static GPIO read cannot reconstruct 38kHz-modulated waveform or demodulated sub-millisecond marks. GitHub PING and CI build are not physical RX evidence.",
-    "next_action": "Inspect CI result; only after PASS update flash artifact RUN_ID and SHA-pinned Mac flash wrapper; then resolve Mac worker deployment and perform one hardware capture."
+    "next_action": "Non-destructive live Mac worker update remains blocked by SUITE_CHECKOUT_DIRTY. Need SHA verified deployed worker acceptance before single flash. Then arm RMT for five seconds and collect actual recorded pulse data, saved slot readback, and GitHub receipt.",
+    "flash_pin": {
+      "script_git_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
+      "script_commit": "5e17aed44da84fc64f4dc5fe5887b52e43e9accd",
+      "ci_run_id": 39092905791,
+      "ci_head_sha": "e0a6b974ef82798f05d17031da5d3dd3661678df",
+      "bridge_source_commit": "e4f1a64d71c395c17b3b1bcbd43772fac47b222c",
+      "bridge_branch": "poc/native-local-bridge-v3",
+      "deployed_to_mac": false
+    }
   }
 }
