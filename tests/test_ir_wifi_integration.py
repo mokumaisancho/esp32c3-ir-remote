@@ -98,7 +98,11 @@ class PersistenceAndRecoveryContracts(unittest.TestCase):
         self.assertIn('prefs.getString("ssid", "")', maintain)
         self.assertIn('prefs.getString("pass", "")', maintain)
         self.assertIn("prefs.end()", maintain)
-        self.assertIn("WiFi.reconnect()", maintain)
+        self.assertIn("WiFi.disconnect(false, false)", maintain)
+        self.assertIn("irpolicy::retryDue(millis(), wifiAttemptStartedMs, 45000U)", maintain)
+        self.assertNotIn("WiFi.reconnect()", maintain)
+        self.assertLess(maintain.index("WiFi.disconnect(false, false)"),
+                        maintain.index("WiFi.begin(ssid.c_str(), password.c_str())"))
         self.assertIn("WiFi.begin(ssid.c_str(), password.c_str())", maintain)
 
 
