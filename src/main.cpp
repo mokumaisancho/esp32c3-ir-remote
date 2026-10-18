@@ -639,6 +639,7 @@ void handleDelete() {
 }
 
 void diagMark(const char *phase);
+void handleDiagnostics();
 void handleWifi() {
   String ssid = server.arg("ssid");
   String password = server.arg("password");
