@@ -14,6 +14,7 @@ logdir = pathlib.Path.home() / "Library/Logs/esp32c3-ir-remote"
 logdir.mkdir(parents=True, exist_ok=True)
 log = logdir / ("wifi-trace-" + datetime.now().strftime("%Y%m%dT%H%M%S") + ".log")
 def emit(s):
+    s = datetime.now().astimezone().isoformat(timespec="milliseconds") + " " + s
     print(s, flush=True)
     with log.open("a", encoding="utf-8") as f:
         f.write(s + "\n")
@@ -27,7 +28,7 @@ def open_port(p):
     s.open()
     return s
 
-emit("WIFI_TRACE_START read_only=true flash=false reset=false")
+emit("WIFI_TRACE_START read_only=true flash=false reset=false mode=FULL_UART_UNFILTERED")
 emit("DO_NOT_PRESS_RESET; detect automatic USB resets separately")
 end = time.monotonic() + 75
 opened = 0
@@ -66,14 +67,13 @@ while time.monotonic() < end:
             raw = ser.readline()
             if raw:
                 line = raw.decode("utf-8", "replace").strip()
-                if any(k in line for k in ("WIFI_TRACE", "STA_RETRY", "IR network:", "IR UI ready:",
-                                             "wifi:", "rst:", "boot:", "Brownout", "Guru Meditation", "WIFI_DIAG_RESULT", "WIFI_DIAG")):
-                    emit("UART " + line[:400])
-                    if "WIFI_TRACE" in line or "WIFI_DIAG_RESULT" in line:
-                        events += 1
-                    if "WIFI_DIAG_RESULT" in line:
-                        match = re.search(r"outcome=([A-Z0-9_]+)", line)
-                        if match: outcomes.append(match.group(1))
+                # Complete UART output. Do not filter by prefix or truncate.
+                emit("UART " + line)
+                if "WIFI_TRACE" in line or "WIFI_DIAG_RESULT" in line:
+                    events += 1
+                if "WIFI_DIAG_RESULT" in line:
+                    match = re.search(r"outcome=([A-Z0-9_]+)", line)
+                    if match: outcomes.append(match.group(1))
         except (serial.SerialException, OSError) as ex:
             emit(f"SERIAL_INVALID {type(ex).__name__}: {ex}")
             errors += 1
