@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "CLOUD_BUILD_PASS_MAC_DEPLOY_AND_PHYSICAL_RX_BLOCKED",
+  "current_status": "WORKER_DEPLOY_PASS_ESPTOOL_UNAVAILABLE_FLASH_CAPTURE_BLOCKED",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -524,5 +524,31 @@
       "github_pulse_receipt": "NOT_RUN"
     },
     "next_boundary": "Only direct authorized Mac execution action ESP32_IR_FLASH can invoke pinned verified flash script; current running worker refuses this action; no further physical write route verified. Do not claim on-device write or signal capture."
+  },
+  "worker_force_deployment_20261018": {
+    "goal": "Force install a SHA-pinned IR-capable Issue worker on Mac while preserving old tracked checkout and plist.",
+    "status": "PASS_REAL_MAC_WORKER_SWITCHED",
+    "pinned_worker_commit": "e4f1a64d71c395c17b3b1bcbd43772fac47b222c",
+    "old_checkout": "GPT-Development-Suite-live",
+    "new_checkout": "GPT-Development-Suite-irflash-e4f1-20261018",
+    "evidence": [
+      "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245488456",
+      "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245494268"
+    ],
+    "actual_acceptance": "PING reports new repo_root on Mac and GitHub Issue returned DONE",
+    "precaution": "A temporary bootstrap stable channel currently points to esp32-ir-worker-deploy-20261018.json; attempt to restore it was safety-blocked and it remains NOT RESTORED. Do not rerun BOOTSTRAP_RUN until the stable channel is restored to stable-v1.json."
+  },
+  "ir_flash_openocd_fallback_20261018": {
+    "status": "READY_SOURCE_ONLY_NO_MAC_EXECUTION",
+    "evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487",
+    "failure": "Original esptool flasher failed because esptool>=5,<6 was not installed and pip was unable to resolve package; no backup or writes took place.",
+    "confirmed_real": "Firmware CI artifact and SHA256 verification PASS on Mac; Issue worker now accepts ESP32_IR_FLASH, but first run returned NATIVE_EXECUTION_FAILED before backup.",
+    "fallback_source": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_openocd_mac.command",
+    "fallback_blob": "857a0c93e6eacce7757c04db960ee4453b147ee8",
+    "existing_worker_flasher_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
+    "code_connection": "NOT_UPDATED: GitHub update_file rejected by safety check",
+    "hardware_backup": false,
+    "hardware_written": false,
+    "physical_5s_capture": false
   }
 }
