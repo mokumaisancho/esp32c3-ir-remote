@@ -90,6 +90,48 @@ def validate_external_sources(registers, extras):
                 p.get("published_prior_count"),"G4_PUBLISHED_DATASET_PARTITION_INVALID:"+rev)
     return True
 
+def validate_independent_native(entry, extras):
+    native=extras["independent_objdump"]
+    graph=extras["callgraph"]
+    priority=extras["internal_priority"]
+    require(native.get("archive_sha256")==SHA,"G1_NATIVE_SOURCE_MISMATCH")
+    require(graph.get("archive_sha256")==SHA,"G1_GRAPH_SOURCE_MISMATCH")
+    require(native.get("validator","").startswith("GNU binutils"),"G3_INDEPENDENT_ANALYZER_REQUIRED")
+    require(graph.get("candidate_count")==priority.get("candidate_count"),"G4_CANDIDATE_TRUNCATION")
+    require(priority.get("candidate_count")==len(priority.get("all_candidates",[])),"G4_MISSING_FULL_CANDIDATE_EVIDENCE")
+    for rev in REVS:
+        a=entry["revisions"][rev]
+        n=native.get("revisions",{}).get(rev,{})
+        g=graph.get("revisions",{}).get(rev,{})
+        require(n.get("total")==648 and n.get("independent_matches")==648 and
+                n.get("independent_mismatches")==0,"G3_GNU_TARGET_MISMATCH:"+rev)
+        require(n.get("elf_sha256")==a.get("sha256"),"G1_NATIVE_REVISION_SWAP:"+rev)
+        require(g.get("elf_sha256")==a.get("sha256"),"G1_GRAPH_REVISION_SWAP:"+rev)
+        require(g.get("all_candidate_count")==priority.get("candidate_count"),"G4_GRAPH_CANDIDATE_COUNT:"+rev)
+        reachable=g.get("candidate_with_static_public_path")
+        unreachable=g.get("candidate_without_direct_path")
+        require(isinstance(reachable,int) and isinstance(unreachable,int) and
+                reachable>=0 and unreachable>=0 and reachable+unreachable==priority.get("candidate_count"),
+                "G4_GRAPH_PARTITION_INVALID:"+rev)
+        require(g.get("cross_function_named_edges",0)>0 and g.get("public_root_names")==648,
+                "G3_GRAPH_MISSING_REFERENCES:"+rev)
+        require(len(g.get("representative_candidates",[]))<=reachable,"G4_GRAPH_WITNESS_COUNT_INVALID:"+rev)
+    return True
+
+def negative_independent_native(entry,extras):
+    import copy
+    altered=copy.deepcopy(extras)
+    altered["independent_objdump"]["revisions"][REVS[0]]["independent_matches"]=647
+    try:validate_independent_native(entry,altered)
+    except EvidenceError:pass
+    else:raise RuntimeError("NEGATIVE_NATIVE_TARGET_CORRUPTION_NOT_CAUGHT")
+    altered=copy.deepcopy(extras)
+    altered["callgraph"]["revisions"][REVS[0]]["candidate_without_direct_path"]=-1
+    try:validate_independent_native(entry,altered)
+    except EvidenceError:pass
+    else:raise RuntimeError("NEGATIVE_GRAPH_NEGATIVE_REACHABILITY_NOT_CAUGHT")
+    return 2
+
 def supplemental_negative_tests(registers, extras):
     import copy
     altered=copy.deepcopy(extras)
@@ -115,7 +157,9 @@ def main():
            "official_exact":OUT/"register_access"/"official_exact_offset_comparison.json",
            "official_base":OUT/"register_access"/"official_base_comparison.json",
            "published_prior":OUT/"register_access"/"published_prior_art_comparison.json",
-           "internal_priority":OUT/"internal_function_candidates.json"}
+           "internal_priority":OUT/"internal_function_candidates.json",
+           "independent_objdump":OUT/"independent_objdump"/"summary.json",
+           "callgraph":OUT/"callgraph"/"summary.json"}
     for name,p in files.items():
         if not p.is_file():raise EvidenceError("MISSING_EVIDENCE:"+name)
     sources={k:read(p) for k,p in files.items()}
@@ -124,6 +168,8 @@ def main():
     ext={k:v for k,v in sources.items() if k not in ("entry","targets","registers")}
     validate_external_sources(sources["registers"],ext)
     ng+=supplemental_negative_tests(sources["registers"],ext)
+    validate_independent_native(sources["entry"],ext)
+    ng+=negative_independent_native(sources["entry"],ext)
     proof={"schema":"ROM_QA_GATE_V1","issue_id":"ESP32C3-ROM-001",
         "evidence_sha256":{k:hashlib.sha256(p.read_bytes()).hexdigest() for k,p in files.items()},
         "negative_mutations_caught":ng,
