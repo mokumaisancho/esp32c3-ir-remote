@@ -138,6 +138,13 @@ echo "[4/5] Programming verified firmware at CI-confirmed offsets"
   0x0 bootloader.bin 0x8000 partitions.bin 0xE000 boot_app0.bin 0x10000 firmware.bin \
   || fail "Flash failed; restore possible from backup"
 
+echo "[5/5] Read back flashed application and compare SHA256"
+FIRMWARE_BYTES="$(stat -f %z firmware.bin)"
+"${TOOL[@]}" --chip esp32c3 --port "$PORT" read-flash 0x10000 "$FIRMWARE_BYTES" "$WORK/firmware.readback.bin" \
+  || fail "Firmware readback failed (flash written but unverified)"
+[[ "$(shasum -a 256 firmware.bin | awk '{print $1}')" == "$(shasum -a 256 "$WORK/firmware.readback.bin" | awk '{print $1}')" ]] \
+  || fail "Firmware flash readback SHA256 MISMATCH"
+echo "FLASH_READBACK_SHA256_PASS"
 echo "[5/5] FLASH_DONE"
 echo "VERIFIED_FIRMWARE_SHA256=$(shasum -a 256 firmware.bin | cut -d\  -f1)"
 echo "SETUP_WIFI=ESP32C3-IR-Setup"
