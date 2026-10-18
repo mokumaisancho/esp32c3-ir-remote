@@ -58,6 +58,26 @@ class NetworkContracts(unittest.TestCase):
         self.assertIn("fetch(path,opt)", UI)
 
 
+class PersistenceAndRecoveryContracts(unittest.TestCase):
+    def test_filesystem_preserves_existing_data_on_write_failure(self):
+        save = extract_body_function(SRC, "bool saveSignalToSlot(")
+        load = extract_body_function(SRC, "bool loadSignalFromSlot(")
+        setup = extract_body_function(SRC, "void setup()")
+        self.assertIn("fsReady = LittleFS.begin(false)", setup)
+        self.assertNotIn("LittleFS.begin(true)", setup)
+        self.assertIn("LittleFS.rename(finalPath, backupPath)", save)
+        self.assertIn("LittleFS.rename(backupPath, finalPath)", save)
+        self.assertIn("if (!LittleFS.exists(finalPath) && LittleFS.exists(backupPath))", load)
+
+    def test_station_retry_retains_credentials(self):
+        maintain = extract_body_function(SRC, "void maintainNetwork()")
+        self.assertIn('prefs.getString("ssid", "")', maintain)
+        self.assertIn('prefs.getString("pass", "")', maintain)
+        self.assertIn("prefs.end()", maintain)
+        self.assertIn("WiFi.reconnect()", maintain)
+        self.assertIn("WiFi.begin(ssid.c_str(), password.c_str())", maintain)
+
+
 class CaptureBehavior(unittest.TestCase):
     @unittest.skipUnless(shutil.which("g++"), "g++ not installed")
     def test_real_receive_function_with_mocked_hal(self):
