@@ -140,5 +140,185 @@
     "Desktop Commander device appurunoAir.elecom reported offline during current investigation; do not rely on that tool.",
     "Previous remote BOOTSTRAP_RUN used stable manifest which mutates JS tracked files and may reload a Chrome tab; avoid rerun as read-only step.",
     "No physical flash, backup, Wi-Fi UI or IR learning was observed in this turn."
-  ]
+  ],
+  "rca_review": {
+    "review_date": "2026-10-18",
+    "question": "Are errors caused by proceeding without mapping which code/artifacts are stored where and which version Mac actually runs?",
+    "conclusion": "YES_PROCESS_GAP_CONFIRMED; CERTAIN_DESIGN_CONFLICT_CONFIRMED; ACTUAL_DIRTY_FILE_NOT_YET_IDENTIFIED",
+    "root_cause_hierarchy": [
+      {
+        "id": "RC-P0-1",
+        "class": "DIRECT_CONFIRMED",
+        "title": "Bootstrap tracked-file gate and source-tree mutation conflict",
+        "implementation": "SUITE-Bridge-Bootstrap/bootstrap/runner.py::resource checks git status --porcelain --untracked-files=no before use; stable-v1.json step patch_auto_reply_loop_guard writes four tracked files in the SAME pinned checkout",
+        "proof": "All four pinned source files contain required autoreply01 marker, and the primary JS also contains other asserted anchors. Workflow will leave tracked changes when patch step runs successfully; a later resource() on this checkout rejects tracked modifications. Whether THIS dirty incident originated exclusively from that step remains unproven.",
+        "evidence": [
+          "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/runner.py",
+          "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/stable-v1.json",
+          "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/logs/logs/2026-10-18/20261018T023849Z_7cef0d73c756.log"
+        ]
+      },
+      {
+        "id": "RC-P0-2",
+        "class": "DIRECT_CONFIRMED_CAUSE_UNKNOWN",
+        "title": "SuiteLoader blocks diagnostic before dirty paths are emitted",
+        "implementation": "GPT-Development-Suite/poc/native-local-bridge-v3/src/suite_loader.py::_load_suite_uncached checks git tracked status and raises SUITE_CHECKOUT_DIRTY without file inventory",
+        "proof": "Mac Issue GIT_STATUS and SYNC_PINNED fail at loader before returning working-tree paths",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244758133",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244803227"
+        ]
+      },
+      {
+        "id": "RC-P0-3",
+        "class": "DIRECT_CONFIRMED",
+        "title": "Unverified deployment: source branch and active worker differ",
+        "implementation": "Action ESP32_IR_FLASH committed in GPT-Development-Suite/poc/native-local-bridge-v3 a90ddb1 but running Mac worker rejected it with ACTION_NOT_ALLOWED",
+        "proof": "Mac Issue response is authoritative rejection; last observed LaunchAgent runs detached live checkout and does not publish active worker version in PING",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244829166",
+          "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/logs/logs/2026-10-17/20261017T054746Z_6c55a8634e27.log"
+        ]
+      },
+      {
+        "id": "RC-P0-4",
+        "class": "PROCESS_CONFIRMED",
+        "title": "Multi-checkout/multi-ref provenance not tracked in one current deployment inventory",
+        "implementation": "Separate live, bootstrap, autoreply-loopguard, firmware artifact, pinned flasher and Issue worker; no verified table of target HEAD, git status, hashes and launchctl argv before attempted deploy",
+        "proof": "Sources show separate paths and refs; no Mac runtime inventory for exact paths and commit after last deployment attempts; resulting attempts assume source commit implies active runtime."
+      }
+    ],
+    "asset_inventory": [
+      {
+        "id": "A1",
+        "role": "IR firmware+flasher source",
+        "github_repo": "mokumaisancho/esp32c3-ir-remote",
+        "ref": "CI head e1accfdaaa7f01a85b714937d973c797e770e5b8; CI run 39088472851; pinned flasher blob 719a72ee9070f105b3f386d43ec9af2c008ae620",
+        "mac_path": "/tmp/esp32c3-ir-flash.* (temporary); ~/Library/Application Support/ESP Hardware Dev Console/backups/esp32c3-ir-remote (backups)",
+        "mac_state": "NOT_FLASHED"
+      },
+      {
+        "id": "A2",
+        "role": "Issue control source branch",
+        "github_repo": "mokumaisancho/GPT-Development-Suite",
+        "ref": "poc/native-local-bridge-v3 @ a90ddb1be36d48e6a968fe9d17b77953957d943c",
+        "mac_path": "~/Library/Application Support/SUITEBrowserBridge/checkouts/GPT-Development-Suite-live",
+        "mac_state": "Git worktree tracked dirty, exact HEAD and changed file names unknown; historical worker blob c85cddadf19623d3119e43cdcccda5b640ab017a, daemon blob 3301389c898d095226e1c61e8cad08aa33cc6e07 on 2026-10-17"
+      },
+      {
+        "id": "A3",
+        "role": "Bootstrap runner and mutable stable channel",
+        "github_repo": "mokumaisancho/SUITE-Bridge-Bootstrap",
+        "ref": "main @ 1a538b96f2bb84b96bf5b1929aef4558804d1e1f; stable-v1.json",
+        "mac_path": "~/Library/Application Support/SUITEBrowserBridge/bootstrap",
+        "mac_state": "Bootstrap run starts, but target resource fails"
+      },
+      {
+        "id": "A4",
+        "role": "Stable manifest suite resource (NOT live worker)",
+        "github_repo": "mokumaisancho/GPT-Development-Suite",
+        "ref": "d3e5d79640be20f3966042e43e86a497905a5f12",
+        "mac_path": "~/Library/Application Support/SUITEBrowserBridge/checkouts/GPT-Development-Suite-autoreply-loopguard",
+        "mac_state": "RESOURCE_TRACKED_DIRTY:suite, actual paths unknown"
+      },
+      {
+        "id": "A5",
+        "role": "LaunchAgent",
+        "github_repo": "mokumaisancho/GPT-Development-Suite",
+        "ref": "installed runtime",
+        "mac_path": "~/Library/LaunchAgents/biz.mokumai.suite_issue_bridge.plist",
+        "mac_state": "2026-10-17 installed plist executes Mac Python3.14 and .../GPT-Development-Suite-live/scripts/github_issue_bridge_daemon.py every 5s; 2026-10-18 PING PASS"
+      },
+      {
+        "id": "A6",
+        "role": "Remote control and receipts",
+        "github_repo": "mokumaisancho/GPT-Development-Suite",
+        "ref": "Issue #11 + logs branch",
+        "mac_path": "~/Library/Application Support/SUITEBrowserBridge/github_issue_bridge_v3_state.json",
+        "mac_state": "GitHub->Mac->GitHub PING PASS, no Flash receipt"
+      }
+    ],
+    "symptom_to_root": [
+      {
+        "symptom": "SUITE_CHECKOUT_DIRTY",
+        "checkout": "A2",
+        "known": "tracked changes in live worktree",
+        "unknown": "specific paths/content/writer",
+        "not_to_conflate_with": "RESOURCE_TRACKED_DIRTY:suite on A4"
+      },
+      {
+        "symptom": "RESOURCE_TRACKED_DIRTY:suite",
+        "checkout": "A4",
+        "known": "bootstrap runner rejects before workflow, and stable workflow mutates tracked pinned files when successful",
+        "unknown": "actual tracked paths and last mutating run"
+      },
+      {
+        "symptom": "BOOTSTRAP_FAILED",
+        "checkout": "A3 -> A4",
+        "known": "run_id 7cef0d73c756 ended on A4 dirty before any manifest workflow step",
+        "unknown": "whether other checkout changes also exist"
+      },
+      {
+        "symptom": "ACTION_NOT_ALLOWED",
+        "checkout": "A2",
+        "known": "old runtime rejected newly committed action",
+        "unknown": "exact live git HEAD and process imported module fingerprint"
+      },
+      {
+        "symptom": "NO_FLASH",
+        "checkout": "A1",
+        "known": "no authorized remote write execution or backup receipt",
+        "unknown": "USB device current enumeration"
+      }
+    ],
+    "priority_order": [
+      {
+        "id": "P0a",
+        "action": "Read-only inventory BOTH checkouts and launchctl plist: realpath, Git origin, HEAD, branch/detached, status --porcelain -z tracked+untracked, changed paths and hashes, worker/daemon blob, running process PID+argv, bootstrap manifest ref",
+        "owner": "Mac-side existing authorized execution path",
+        "status": "BLOCKED: current fixed actions cannot bypass dirty SuiteLoader; deploy independent read-only diagnostic path first"
+      },
+      {
+        "id": "P0b",
+        "action": "Fix immutable-input/mutable-output conflict: source checkout remains read-only; patch output to isolated worktree; preserve dirty originals, no git reset --hard or clean -fdx",
+        "owner": "Bootstrap repository",
+        "depends_on": [
+          "P0a"
+        ],
+        "status": "NOT_IMPLEMENTED"
+      },
+      {
+        "id": "P0c",
+        "action": "Deploy SHA-pinned new worker in isolated clean directory, switch LaunchAgent with rollback and exact file hash attestation, verify PING includes active code digest and bounded action capability",
+        "owner": "GPT-Development-Suite",
+        "depends_on": [
+          "P0a",
+          "P0b"
+        ],
+        "status": "NOT_DEPLOYED"
+      },
+      {
+        "id": "P0d",
+        "action": "Dispatch unique one-time ESP32_IR_FLASH once after worker activation; backup full flash with hash; check unique ESP32-C3 USB port; verify firmware write and UI with structured receipt",
+        "owner": "esp32c3-ir-remote",
+        "depends_on": [
+          "P0c"
+        ],
+        "status": "NOT_EXECUTED"
+      }
+    ],
+    "explicit_limitations": [
+      "GitHub remote tree is not Mac runtime state.",
+      "The same source repository at main, poc/native-local-bridge-v3, and pinned stable commit is not a single installed version.",
+      "Source-level check proves self-inconsistency if patch ran; not physical proof that patch caused the observed dirty files.",
+      "No macOS write, flash, reset, or file deletion occurred in this RCA review."
+    ],
+    "recommended_ac": [
+      "DIRTY_CHECKOUTS_IDENTIFIED_BY_PATH",
+      "BOOTSTRAP_NEXT_RUN_IDEMPOTENT",
+      "SOURCE_SHA_EQUALS_RUNNING_WORKER_SHA",
+      "ISSUE_ACTION_ACCEPTED_BEFORE_FLASH",
+      "ONE_TIME_FLASH_BACKUP_AND_UI_RECEIPT"
+    ]
+  }
 }
