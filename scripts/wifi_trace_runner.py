@@ -92,8 +92,30 @@ else:
     emit("AUTO_DIAG_OUTCOME=UNDETERMINED source=usb_log")
 if not events:
     emit("BLOCKED: no Wi-Fi trace observed; serial path cannot establish STA outcome")
+# Probe both advertised entrypoints once, without changing Wi-Fi settings.
+# Failure to reach the recovery AP from the Mac's current network is not proof
+# that the ESP32 AP is down.
+http_status = {}
+for host in ("esp32-ir.local", "192.168.4.1"):
+    for port, path in ((8080, "/api/diagnostics"), (80, "/")):
+        key = "%s:%d%s" % (host, port, path)
+        try:
+            with urllib.request.urlopen("http://%s:%d%s" % (host, port, path), timeout=2) as response:
+                raw = response.read(32768)
+                http_status[key] = {"http_code": response.status, "bytes": len(raw)}
+                if port == 8080 and response.status == 200:
+                    try:
+                        js = json.loads(raw)
+                        if isinstance(js, dict):
+                            http_status[key]["connected"] = js.get("sta_connected")
+                            http_status[key]["outcome"] = js.get("outcome")
+                    except (ValueError, UnicodeDecodeError):
+                        pass
+        except (urllib.error.URLError, TimeoutError, OSError) as ex:
+            http_status[key] = {"error": type(ex).__name__}
+emit("HTTP_CHECK=" + json.dumps(http_status, sort_keys=True))
 emit("LOCAL_LOG=" + str(log))
-result = {"schema": 1, "result": "OBSERVED" if outcomes else "UNDETERMINED", "outcome": outcomes[-1] if outcomes else None, "uart_events": events, "serial_open_count": opened, "serial_errors": errors, "log_path": str(log), "firmware_diagnostic_seen": bool(outcomes)}
+result = {"schema": 1, "result": "OBSERVED" if outcomes else "UNDETERMINED", "outcome": outcomes[-1] if outcomes else None, "uart_events": events, "serial_open_count": opened, "serial_errors": errors, "log_path": str(log), "firmware_diagnostic_seen": bool(outcomes), "http_checks": http_status}
 receipt = log.with_suffix(".json")
 receipt.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 emit("JSON_RECEIPT=" + str(receipt))
