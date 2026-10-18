@@ -94,7 +94,8 @@ class WifiProvisioningContracts(unittest.TestCase):
         self.assertIn("rmtWrite(ircfg::IR_TX_PIN", tx)
 
     def test_ui_polls_actual_status(self):
-        self.assertIn("setInterval(()=>refreshStatus()", UI)
+        self.assertIn("refreshStatus().catch(", UI)
+        self.assertIn("},10000);", UI)
         self.assertIn("保存済み・接続試行中（成功未確認）", UI)
         self.assertNotIn("保存しました。ESP32-C3を再起動します。", UI)
 
