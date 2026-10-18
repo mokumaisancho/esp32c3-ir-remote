@@ -380,7 +380,13 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
 }
 
 bool transmitSignal(const Signal &signal) {
-  if (!rmtTxReady || signal.pulses.empty()) return false;
+  Serial.printf("IR_TX_START t=%lu pulses=%u ready=%d carrier=%lu\n",
+                static_cast<unsigned long>(millis()), static_cast<unsigned>(signal.pulses.size()),
+                rmtTxReady ? 1 : 0, static_cast<unsigned long>(signal.carrierHz));
+  if (!rmtTxReady || signal.pulses.empty()) {
+    Serial.println("IR_TX_END result=FAIL reason=not_ready_or_empty");
+    return false;
+  }
 
   struct Segment {
     uint16_t duration;
@@ -429,7 +435,10 @@ bool transmitSignal(const Signal &signal) {
     return false;
   }
   rmtSetEOT(ircfg::IR_TX_PIN, spaceLevel);
-  return rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 1000);
+  const bool accepted = rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 1000);
+  Serial.printf("IR_TX_END result=%s symbols=%u gpio=%d\n",
+                accepted ? "DRIVER_OK" : "FAIL", static_cast<unsigned>(symbolCount), ircfg::IR_TX_PIN);
+  return accepted;
 }
 
 String rawJson(const Signal &signal) {
@@ -609,7 +618,7 @@ void handleSendSaved() {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\"ok\":true}");
+  sendJson(200, "{\\"ok\\":true,\\"result\\":\\"DRIVER_OK\\",\\"verified_by_receiver\\":false}");
 }
 
 void handleSendLast() {
@@ -621,7 +630,7 @@ void handleSendLast() {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\"ok\":true}");
+  sendJson(200, "{\\"ok\\":true,\\"result\\":\\"DRIVER_OK\\",\\"verified_by_receiver\\":false}");
 }
 
 void handleDelete() {
