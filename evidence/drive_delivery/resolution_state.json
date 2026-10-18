@@ -1,0 +1,63 @@
+{
+  "schema": "esp32-ir-resolution-v1",
+  "updated_at": "2026-10-18",
+  "original_goal": "ESP32-C3 can connect to configured home Wi-Fi, remain reachable at web UI, and record IR signals reliably",
+  "allocation": {
+    "core_execution_percent": 60,
+    "independent_quality_percent": 30,
+    "traceability_prevention_percent": 10
+  },
+  "evidence": {
+    "ci_run_id": 39125604934,
+    "ci_result": "success",
+    "source_commit": "100e7adc6850265cc55b9bdacf59caf230b92767",
+    "artifact_id": 12136097313,
+    "artifact_zip_sha256": "7adb40a0b58fe8f64e0389da3cf7eff831b66502384bc05efd23890cd12caa84",
+    "artifact_entries_verified": 7,
+    "artifact_hashes_verified": 7,
+    "drive_artifact_file_id": "1J4642imZTYa0uO4luNq-3L0Q8bFyHOvc",
+    "flash_result_for_this_commit": "NOT_RUN",
+    "wifi_trace_after_this_commit": "NOT_RUN"
+  },
+  "gates": [
+    {
+      "id": "G1",
+      "state": "PASS",
+      "ac": "CI compile/tests PASS and artifact SHA256 manifest matches all seven member files"
+    },
+    {
+      "id": "G2",
+      "state": "BLOCKED",
+      "ac": "Existing Mac flasher must accept the new pinned commit and updated ZIP without changing the fixed launch path",
+      "blocker": "existing standalone Mac script pins previous source SHA bf96eeb66109e26e75a347fb2aac1d44168817c9 and previous artifact filename"
+    },
+    {
+      "id": "G3",
+      "state": "NOT_RUN",
+      "ac": "Preserve backup then write flash and read back application SHA256 using actual Mac device"
+    },
+    {
+      "id": "G4",
+      "state": "NOT_RUN",
+      "ac": "Observe WIFI_TRACE station start, association, disconnect reason, IP or absence with bounded USB log collection"
+    },
+    {
+      "id": "G5",
+      "state": "NOT_RUN",
+      "ac": "Verify web UI HTTP response over actual configured path; do not infer from mDNS alone"
+    }
+  ],
+  "risk_controls": [
+    "No user re-download until reusable pinned release flow is ready",
+    "Don't classify CI pass as hardware pass",
+    "Avoid reboot/reopen loops in diagnostics",
+    "No claims of root cause without event logs",
+    "Run independent local integrity validation before any flash",
+    "Do not overwrite original IR_ALL_IN_ONE.command"
+  ],
+  "next_actions": [
+    "Design reusable Drive-based update manifest with independent expected hashes and source commit",
+    "Validate stable Mac launcher handling in local tests",
+    "Request one user action only when end-to-end flow is ready"
+  ]
+}
