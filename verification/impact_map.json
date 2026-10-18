@@ -27,7 +27,7 @@
       },
       "test_evidence": {
         "tests/test_ir_wifi_integration.py": [
-          "class NetworkContracts"
+          "test_filesystem_preserves_existing_data_on_write_failure"
         ]
       }
     },
@@ -41,7 +41,7 @@
       },
       "test_evidence": {
         "tests/test_ir_wifi_integration.py": [
-          "test_recovery_ap_persists_during_station_attempt"
+          "test_station_retry_retains_credentials"
         ]
       }
     },
