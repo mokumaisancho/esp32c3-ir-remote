@@ -20,7 +20,8 @@ constexpr bool TX_ACTIVE_HIGH = true;
 
 constexpr uint32_t LEARN_WINDOW_MS = 5000;
 constexpr uint16_t RX_IDLE_THRESHOLD_US = 15000;
-constexpr uint8_t RX_GLITCH_FILTER_US = 80;
+// ESP32-C3 RMT hardware glitch filter is clock-limited; 80 us overflows it.
+constexpr uint8_t RX_GLITCH_FILTER_US = 1;
 
 constexpr size_t RMT_BLOCKS = 2;
 constexpr size_t MAX_RMT_SYMBOLS = RMT_SYMBOLS_PER_CHANNEL_BLOCK * RMT_BLOCKS;
