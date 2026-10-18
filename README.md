@@ -23,8 +23,9 @@ ESP32-C3単体で動く、Wi-Fi経由の赤外線学習・送信リモコンで�
 
 ## What the UI does
 
-- 「3秒受信・学習」でGPIO5を最大3秒待機
+- 「5秒受信・記録」でGPIO5を最大5秒待機
 - TSOP38238の復調済みRAW mark/spaceタイミングを取得
+- 有効信号受信時は空きスロットに `capture-<slot>` として自動保存し、RAW（μs）と保存結果を返す（全32スロット使用中なら保存不可と明示）
 - 任意の識別名を付けてLittleFSへ保存
 - 保存済み信号を一覧表示
 - 任意の保存信号をGPIO7から送信
@@ -92,7 +93,7 @@ MVP source implemented:
 - Wi-Fi STA + fallback setup AP
 - mDNS
 - embedded mobile Web UI
-- 3-second RMT receive
+- 5-second RMT receive and automatic LittleFS RAW capture persistence
 - RAW normalization
 - LittleFS persistence
 - saved signal list/delete
@@ -100,3 +101,9 @@ MVP source implemented:
 - 38 kHz / 30% RMT transmit
 
 Next gate is a real build/flash on the connected ESP32-C3, followed by NRL-351N-JP receive/replay E2E.
+
+## 5-second hardware capture test (pending on-device firmware deployment)
+
+The GPIO5 TSOP38238 output must be powered at 3.3 V and wired to the ESP32-C3 with a common GND. After the new firmware has been flashed and the setup AP or LAN HTTP UI is reachable, select **5秒受信・記録** and press any IR remote key while it is armed. The API returns `raw` as alternating signed microsecond durations (`+mark`, `-space`) and `stored`, `slot`, and `name`; a successful capture is saved to LittleFS automatically. Absence of a signal produces HTTP 408; full storage returns `stored=false` rather than a false positive. This is a DEMODULATED signal, not a sampled 38 kHz carrier waveform.
+
+Real device receipt requires confirmation of firmware boot, positive pulse count, stored slot readback, and preferably a successful IR replay. Neither a static OpenOCD GPIO5=HIGH read nor a GitHub CI build is proof of physical IR reception. The existing GitHub Issue bridge transport is functional, but its live Mac worker has not accepted the new flash action due to checkout/deployment blockers. Avoid claiming this hardware test PASS before actual captured bytes and a GitHub receipt exist.
