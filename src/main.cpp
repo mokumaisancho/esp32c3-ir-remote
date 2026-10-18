@@ -429,7 +429,7 @@ bool transmitSignal(const Signal &signal) {
   if (!rmtSetCarrier(
           ircfg::IR_TX_PIN,
           true,
-          ircfg::TX_ACTIVE_HIGH,
+          !ircfg::TX_ACTIVE_HIGH, // HAL maps this flag to polarity_active_low
           signal.carrierHz,
           signal.dutyPermille / 1000.0f)) {
     return false;
@@ -836,7 +836,7 @@ void setupRmt() {
 
   rmtRxReady = rxInitError == ESP_OK;
   rmtTxReady = txOk &&
-      rmtSetCarrier(ircfg::IR_TX_PIN, true, ircfg::TX_ACTIVE_HIGH,
+      rmtSetCarrier(ircfg::IR_TX_PIN, true, !ircfg::TX_ACTIVE_HIGH,
                     ircfg::IR_CARRIER_HZ, ircfg::IR_DUTY);
   if (rmtTxReady) {
     rmtSetEOT(ircfg::IR_TX_PIN, ircfg::TX_ACTIVE_HIGH ? 0 : 1);
