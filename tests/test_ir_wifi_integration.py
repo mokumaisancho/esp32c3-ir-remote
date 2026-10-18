@@ -66,31 +66,55 @@ class CaptureBehavior(unittest.TestCase):
         function = extract_body_function(SRC, "bool learnSignal(")
         harness = r"""
 #include <cstdint>
+#include <cstddef>
 #include <vector>
 #include <utility>
 #include <cassert>
 #include <iostream>
 struct Signal { std::vector<int32_t> pulses; };
 struct rmt_data_t { uint8_t level0; uint16_t duration0; uint8_t level1; uint16_t duration1; };
+struct rmt_receive_config_t { uint32_t signal_range_min_ns; uint32_t signal_range_max_ns; };
+using rmt_channel_handle_t = void*;
+using QueueHandle_t = void*;
+using esp_err_t = int;
+constexpr int ESP_OK = 0;
+constexpr int ESP_ERR_INVALID_STATE = 259;
+constexpr int pdTRUE = 1;
 namespace ircfg {
-  constexpr int IR_RX_PIN=5;
   constexpr size_t MAX_RMT_SYMBOLS=96;
   constexpr size_t MAX_PULSES=192;
   constexpr uint32_t LEARN_WINDOW_MS=5000;
+  constexpr uint32_t RX_GLITCH_FILTER_US=80;
+  constexpr uint32_t RX_IDLE_THRESHOLD_US=15000;
 }
+rmt_data_t rxSymbols[ircfg::MAX_RMT_SYMBOLS]{};
+rmt_channel_handle_t rxChannel = reinterpret_cast<void*>(1);
+QueueHandle_t rxDoneQueue = reinterpret_cast<void*>(2);
+esp_err_t rxLastStartError = ESP_OK, rxLastResetError = ESP_OK;
+uint32_t rxLastSymbolCount=0;
+bool rmtRxReady = true;
 uint32_t fake_time=0;
 int scenario=0;
-rmt_data_t rxSymbols[ircfg::MAX_RMT_SYMBOLS]{};
 uint32_t millis() { return fake_time; }
-void delay(uint32_t t) { fake_time += t; }
-bool rmtRead(int pin, rmt_data_t*, size_t* count, uint32_t timeout) {
-  assert(pin==5);
-  if (scenario==0) return false;              // Immediate HAL failure
-  if (scenario==1) { *count=1; return true; }   // A short/invalid noise burst
-  if (scenario==2) { *count=4; return true; }   // Valid capture immediately
-  fake_time += timeout;                        // Genuine 5000ms quiet timeout
-  return false;
+uint32_t pdMS_TO_TICKS(uint32_t ms) { return ms; }
+int xQueueReset(QueueHandle_t q) { assert(q == rxDoneQueue); return pdTRUE; }
+esp_err_t rmt_receive(rmt_channel_handle_t ch, void* data, size_t bytes, const rmt_receive_config_t* cfg) {
+  assert(ch == rxChannel && data == rxSymbols && bytes == sizeof(rxSymbols));
+  assert(cfg->signal_range_min_ns == 80000 && cfg->signal_range_max_ns == 15000000);
+  return scenario == 0 ? ESP_ERR_INVALID_STATE : ESP_OK;
 }
+int xQueueReceive(QueueHandle_t q, size_t* count, uint32_t timeout) {
+  assert(q == rxDoneQueue && timeout == 5000);
+  if (scenario == 1) { *count=1; return pdTRUE; }
+  if (scenario == 2) { *count=4; return pdTRUE; }
+  fake_time += timeout;
+  return 0;
+}
+esp_err_t rmt_disable(rmt_channel_handle_t ch) {
+  assert(ch == rxChannel);
+  return scenario == 4 ? ESP_ERR_INVALID_STATE : ESP_OK;
+}
+esp_err_t rmt_enable(rmt_channel_handle_t ch) { assert(ch == rxChannel); return ESP_OK; }
 Signal normalizeReceived(const rmt_data_t*, size_t count) {
   Signal s;
   if (count >= 4) s.pulses={900,-450,900,-450,900,-450};
@@ -101,21 +125,23 @@ Signal normalizeReceived(const rmt_data_t*, size_t count) {
         harness += "\n" + function + "\n"
         harness += r"""
 int main(){
-  Signal s;
-  uint32_t elapsed=0,attempts=0,early=0;
-  scenario=0; fake_time=0;
+  Signal s; uint32_t elapsed=0,attempts=0,early=0;
+  scenario=0; fake_time=0; rmtRxReady=true;
   bool ok=learnSignal(s,elapsed,attempts,early);
-  assert(!ok && elapsed>=5000 && elapsed<5100 && attempts>=100 && early==attempts);
-  scenario=1; fake_time=0;
+  assert(!ok && elapsed<50 && attempts==1 && early==1 && rxLastStartError==ESP_ERR_INVALID_STATE);
+  scenario=1; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
-  assert(!ok && elapsed>=5000 && elapsed<5100 && attempts>=100 && early==0);
-  scenario=2; fake_time=0;
+  assert(!ok && elapsed<50 && attempts==1 && early==0 && rxLastSymbolCount==1);
+  scenario=2; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
-  assert(ok && elapsed<5000 && s.pulses.size()==6);
-  scenario=3; fake_time=0;
+  assert(ok && elapsed<50 && attempts==1 && s.pulses.size()==6);
+  scenario=3; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
-  assert(!ok && elapsed>=5000 && attempts==1 && early==0);
-  std::cout << "RECEIVE_TIMER_AND_VALID_SIGNAL_TEST_PASS\n";
+  assert(!ok && elapsed==5000 && attempts==1 && early==0 && rxLastResetError==ESP_OK && rmtRxReady);
+  scenario=4; fake_time=0; rmtRxReady=true;
+  ok=learnSignal(s,elapsed,attempts,early);
+  assert(!ok && rxLastResetError==ESP_ERR_INVALID_STATE && !rmtRxReady);
+  std::cout << "DIRECT_IDF_RECEIVE_5_SCENARIOS_PASS\n";
 }
 """
         with tempfile.TemporaryDirectory() as tmp:
@@ -130,7 +156,7 @@ int main(){
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
             execute = subprocess.run([str(binary)], text=True, capture_output=True, timeout=15)
             self.assertEqual(execute.returncode, 0, execute.stdout + execute.stderr)
-            self.assertIn("RECEIVE_TIMER_AND_VALID_SIGNAL_TEST_PASS", execute.stdout)
+            self.assertIn("DIRECT_IDF_RECEIVE_5_SCENARIOS_PASS", execute.stdout)
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_exact_web_ui_javascript_syntax(self):
