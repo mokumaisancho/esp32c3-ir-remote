@@ -36,6 +36,12 @@ with tarfile.open(fileobj=io.BytesIO(archive),mode="r:gz") as tar:
      if sym["st_info"]["type"]=="STT_FUNC" and int(sym["st_value"]):
       funcs.append((sym.name,int(sym["st_value"]),int(sym["st_size"])))
   n=pathlib.Path(member.name).stem;entries={a for _,a,_ in funcs}
+  print("RECONCILIATION_ADDRESS_DIAGNOSTIC",json.dumps({
+    "revision":n,"baseline_first":[hex(k) for k in list(known)[:6]],
+    "elf_first":[[z,hex(a),size] for z,a,size in funcs[:6]],
+    "elf_address_min":hex(min(entries)),"elf_address_max":hex(max(entries)),
+    "elf_section_addresses":[[z.name,hex(int(z["sh_addr"]))] for z in elf.iter_sections() if int(z["sh_flags"])&4],
+    "raw_intersection":len(entries & set(known))},sort_keys=True))
   extra=[{"symbol":x,"address":hex(a),"size":z,"classification":"ELF_ONLY_UNVERIFIED"} for x,a,z in funcs if a not in known]
   missing=[{"symbol":r["name"],"address":hex(a),"group":r["group"]} for a,r in known.items() if a not in entries]
   matched=[{"rom_symbol":known[a]["name"],"elf_symbol":x,"address":hex(a)} for x,a,z in funcs if a in known]
