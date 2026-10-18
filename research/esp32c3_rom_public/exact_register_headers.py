@@ -44,7 +44,13 @@ def download(header):
     return header,data
 
 def main():
-    bases=read_bases((ROOT/"official_reg_base.h").read_text())
+    # The vendor base definitions and per-register headers must originate
+    # from the same pinned commit, not two potentially different master states.
+    _,pinned_bases=download("reg_base.h")
+    local_bases=(ROOT/"official_reg_base.h").read_bytes()
+    if pinned_bases!=local_bases:
+        raise RuntimeError("G1_REGISTER_BASE_VERSION_MISMATCH")
+    bases=read_bases(local_bases.decode())
     by_name={name:base for base,names in bases.items() for name in names}
     mapped=collections.defaultdict(list);unknown=[];hashes={}
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
