@@ -483,5 +483,46 @@
       "no_user_data_overwrite_observed": "PASS_SANDBOX_ONLY"
     },
     "status": "REUSABLE_FIX_COMMITTED_VALIDATION_PARTIAL_HARDWARE_BLOCKED"
+  },
+  "p0_06_p0_07_direct_execution_20261018": {
+    "scope": [
+      "P0-06",
+      "P0-07"
+    ],
+    "status": "PARTIAL_DEVICE_ID_PASS_FLASH_NOT_EXECUTED_CAPTURE_NOT_EXECUTED",
+    "command": "ir5s-flash-direct-20261018-1251a",
+    "flash_issue_comment": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245374706",
+    "flash_result": {
+      "status": "ERROR",
+      "error": "ACTION_NOT_ALLOWED",
+      "on_mac_worker": true,
+      "device_written": false,
+      "backup_started": false
+    },
+    "device_id_command": "ir5s-chip-detect-20261018-1253a",
+    "device_id_issue_comment": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245388687",
+    "device": {
+      "status": "PASS_REAL_MAC",
+      "interface": "ESP USB JTAG",
+      "serial": "44:B1:76:5D:8F:88",
+      "chip": "ESP32-C3",
+      "revision": "v0.4",
+      "openocd_exit": 0,
+      "gpio5_input": "HIGH",
+      "gpio7_input": "LOW",
+      "write_performed": false
+    },
+    "p0_06": {
+      "device_identification": "PASS_JTAG_ONLY",
+      "full_flash_backup": "NOT_RUN",
+      "firmware_flash": "NOT_RUN",
+      "usb_serial_selection_for_esptool": "NOT_VERIFIED"
+    },
+    "p0_07": {
+      "physical_5s_ir_capture": "NOT_RUN",
+      "littlefs_slot_readback": "NOT_RUN",
+      "github_pulse_receipt": "NOT_RUN"
+    },
+    "next_boundary": "Only direct authorized Mac execution action ESP32_IR_FLASH can invoke pinned verified flash script; current running worker refuses this action; no further physical write route verified. Do not claim on-device write or signal capture."
   }
 }
