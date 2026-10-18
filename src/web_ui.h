@@ -39,7 +39,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 <h2>5秒受信・記録</h2>
 <div class="row">
 <button id="learn">5秒受信・記録</button>
-<button id="sendLast" class="secondary" disabled>今の信号を送信</button>
+<button id="sendLast" class="secondary" disabled>今の信号を送信</button><span id="txStatus" class="muted" role="status">送信未実施</span>
 </div>
 <p id="learnStatus">未受信</p>
 <div id="lastMeta" class="muted"></div>
@@ -117,7 +117,7 @@ async function refreshSignals(){
     const title=document.createElement('span'); title.textContent=s.name; title.style.fontWeight='650';top.append(choose,title);
     const meta=document.createElement('div'); meta.className='muted'; meta.textContent='#'+s.id+' · '+s.pulses+' pulses · '+s.duration_us+' µs';
     const row=document.createElement('div'); row.className='row'; row.style.marginTop='8px';
-    const send=document.createElement('button'); send.textContent='送信'; send.onclick=async()=>{send.disabled=true;try{await api('/api/send',{method:'POST',body:form({id:s.id})})}finally{send.disabled=false}};
+    const send=document.createElement('button'); send.textContent='送信'; send.onclick=async()=>{send.disabled=true;setTxStatus('送信要求: '+s.name);try{const result=await api('/api/send',{method:'POST',body:form({id:s.id})});setTxStatus('RMT送信処理 '+(result.result||'OK')+' / 外部機器の受信は未確認: '+s.name)}catch(e){setTxStatus('送信失敗: '+e.message)}finally{send.disabled=false}};
     const del=document.createElement('button'); del.textContent='削除'; del.className='danger'; del.onclick=async()=>{if(!confirm('「'+s.name+'」を削除しますか？'))return;await api('/api/delete',{method:'POST',body:form({id:s.id})});selectedIds.delete(s.id);await refreshSignals()};
     row.append(send,del); el.append(top,meta,row); $('#signals').append(el);
   })
@@ -154,7 +154,8 @@ $('#save').onclick=async()=>{
   const name=$('#name').value.trim(); if(!name){alert('識別名を入力してください');return}
   await api('/api/save',{method:'POST',body:form({name})}); $('#name').value=''; await refreshSignals();
 }
-$('#sendLast').onclick=async()=>api('/api/send-last',{method:'POST'});
+function setTxStatus(message){$('#txStatus').textContent=new Date().toLocaleTimeString()+' '+message}
+$('#sendLast').onclick=async()=>{const b=$('#sendLast');b.disabled=true;setTxStatus('直近信号を送信中');try{const result=await api('/api/send-last',{method:'POST'});setTxStatus('RMT送信処理 '+(result.result||'OK')+' / 外部機器の受信は未確認')}catch(e){setTxStatus('送信失敗: '+e.message)}finally{b.disabled=false}};
 $('#wifi').onclick=async()=>{
   const ssid=$('#ssid').value.trim(); if(!ssid){alert('SSIDを入力してください');return}
   $('#wifi').disabled=true;
