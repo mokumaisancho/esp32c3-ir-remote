@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "WORKER_MAC_PASS_FIRMWARE_SHA_PASS_ESPTOOL_INSTALL_FAIL_PREWRITE_PHYSICAL_CAPTURE_BLOCKED",
+  "current_status": "FAILED_LIMIT_2_ATTEMPTS_PREWRITE_NO_FIRMWARE_AND_NO_PHYSICAL_RX",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -378,16 +378,19 @@
         {
           "id": "IR-5S-04",
           "criterion": "Mac flashes verified firmware, physical remote signal is captured within five seconds, automatic slot readback and GitHub receipt match real device data",
-          "status": "BLOCKED",
+          "status": "FAILED_TWO_ATTEMPTS_BLOCKED_PREWRITE",
           "blocked_by": [
             "SUITE_CHECKOUT_DIRTY",
             "ESP32_IR_FLASH ACTION_NOT_ALLOWED"
+          ],
+          "evidence": [
+            "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401"
           ]
         }
       ]
     },
     "note": "OpenOCD's static GPIO read cannot reconstruct 38kHz-modulated waveform or demodulated sub-millisecond marks. GitHub PING and CI build are not physical RX evidence.",
-    "next_action": "First obtain legitimate permission and verified Mac rollout of SHA-pinned fallback worker; attestation via PING + accepted action. Only then perform second unique flash attempt, followed by physical 5s capture and saved slot readback.",
+    "next_action": "Do not flash again in this request: the user-specified two-attempt limit is reached. Root cause OpenOCD flasher-stub timeout remains unresolved. Next separate authorization would allow re-evaluation of the SHA256-verified standalone esptool option, confirm USB serial enumeration first, then an explicitly authorized new attempt and genuine IR receipt.",
     "flash_pin": {
       "script_git_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
       "script_commit": "5e17aed44da84fc64f4dc5fe5887b52e43e9accd",
@@ -536,7 +539,9 @@
       "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245494268"
     ],
     "actual_acceptance": "PING reports new repo_root on Mac and GitHub Issue returned DONE",
-    "precaution": "A temporary bootstrap stable channel currently points to esp32-ir-worker-deploy-20261018.json; attempt to restore it was safety-blocked and it remains NOT RESTORED. Do not rerun BOOTSTRAP_RUN until the stable channel is restored to stable-v1.json."
+    "precaution": "A temporary bootstrap stable channel currently points to esp32-ir-worker-deploy-20261018.json; attempt to restore it was safety-blocked and it remains NOT RESTORED. Do not rerun BOOTSTRAP_RUN until the stable channel is restored to stable-v1.json.",
+    "latest_worker": "OPENOCD_BRANCH_PASS_REAL_MAC",
+    "latest_receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245554447"
   },
   "ir_flash_openocd_fallback_20261018": {
     "status": "READY_SOURCE_ONLY_NO_MAC_EXECUTION",
@@ -857,7 +862,7 @@
           "AC04",
           "AC05"
         ],
-        "quality_criteria": "verified exact same blob in Mac active Python module; otherwise fail closed",
+        "quality_criteria": "Mac PING reports the OpenOCD worker separate pinned checkout. Acceptance of ESP32_IR_FLASH is proven by reaching actual OpenOCD; SHA of its script proven by result pinned_flasher_blob.",
         "data_source": "GitHub branch/Bootstrap manifest and Mac PING",
         "execution_method": "GitHub connector controlled update + isolated worker rollout",
         "preconditions": [
@@ -865,13 +870,13 @@
         ],
         "acceptance_criteria": "verified exact same blob in Mac active Python module; otherwise fail closed",
         "evidence": [
-          "https://github.com/mokumaisancho/GPT-Development-Suite/blob/poc/native-local-bridge-v3/scripts/esp32_ir_flash_bridge.py",
-          "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/esp32-ir-worker-deploy-20261018.json"
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245551235",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245554447"
         ],
         "on_success": "persist hash-linked evidence; set passed and unlock dependents",
         "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
-        "status": "blocked",
-        "attempts": 0,
+        "status": "passed",
+        "attempts": 1,
         "retry_limit": 1
       },
       {
@@ -900,12 +905,13 @@
         "acceptance_criteria": "exactly one target; full backup SHA valid; verified write; unique receipt",
         "evidence": [
           "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245388687",
-          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401"
         ],
         "on_success": "persist hash-linked evidence; set passed and unlock dependents",
-        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
-        "status": "blocked",
-        "attempts": 1,
+        "on_failure": "Hard stop: two attempt limit reached, no additional hardware write or flash command without a new explicit user authorization",
+        "status": "failed",
+        "attempts": 2,
         "retry_limit": 2
       },
       {
@@ -934,7 +940,7 @@
         "acceptance_criteria": "positive pulse count and valid signed microsecond mark/space list",
         "evidence": [],
         "on_success": "persist hash-linked evidence; set passed and unlock dependents",
-        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "on_failure": "Blocked on failed FLASH_SAFE; no device firmware or physical waveform observed",
         "status": "blocked",
         "attempts": 0,
         "retry_limit": 1
@@ -965,7 +971,7 @@
         "acceptance_criteria": "readback RAW matches capture hash; not static GPIO; receipt immutable",
         "evidence": [],
         "on_success": "persist hash-linked evidence; set passed and unlock dependents",
-        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "on_failure": "Blocked on failed FLASH_SAFE; no device firmware or physical waveform observed",
         "status": "blocked",
         "attempts": 0,
         "retry_limit": 1
@@ -1035,37 +1041,31 @@
       "critical_path_basis": "Required dependency chain, no calibrated duration estimates"
     },
     "execution_queue": [],
-    "current_task": "PINNED_WORKER_UPDATE",
+    "current_task": null,
     "completed_tasks": [
       "SOURCE_FIRMWARE",
       "MAC_TRANSPORT",
       "MAC_WORKER_DEPLOY",
       "FLASH_FAILURE_RCA",
-      "FLASHTOOL_REUSE"
+      "FLASHTOOL_REUSE",
+      "PINNED_WORKER_UPDATE"
     ],
     "blockers": [
-      {
-        "id": "PIN_MISMATCH",
-        "action": "PINNED_WORKER_UPDATE",
-        "status": "blocked",
-        "cause": "Existing Mac worker pins a fixed previous script; modified GitHub script is not active automatically. A newer OpenOCD fallback pin exists in GitHub source, but Mac still has old worker.",
-        "evidence": [
-          "https://github.com/mokumaisancho/GPT-Development-Suite/blob/poc/native-local-bridge-v3/scripts/esp32_ir_flash_bridge.py",
-          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
-        ]
-      },
-      {
-        "id": "GITHUB_CONNECTOR_WRITE_BLOCKED",
-        "action": "PINNED_WORKER_UPDATE",
-        "status": "blocked",
-        "cause": "Attempt to update the GitHub bridge pin was blocked by connector safety checks; do not bypass restrictions.",
-        "evidence": []
-      },
       {
         "id": "HARDWARE_INPUT_MISSING",
         "action": "RECEIVE_5S",
         "status": "blocked",
         "cause": "Physical remote signal must be transmitted during the 5-second arm window; no real capture performed."
+      },
+      {
+        "id": "OPENOCD_FLASH_STUB_TIMEOUT",
+        "action": "FLASH_SAFE",
+        "status": "failed",
+        "cause": "ESP32-C3 JTAG connected and halted but OpenOCD ESP flasher algorithm timed out while getting flash mapping; flash probed as 0KB. Vendor documentation says -302 indicates a flasher stub failure with multiple potential causes. No root cause proven.",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401",
+          "https://github-wiki-see.page/m/espressif/openocd-esp32/wiki/Troubleshooting-FAQ"
+        ]
       }
     ],
     "evidence_registry": {
@@ -1078,7 +1078,9 @@
       "standalone_flasher": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_mac.command",
       "openocd_fallback": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_openocd_mac.command",
       "bridge_source": "https://github.com/mokumaisancho/GPT-Development-Suite/blob/poc/native-local-bridge-v3/scripts/esp32_ir_flash_bridge.py",
-      "bootstrap_manifest": "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/esp32-ir-worker-deploy-20261018.json"
+      "bootstrap_manifest": "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/esp32-ir-worker-deploy-20261018.json",
+      "openocd_second_attempt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401",
+      "openocd_worker_ping": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245554447"
     },
     "execution_history": [
       {
@@ -1122,25 +1124,58 @@
         "result": "SOURCE_PIN_PRESENT_MAC_NOT_DEPLOYED",
         "blob": "857a0c93e6eacce7757c04db960ee4453b147ee8",
         "note": "Mac runtime still earlier e4f1 source; no code update via current connector due safety block"
+      },
+      {
+        "seq": 6,
+        "id": "attempt_2",
+        "type": "real_mac_flash",
+        "result": "FAILED_PREWRITE",
+        "error": "OpenOCD flash_map_get algorithm timed out after 3001ms; Failed to run flasher stub (-302); Failed to probe flash size 0KB",
+        "chip_jtag_id": "ESP32-C3 v0.4 44:B1:76:5D:8F:88",
+        "verified_firmware_hashes": true,
+        "backup_verified": false,
+        "device_written": false,
+        "receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401"
+      },
+      {
+        "seq": 7,
+        "id": "openocd_worker_switch",
+        "type": "real_mac_worker_deploy",
+        "result": "PASS",
+        "receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245554447",
+        "source_commit": "0e58d97c88f3e9310b55ff1f57e945f1e9a70ee0",
+        "flasher_blob": "857a0c93e6eacce7757c04db960ee4453b147ee8"
       }
     ],
-    "next_action": "First obtain legitimate permission and verified Mac rollout of SHA-pinned fallback worker; attestation via PING + accepted action. Only then perform second unique flash attempt, followed by physical 5s capture and saved slot readback.",
+    "next_action": "Do not flash again in this request: the user-specified two-attempt limit is reached. Root cause OpenOCD flasher-stub timeout remains unresolved. Next separate authorization would allow re-evaluation of the SHA256-verified standalone esptool option, confirm USB serial enumeration first, then an explicitly authorized new attempt and genuine IR receipt.",
     "resume_conditions": [
-      "Running Mac worker SHA and flasher blob positively attested",
-      "Old Mac checkout left untouched",
-      "No in-flight/unknown second flash command",
-      "Physical remote accessible during capture"
+      "Explicit separate permission to exceed two flash attempts",
+      "Select one well-defined flasher transport and verify device enumeration without writing",
+      "Read-only RCA of OpenOCD timeout; hardware must remain unchanged",
+      "Preserve original Mac user files"
     ],
     "quality_gates": {
       "G0": "PASS",
-      "G1": "PASS_EXISTING_LOGS",
-      "G2": "BLOCKED_FOR_NEW_REMOTE_DEPLOY",
-      "G3": "SOURCE_PASS_HARDWARE_PENDING",
-      "G4": "PREWRITE_FAILURE_NOT_MISLABELLED_AS_FLASH",
-      "G5": "BLOCKED"
+      "G1": "PASS_LOG_EVIDENCE",
+      "G2": "PASS_BOTH_PREWRITE_FAIL_CLOSED",
+      "G3": "FAIL_HARDWARE_CAPTURE_NOT_RUN",
+      "G4": "PASS_NO_FALSE_WRITE_SUCCESS",
+      "G5": "FAIL_MVP_UNMET"
     },
-    "overall_status": "BLOCKED",
-    "physical_flash_attempts_used": 1,
+    "overall_status": "FAILED",
+    "physical_flash_attempts_used": 2,
     "physical_flash_attempts_allowed": 2
+  },
+  "ir_openocd_attempt_2_20261018": {
+    "command": "ir5s-openocd-flash-single-20261018-1318a",
+    "worker_pinned_source": "0e58d97c88f3e9310b55ff1f57e945f1e9a70ee0",
+    "script_blob": "857a0c93e6eacce7757c04db960ee4453b147ee8",
+    "status": "FAILED_PREWRITE",
+    "chip_identification": "ESP32-C3 JTAG tap found revision v0.4",
+    "firmware_artifact_checksum": "PASS",
+    "flash_backup": "FAIL_NOT_CREATED",
+    "flash_write": "NOT_STARTED",
+    "flasher_error": "flash_map_get timeout after 3001ms, -302 failed stub and flash probe 0KB",
+    "receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401"
   }
 }
