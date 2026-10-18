@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "purpose": "Traceability + impact gates, not replacement for execution tests or hardware tests",
+  "contracts": [
+    {
+      "id": "RX-5S",
+      "source": "src/main.cpp",
+      "source_patterns": {
+        "bounded_window": "while \\(static_cast<uint32_t>\\(millis\\(\\) - start\\) < ircfg::LEARN_WINDOW_MS\\)",
+        "retry_short_frame": "A noise burst must not end the user-visible capture window",
+        "direct_idf": "rmt_receive\\(rxChannel, rxSymbols"
+      },
+      "test_evidence": {
+        "tests/test_ir_wifi_integration.py": [
+          "test_real_receive_function_with_mocked_hal",
+          "assert(!ok && elapsed>=5000 && attempts>1"
+        ]
+      }
+    },
+    {
+      "id": "FS-DURABLE",
+      "source": "src/main.cpp",
+      "source_patterns": {
+        "no_autoformat": "fsReady = LittleFS.begin\\(false\\)",
+        "backup": "LittleFS.rename\\(finalPath, backupPath\\)",
+        "restore": "LittleFS.rename\\(backupPath, finalPath\\)"
+      },
+      "test_evidence": {
+        "tests/test_ir_wifi_integration.py": [
+          "class NetworkContracts"
+        ]
+      }
+    },
+    {
+      "id": "STA-RETRY",
+      "source": "src/main.cpp",
+      "source_patterns": {
+        "reconnect": "WiFi.reconnect\\(\\)",
+        "fallback": "WiFi.begin\\(ssid.c_str\\(\\), password.c_str\\(\\)",
+        "telemetry": "sta_retry_count"
+      },
+      "test_evidence": {
+        "tests/test_ir_wifi_integration.py": [
+          "test_recovery_ap_persists_during_station_attempt"
+        ]
+      }
+    },
+    {
+      "id": "FLASH-READBACK",
+      "source": "scripts/flash_mac.command",
+      "source_patterns": {
+        "readback": "read-flash 0x10000",
+        "verify": "FLASH_READBACK_SHA256_PASS",
+        "source_sha": "Source SHA mismatch"
+      },
+      "test_evidence": {
+        "verification/impact_map.json": [
+          "FLASH-READBACK"
+        ]
+      }
+    },
+    {
+      "id": "CI-GATE",
+      "source": ".github/workflows/build.yml",
+      "source_patterns": {
+        "impact_gate": "python scripts/check_impact.py",
+        "ut": "python -m unittest discover -s tests -v",
+        "firmware": "pio run -e esp32-c3-devkitm-1"
+      },
+      "test_evidence": {
+        "verification/impact_map.json": [
+          "CI-GATE"
+        ]
+      }
+    }
+  ]
+}
