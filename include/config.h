@@ -18,7 +18,7 @@ constexpr bool RX_ACTIVE_LOW = true;
 // Generic IR transmitter module is assumed active-high on DAT.
 constexpr bool TX_ACTIVE_HIGH = true;
 
-constexpr uint32_t LEARN_WINDOW_MS = 3000;
+constexpr uint32_t LEARN_WINDOW_MS = 5000;
 constexpr uint16_t RX_IDLE_THRESHOLD_US = 15000;
 constexpr uint8_t RX_GLITCH_FILTER_US = 80;
 
