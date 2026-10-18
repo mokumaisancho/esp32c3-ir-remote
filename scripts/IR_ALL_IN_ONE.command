@@ -86,4 +86,15 @@ print "CI PASS; backup and flash will run only after artifact hash and chip chec
 export IR_RUN_ID="$run_id" IR_SOURCE_SHA="$SHA"
 zsh scripts/flash_mac.command
 job_result="FLASH_WRITTEN_NOT_E2E_VERIFIED"
-print "Firmware flashed. IR reception and STA HTTP end-to-end tests require live device interaction."
+print "Firmware flashed; starting read-only Wi-Fi diagnostics automatically."
+DIAG_PY="$HOME/Library/Application Support/ESP Hardware Dev Console/repo/.venv/bin/python"
+if [[ -x "$DIAG_PY" && -f scripts/diagnose_wifi_usb.py ]]; then
+  if "$DIAG_PY" scripts/diagnose_wifi_usb.py; then
+    print "POST_FLASH_WIFI_DIAGNOSTIC_DONE"
+  else
+    print -u2 "POST_FLASH_WIFI_DIAGNOSTIC_FAILED: flash integrity remains verified; see diagnostic log"
+  fi
+else
+  print -u2 "POST_FLASH_WIFI_DIAGNOSTIC_UNAVAILABLE: Python or script missing"
+fi
+print "Firmware flashed. STA HTTP and IR end-to-end acceptance still depend on measured device results."
