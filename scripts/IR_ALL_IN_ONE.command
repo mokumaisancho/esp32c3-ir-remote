@@ -18,8 +18,8 @@ SHA="$(git rev-parse HEAD)"
 LOGDIR="$HOME/Library/Logs/esp32c3-ir-remote"
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/one-shot-$(date +%Y%m%dT%H%M%S).log"
-RECEIPT="$(mktemp /tmp/ir-receipt.XXXXXX.md)"
-status="BLOCKED"
+RECEIPT="$(mktemp /tmp/ir-receipt.XXXXXX)"
+job_result="BLOCKED"
 run_id=""
 report() {
   code=$?
@@ -27,7 +27,7 @@ report() {
     print "## ESP32-C3 one-shot local receipt"
     print "Source commit: \`$SHA\`"
     print "CI run: \`$run_id\`"
-    print "Result: \`$status\` (exit \`$code\`)"
+    print "Result: \`$job_result\` (exit \`$code\`)"
     print "Local log: \`$LOG\`"
     print "Last diagnostic lines (redacted):"
     print '~~~'
@@ -54,7 +54,9 @@ done
 print "Matching CI run=$run_id"
 for i in {1..72}; do
   details="$(gh run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | @tsv')" || exit 2
-  read -r state conclusion headsha <<< "${details//$'\\t'/ }"
+  state="$(gh run view "$run_id" -R "$REPO" --json status --jq .status)"
+  conclusion="$(gh run view "$run_id" -R "$REPO" --json conclusion --jq .conclusion)"
+  headsha="$(gh run view "$run_id" -R "$REPO" --json headSha --jq .headSha)"
   [[ "$headsha" == "$SHA" ]] || { print -u2 "BLOCKED: CI source mismatch"; exit 2; }
   if [[ "$state" == "completed" ]]; then
     [[ "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI did not pass ($conclusion)"; exit 2; }
@@ -66,5 +68,5 @@ done
 print "CI PASS; backup and flash will run only after artifact hash and chip checks."
 export IR_RUN_ID="$run_id" IR_SOURCE_SHA="$SHA"
 zsh scripts/flash_mac.command
-status="FLASH_WRITTEN_NOT_E2E_VERIFIED"
+job_result="FLASH_WRITTEN_NOT_E2E_VERIFIED"
 print "Firmware flashed. IR reception and STA HTTP end-to-end tests require live device interaction."
