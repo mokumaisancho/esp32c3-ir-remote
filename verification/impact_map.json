@@ -32,18 +32,18 @@
       }
     },
     {
-      "id": "STA-RETRY",
+      "id": "WIFIMANAGER-PORTAL",
       "source": "src/main.cpp",
       "source_patterns": {
-        "reconnect": "WiFi\\.disconnect\\(false, false\\)",
-        "fallback": "WiFi.begin\\(ssid.c_str\\(\\), password.c_str\\(\\)",
-        "telemetry": "sta_retry_count",
-        "retry_backoff": "irpolicy::retryDue\\(millis\\(\\), wifiAttemptStartedMs, 45000U\\)"
+        "portal": "wifiManager\\.autoConnect\\(",
+        "nonblocking": "wifiManager\\.setConfigPortalBlocking\\(false\\)",
+        "reconnect": "wifiManager\\.setWiFiAutoReconnect\\(true\\)",
+        "eventloop": "wifiManager\\.process\\(\\)"
       },
       "test_evidence": {
         "tests/test_ir_wifi_integration.py": [
-          "test_station_retry_retains_credentials",
-          "self.assertNotIn(\"WiFi.reconnect()\", maintain)"
+          "test_wifimanager_owns_portal_and_ir_server_is_isolated",
+          "test_wifi_manager_processes_portal_without_blocking_ir"
         ]
       }
     },
@@ -79,15 +79,14 @@
       "id": "WIFI-FIRST-CONNECT-TRACE",
       "source": "src/main.cpp",
       "source_patterns": {
-        "initial": "event=INITIAL_BEGIN",
-        "window_end": "event=INITIAL_WINDOW_END",
+        "initial": "event=WIFIMANAGER_READY",
         "disconnect_reason": "info\\.wifi_sta_disconnected\\.reason",
         "dhcp": "event=STA_GOT_IP",
         "registration": "WiFi\\.onEvent\\(onWifiEvent\\)"
       },
       "test_evidence": {
         "tests/test_ir_wifi_integration.py": [
-          "test_initial_trace_precedes_wifi_begin_and_reports_result",
+          "test_manager_starts_nonblocking_portal_and_exposes_result",
           "test_event_callback_reports_disconnection_reason_and_dhcp",
           "test_status_exposes_event_counters"
         ]
