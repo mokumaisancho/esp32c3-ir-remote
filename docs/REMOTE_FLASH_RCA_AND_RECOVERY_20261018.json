@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "OLD_IR_FIRMWARE_FLASH_PASS_NEW_WIFI_RMT_PATCH_CI_PASS_NOT_FLASHED",
+  "current_status": "PATCH_FIRMWARE_REAL_MAC_BACKUP_FLASH_PASS__AP_STA_AND_IR_HARDWARE_E2E_OPEN",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -1307,16 +1307,27 @@
       "artifact_name": "esp32c3-ir-remote-firmware",
       "device_wifi_observed": false,
       "device_rmt_observed": false,
-      "device_flashing_this_patch": false
+      "device_flashing_this_patch": true,
+      "real_mac_flash_evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6246033800",
+      "real_mac_flash_status": "PASS_FULL_BACKUP_AND_WRITE",
+      "real_mac_flash_receipt": {
+        "run_id": "39099272784",
+        "source_commit": "45cf4ae13951bb9ce266d7aefd79617d056ebb03",
+        "flasher_blob": "6c8b244098ce71c2b0ace0edcd312f0fc470a8d6",
+        "backup_verified": true,
+        "flashed": true,
+        "device_port": "/dev/cu.usbmodem1101",
+        "exit_code": 0
+      }
     },
-    "current_mac_device": "Previously flashed image from CI run 39092905791; latest network/RMT patch has NOT been flashed",
+    "current_mac_device": "New tested recovery/RMT firmware from CI run 39099272784 successfully flashed via Mac on 2026-10-18; hardware HTTP access and physical IR capture still unobserved",
     "security_note": "Persistent setup AP uses documented fixed password. Do not expose device beyond trusted vicinity; consider per-device password provisioning before production",
     "next_actions": [
-      "For current old firmware, from WRC-X3000GS3 router UI > WAN&LAN > LAN > 接続端末の表示 find station IP; direct HTTP to assigned IP",
-      "If no DHCP client, check whether ESP32C3-IR-Setup SSID still broadcasts and rejoin it",
-      "Deploy only tested firmware artifact with complete preflash backup and SHA verification when expressly authorized",
-      "After install, independently verify station + AP IP via /api/status, then physically test 5-second IR RAW capture and LittleFS readback"
+      "User device: connect to setup SSID ESP32C3-IR-Setup, browse http://192.168.4.1/api/status from same connected device; verify setup_ap_ready, sta_connected, rmt_rx_ready and IP",
+      "Open /api/signals to verify saved LittleFS entries; no new flash needed",
+      "On the Web UI press 5秒受信・記録 and press an IR remote key while count-down shows; verify positive RAW pulses and stored slot",
+      "If status/learn still fail, diagnose boot/RMT based on live device observations; do not equate flash PASS with IR E2E"
     ],
-    "overall_status": "SOURCE_CI_PASS_DEVICE_DEPLOY_AND_HARDWARE_TEST_PENDING"
+    "overall_status": "PASS_CI_AND_REAL_MAC_FLASH__DEVICE_BOOT_NETWORK_AND_IR_UNVERIFIED"
   }
 }
