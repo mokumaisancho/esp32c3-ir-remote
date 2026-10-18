@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "WORKER_DEPLOY_PASS_ESPTOOL_UNAVAILABLE_FLASH_CAPTURE_BLOCKED",
+  "current_status": "WORKER_MAC_PASS_FIRMWARE_SHA_PASS_ESPTOOL_INSTALL_FAIL_PREWRITE_PHYSICAL_CAPTURE_BLOCKED",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -387,7 +387,7 @@
       ]
     },
     "note": "OpenOCD's static GPIO read cannot reconstruct 38kHz-modulated waveform or demodulated sub-millisecond marks. GitHub PING and CI build are not physical RX evidence.",
-    "next_action": "Non-destructive live Mac worker update remains blocked by SUITE_CHECKOUT_DIRTY. Need SHA verified deployed worker acceptance before single flash. Then arm RMT for five seconds and collect actual recorded pulse data, saved slot readback, and GitHub receipt.",
+    "next_action": "First obtain legitimate permission and verified Mac rollout of SHA-pinned fallback worker; attestation via PING + accepted action. Only then perform second unique flash attempt, followed by physical 5s capture and saved slot readback.",
     "flash_pin": {
       "script_git_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
       "script_commit": "5e17aed44da84fc64f4dc5fe5887b52e43e9accd",
@@ -550,5 +550,597 @@
     "hardware_backup": false,
     "hardware_written": false,
     "physical_5s_capture": false
+  },
+  "execution_control_v2_20261018": {
+    "schema_version": 2,
+    "record_type": "EXECUTION_QUEUE_V2",
+    "recorded_at": "2026-10-18T13:09:00+09:00",
+    "original_issue": {
+      "id": "ESP32-IR-LEARN",
+      "definition": "Read demodulated TSOP38238 IR signal on ESP32-C3 GPIO5 within a 5-second arm window and persist the physical RAW pulse data to GitHub."
+    },
+    "mvp": {
+      "hardware": "ESP32-C3(GPIO5 TSOP38238)",
+      "firmware_ci_run_id": 39092905791,
+      "transport": "GitHub Issue #11 ↔ Mac LaunchAgent",
+      "method": "SHA-pinned firmware full flash backup before write; physical 5s capture; LittleFS readback"
+    },
+    "acceptance_criteria": [
+      {
+        "id": "IR-5S-01",
+        "criterion": "Receiver timer set to exactly 5000ms in source and UI",
+        "status": "PASS_SOURCE_ONLY"
+      },
+      {
+        "id": "IR-5S-02",
+        "criterion": "RAW alternating signed microsecond signal is returned; valid signal automatically persisted and named with slot",
+        "status": "PASS_SOURCE_ONLY"
+      },
+      {
+        "id": "IR-5S-03",
+        "criterion": "Cloud firmware build passes for five-second capture revision",
+        "status": "PASS_CLOUD_BUILD",
+        "evidence": [
+          "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791"
+        ]
+      },
+      {
+        "id": "IR-5S-04",
+        "criterion": "Mac flashes verified firmware, physical remote signal is captured within five seconds, automatic slot readback and GitHub receipt match real device data",
+        "status": "BLOCKED",
+        "blocked_by": [
+          "SUITE_CHECKOUT_DIRTY",
+          "ESP32_IR_FLASH ACTION_NOT_ALLOWED"
+        ]
+      }
+    ],
+    "legacy_flash_acs": [
+      {
+        "id": "AC01",
+        "criterion": "Known CI firmware image and SHA-verified flasher",
+        "status": "PASS_SOURCE_NOT_MAC"
+      },
+      {
+        "id": "AC02",
+        "criterion": "Issue #11 command roundtrip",
+        "status": "PASS_REAL_MAC"
+      },
+      {
+        "id": "AC03",
+        "criterion": "Read-only diagnostics enumerate tracked differences in BOTH checkouts without SuiteLoader",
+        "status": "OPEN_P0"
+      },
+      {
+        "id": "AC04",
+        "criterion": "Non-destructive isolated worker deployment without resetting or cleaning dirty checkouts",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC03"
+        ]
+      },
+      {
+        "id": "AC05",
+        "criterion": "New worker activated and ESP32_IR_FLASH explicitly accepted",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC04"
+        ]
+      },
+      {
+        "id": "AC06",
+        "criterion": "USB ESP32-C3 identified uniquely, entire preflash image SHA-backed up",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC05"
+        ]
+      },
+      {
+        "id": "AC07",
+        "criterion": "Flash succeeds + Web learning UI verified on device + structured GitHub receipt",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC06"
+        ]
+      }
+    ],
+    "constraints": [
+      "No destructive git reset/clean on existing user checkouts",
+      "No terminal paste or new file downloads by user",
+      "MacBook Air limited disk; no PlatformIO rebuild",
+      "No arbitrary remote commands; only authorized fixed actions",
+      "No unfounded physical success claims",
+      "Only two physical flash attempts total; first ended before write"
+    ],
+    "tasks": [
+      {
+        "task_id": "SOURCE_FIRMWARE",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "IR-5S-01",
+          "IR-5S-02",
+          "IR-5S-03"
+        ],
+        "task": "Verify CI-backed 5s capture source, RAW slots and hashes",
+        "dependencies": [],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "IR-5S-01",
+          "IR-5S-02",
+          "IR-5S-03"
+        ],
+        "quality_criteria": "CI build PASS, compiled source SHA pinned",
+        "data_source": "firmware repo",
+        "execution_method": "GitHub source+CI artifact",
+        "preconditions": [],
+        "acceptance_criteria": "CI build PASS, compiled source SHA pinned",
+        "evidence": [
+          "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791"
+        ],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "passed",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "MAC_TRANSPORT",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC02"
+        ],
+        "task": "Verify authorized GitHub Issue request to Mac and receipt",
+        "dependencies": [],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "AC02"
+        ],
+        "quality_criteria": "same comment command id; Mac origin proof",
+        "data_source": "Issue comments",
+        "execution_method": "GitHub Issue #11 PING and result matching",
+        "preconditions": [],
+        "acceptance_criteria": "same comment command id; Mac origin proof",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245494268"
+        ],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "passed",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "MAC_DIRTY_DIAGNOSTIC",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC03"
+        ],
+        "task": "Inventory tracked modifications in two old Mac checkouts",
+        "dependencies": [
+          "MAC_TRANSPORT"
+        ],
+        "priority": "P1",
+        "critical_path": "NON_CP_AFTER_ISOLATION",
+        "required_data": [
+          "AC03"
+        ],
+        "quality_criteria": "exact tracked changed paths and writers; read-only only",
+        "data_source": "Mac old checkout plus immutable GitHub evidence",
+        "execution_method": "Previously committed independent read-only checkout inspect, not yet deployed",
+        "preconditions": [
+          "dependency MAC_TRANSPORT passed"
+        ],
+        "acceptance_criteria": "exact tracked changed paths and writers; read-only only",
+        "evidence": [],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "blocked",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "MAC_WORKER_DEPLOY",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC04",
+          "AC05"
+        ],
+        "task": "Stage isolated pinned worker and verify launchd switch via Mac PING",
+        "dependencies": [
+          "MAC_TRANSPORT"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "AC04",
+          "AC05"
+        ],
+        "quality_criteria": "running Mac repo_root is IR worker checkout and action accepted",
+        "data_source": "Mac LaunchAgent and Issue #11",
+        "execution_method": "Existing Bootstrap isolated pinned checkout+launchd; GitHub Issue receipt",
+        "preconditions": [
+          "dependency MAC_TRANSPORT passed"
+        ],
+        "acceptance_criteria": "running Mac repo_root is IR worker checkout and action accepted",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245488456",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245494268",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+        ],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "passed",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "FLASH_FAILURE_RCA",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC06"
+        ],
+        "task": "Classify first real flash attempt safely, verify no read/backup/write",
+        "dependencies": [
+          "MAC_WORKER_DEPLOY"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "AC06"
+        ],
+        "quality_criteria": "exit=2; firmware SHA pass; backup_started=false; flashed=false",
+        "data_source": "GitHub Issue #11",
+        "execution_method": "Inspect JSON receipt and source of esptool installer failure",
+        "preconditions": [
+          "dependency MAC_WORKER_DEPLOY passed"
+        ],
+        "acceptance_criteria": "exit=2; firmware SHA pass; backup_started=false; flashed=false",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+        ],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "passed",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "FLASHTOOL_REUSE",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC01",
+          "AC06"
+        ],
+        "task": "Use SHA-pinned official esptool binary or existing OpenOCD, avoid pip",
+        "dependencies": [
+          "FLASH_FAILURE_RCA"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "AC01",
+          "AC06"
+        ],
+        "quality_criteria": "Source implementation only: GitHub release SHA256 digest fixed; no verified Mac invocation yet",
+        "data_source": "Espressif release and firmware repository",
+        "execution_method": "GitHub API official release SHA + source modifications",
+        "preconditions": [
+          "dependency FLASH_FAILURE_RCA passed"
+        ],
+        "acceptance_criteria": "trusted release asset digest matches; fail-closed no hardware write before backup; source only",
+        "evidence": [
+          "https://github.com/espressif/esptool/releases/tag/v5.4.0",
+          "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_mac.command",
+          "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_openocd_mac.command"
+        ],
+        "on_success": "requires subsequent active-worker attestation before hardware attempt",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "passed",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "PINNED_WORKER_UPDATE",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC04",
+          "AC05"
+        ],
+        "task": "Attest new flasher blob hash in separately deployed Mac worker",
+        "dependencies": [
+          "FLASHTOOL_REUSE"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "AC04",
+          "AC05"
+        ],
+        "quality_criteria": "verified exact same blob in Mac active Python module; otherwise fail closed",
+        "data_source": "GitHub branch/Bootstrap manifest and Mac PING",
+        "execution_method": "GitHub connector controlled update + isolated worker rollout",
+        "preconditions": [
+          "dependency FLASHTOOL_REUSE passed"
+        ],
+        "acceptance_criteria": "verified exact same blob in Mac active Python module; otherwise fail closed",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/blob/poc/native-local-bridge-v3/scripts/esp32_ir_flash_bridge.py",
+          "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/esp32-ir-worker-deploy-20261018.json"
+        ],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "blocked",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "FLASH_SAFE",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "AC06",
+          "AC07"
+        ],
+        "task": "Second and last physical flash after unique chip identification and full backup",
+        "dependencies": [
+          "PINNED_WORKER_UPDATE"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "AC06",
+          "AC07"
+        ],
+        "quality_criteria": "exactly one target; full backup SHA valid; verified write; unique receipt",
+        "data_source": "Mac chip/device and firmware CI",
+        "execution_method": "Single authorized Issue action ESP32_IR_FLASH; pinned toolchain",
+        "preconditions": [
+          "dependency PINNED_WORKER_UPDATE passed"
+        ],
+        "acceptance_criteria": "exactly one target; full backup SHA valid; verified write; unique receipt",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245388687",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+        ],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "blocked",
+        "attempts": 1,
+        "retry_limit": 2
+      },
+      {
+        "task_id": "RECEIVE_5S",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "IR-5S-04",
+          "AC07"
+        ],
+        "task": "Arm GPIO5 RMT for five seconds; physically capture actual IR remote RAW",
+        "dependencies": [
+          "FLASH_SAFE"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "IR-5S-04",
+          "AC07"
+        ],
+        "quality_criteria": "positive pulse count and valid signed microsecond mark/space list",
+        "data_source": "ESP32-C3 device HTTP UI",
+        "execution_method": "Web UI HTTP /learn on device; physical IR remote input",
+        "preconditions": [
+          "dependency FLASH_SAFE passed"
+        ],
+        "acceptance_criteria": "positive pulse count and valid signed microsecond mark/space list",
+        "evidence": [],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "blocked",
+        "attempts": 0,
+        "retry_limit": 1
+      },
+      {
+        "task_id": "SAVE_AND_RECEIPT",
+        "original_issue_id": "ESP32-IR-LEARN",
+        "ac_ids": [
+          "IR-5S-04",
+          "AC07"
+        ],
+        "task": "Read saved LittleFS slot back and persist independent GitHub receipt",
+        "dependencies": [
+          "RECEIVE_5S"
+        ],
+        "priority": "P0",
+        "critical_path": "CP",
+        "required_data": [
+          "IR-5S-04",
+          "AC07"
+        ],
+        "quality_criteria": "readback RAW matches capture hash; not static GPIO; receipt immutable",
+        "data_source": "ESP32-C3 and GitHub logs",
+        "execution_method": "Web UI slot readback and existing GitHub logs publisher",
+        "preconditions": [
+          "dependency RECEIVE_5S passed"
+        ],
+        "acceptance_criteria": "readback RAW matches capture hash; not static GPIO; receipt immutable",
+        "evidence": [],
+        "on_success": "persist hash-linked evidence; set passed and unlock dependents",
+        "on_failure": "record actual error+input hashes; retry only if cause corrected; never flash on uncertain prior result",
+        "status": "blocked",
+        "attempts": 0,
+        "retry_limit": 1
+      }
+    ],
+    "dependency_graph": {
+      "type": "DAG",
+      "acyclic": true,
+      "ordered_dependencies": [
+        {
+          "task_id": "SOURCE_FIRMWARE",
+          "depends_on": []
+        },
+        {
+          "task_id": "MAC_TRANSPORT",
+          "depends_on": []
+        },
+        {
+          "task_id": "MAC_DIRTY_DIAGNOSTIC",
+          "depends_on": [
+            "MAC_TRANSPORT"
+          ]
+        },
+        {
+          "task_id": "MAC_WORKER_DEPLOY",
+          "depends_on": [
+            "MAC_TRANSPORT"
+          ]
+        },
+        {
+          "task_id": "FLASH_FAILURE_RCA",
+          "depends_on": [
+            "MAC_WORKER_DEPLOY"
+          ]
+        },
+        {
+          "task_id": "FLASHTOOL_REUSE",
+          "depends_on": [
+            "FLASH_FAILURE_RCA"
+          ]
+        },
+        {
+          "task_id": "PINNED_WORKER_UPDATE",
+          "depends_on": [
+            "FLASHTOOL_REUSE"
+          ]
+        },
+        {
+          "task_id": "FLASH_SAFE",
+          "depends_on": [
+            "PINNED_WORKER_UPDATE"
+          ]
+        },
+        {
+          "task_id": "RECEIVE_5S",
+          "depends_on": [
+            "FLASH_SAFE"
+          ]
+        },
+        {
+          "task_id": "SAVE_AND_RECEIPT",
+          "depends_on": [
+            "RECEIVE_5S"
+          ]
+        }
+      ],
+      "critical_path_basis": "Required dependency chain, no calibrated duration estimates"
+    },
+    "execution_queue": [],
+    "current_task": "PINNED_WORKER_UPDATE",
+    "completed_tasks": [
+      "SOURCE_FIRMWARE",
+      "MAC_TRANSPORT",
+      "MAC_WORKER_DEPLOY",
+      "FLASH_FAILURE_RCA",
+      "FLASHTOOL_REUSE"
+    ],
+    "blockers": [
+      {
+        "id": "PIN_MISMATCH",
+        "action": "PINNED_WORKER_UPDATE",
+        "status": "blocked",
+        "cause": "Existing Mac worker pins a fixed previous script; modified GitHub script is not active automatically. A newer OpenOCD fallback pin exists in GitHub source, but Mac still has old worker.",
+        "evidence": [
+          "https://github.com/mokumaisancho/GPT-Development-Suite/blob/poc/native-local-bridge-v3/scripts/esp32_ir_flash_bridge.py",
+          "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+        ]
+      },
+      {
+        "id": "GITHUB_CONNECTOR_WRITE_BLOCKED",
+        "action": "PINNED_WORKER_UPDATE",
+        "status": "blocked",
+        "cause": "Attempt to update the GitHub bridge pin was blocked by connector safety checks; do not bypass restrictions.",
+        "evidence": []
+      },
+      {
+        "id": "HARDWARE_INPUT_MISSING",
+        "action": "RECEIVE_5S",
+        "status": "blocked",
+        "cause": "Physical remote signal must be transmitted during the 5-second arm window; no real capture performed."
+      }
+    ],
+    "evidence_registry": {
+      "worker_handover": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245488456",
+      "worker_runtime_ping": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245494268",
+      "flash_attempt_1": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487",
+      "firmware_cloud_build": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791",
+      "openocd_chip_read": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245388687",
+      "standalone_official_release": "https://github.com/espressif/esptool/releases/tag/v5.4.0",
+      "standalone_flasher": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_mac.command",
+      "openocd_fallback": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_openocd_mac.command",
+      "bridge_source": "https://github.com/mokumaisancho/GPT-Development-Suite/blob/poc/native-local-bridge-v3/scripts/esp32_ir_flash_bridge.py",
+      "bootstrap_manifest": "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/esp32-ir-worker-deploy-20261018.json"
+    },
+    "execution_history": [
+      {
+        "seq": 1,
+        "id": "attempt_1",
+        "type": "real_mac_flash",
+        "result": "FAILED_PREWRITE",
+        "error": "pip esptool>=5,<6 versions none",
+        "verified_firmware_hashes": true,
+        "backup_verified": false,
+        "device_written": false,
+        "receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+      },
+      {
+        "seq": 2,
+        "id": "existing_worker_switch",
+        "type": "real_mac_worker_deploy",
+        "result": "PASS",
+        "receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245494268"
+      },
+      {
+        "seq": 3,
+        "id": "official_standalone_source",
+        "type": "github_source_commit",
+        "result": "SOURCE_COMMITTED",
+        "blob": "d72ad02ba50a1298a709fff21ae968d87364aae3",
+        "note": "SHA256-pinned official Espressif v5.4.0 macOS arm64 binary; not validated on Mac"
+      },
+      {
+        "seq": 4,
+        "id": "openocd_fallback_source",
+        "type": "github_source_commit",
+        "result": "SOURCE_COMMITTED",
+        "blob": "857a0c93e6eacce7757c04db960ee4453b147ee8",
+        "note": "Existing verified hardware OpenOCD route; script not executed"
+      },
+      {
+        "seq": 5,
+        "id": "bridge_source_connection",
+        "type": "github_state_check",
+        "result": "SOURCE_PIN_PRESENT_MAC_NOT_DEPLOYED",
+        "blob": "857a0c93e6eacce7757c04db960ee4453b147ee8",
+        "note": "Mac runtime still earlier e4f1 source; no code update via current connector due safety block"
+      }
+    ],
+    "next_action": "First obtain legitimate permission and verified Mac rollout of SHA-pinned fallback worker; attestation via PING + accepted action. Only then perform second unique flash attempt, followed by physical 5s capture and saved slot readback.",
+    "resume_conditions": [
+      "Running Mac worker SHA and flasher blob positively attested",
+      "Old Mac checkout left untouched",
+      "No in-flight/unknown second flash command",
+      "Physical remote accessible during capture"
+    ],
+    "quality_gates": {
+      "G0": "PASS",
+      "G1": "PASS_EXISTING_LOGS",
+      "G2": "BLOCKED_FOR_NEW_REMOTE_DEPLOY",
+      "G3": "SOURCE_PASS_HARDWARE_PENDING",
+      "G4": "PREWRITE_FAILURE_NOT_MISLABELLED_AS_FLASH",
+      "G5": "BLOCKED"
+    },
+    "overall_status": "BLOCKED",
+    "physical_flash_attempts_used": 1,
+    "physical_flash_attempts_allowed": 2
   }
 }
