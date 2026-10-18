@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPO="mokumaisancho/esp32c3-ir-remote"
 RUN_ID="39088472851"
-PORT="/dev/cu.usbmodem101"
+PORT="" # Determined after ESP32-C3 identification; never assume tty suffix
 BASE="$HOME/Library/Application Support/ESP Hardware Dev Console"
 BACKUPS="$BASE/backups/esp32c3-ir-remote"
 WORK="$(mktemp -d /tmp/esp32c3-ir-flash.XXXXXX)"
@@ -14,7 +14,6 @@ fail() { echo "BLOCKED: $1" >&2; exit 2; }
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS only"
 command -v gh >/dev/null || fail "GitHub CLI gh missing"
-[[ -c "$PORT" ]] || fail "Expected USB-JTAG serial device not found: $PORT"
 gh auth status >/dev/null 2>&1 || fail "GitHub authentication missing"
 
 echo "[1/5] Downloading CI-PASS firmware"
@@ -37,7 +36,7 @@ for python in \
   /opt/homebrew/bin/python3 \
   /usr/local/bin/python3 \
   "$(command -v python3)"; do
-  if [[ -x "$python" ]] && "$python" -c 'import esptool' >/dev/null 2>&1; then
+  if [[ -x "$python" ]] && "$python" -c 'import importlib.metadata as m; assert m.version("esptool").split(".")[0] == "5"' >/dev/null 2>&1; then
     TOOL=("$python" "-m" "esptool")
     break
   fi
@@ -53,8 +52,58 @@ if (( ${#TOOL[@]} == 0 )); then
   TOOL=("$VENV/bin/python" "-m" "esptool")
 fi
 
-echo "[2/5] Verifying USB-connected ESP32-C3"
-"${TOOL[@]}" --chip esp32c3 --port "$PORT" flash-id || fail "ESP32-C3 not detected"
+echo "[2/5] Auto-discovering and identifying USB-connected ESP32-C3"
+
+# zsh null_glob avoids a fatal NOMATCH when a serial device family is absent.
+setopt NULL_GLOB
+typeset -a candidates matches
+if [[ -n "${IR_FLASH_PORT:-}" ]]; then
+  candidates=("$IR_FLASH_PORT")
+else
+  candidates=(
+    /dev/cu.usbmodem*
+    /dev/cu.usbserial*
+    /dev/cu.wchusbserial*
+    /dev/cu.SLAB_USBtoUART*
+  )
+fi
+unsetopt NULL_GLOB
+
+if (( ${#candidates[@]} == 0 )); then
+  echo "No USB serial device found. Detected /dev/cu.* entries:" >&2
+  ls /dev/cu.* 2>/dev/null || true
+  fail "ESP32-C3 is not enumerated. Reconnect USB data cable and check the device."
+fi
+
+matches=()
+for candidate in "${candidates[@]}"; do
+  [[ -c "$candidate" ]] || continue
+  echo "PROBING=$candidate"
+  # 'auto' discovers the actual chip, so an unrelated ESP32/S3 is not accepted.
+  probe_output="$("${TOOL[@]}" --chip auto --port "$candidate" flash-id 2>&1)" || {
+    echo "SKIP: $candidate did not pass esptool identification"
+    continue
+  }
+  if print -r -- "$probe_output" | grep -Eiq 'ESP32-C3'; then
+    matches+=("$candidate")
+    echo "MATCH_ESP32C3=$candidate"
+  else
+    echo "SKIP: $candidate is not an ESP32-C3"
+  fi
+done
+
+if (( ${#matches[@]} == 0 )); then
+  fail "No ESP32-C3 identified among USB serial candidates. No firmware has been written."
+fi
+if (( ${#matches[@]} != 1 )); then
+  printf 'AMBIGUOUS_ESP32C3_PORTS=%s\n' "${matches[*]}" >&2
+  fail "Multiple ESP32-C3 devices detected; set IR_FLASH_PORT to the intended port."
+fi
+PORT="${matches[1]}"
+echo "SELECTED_PORT=$PORT"
+# Recheck specifically as ESP32-C3 immediately before backup and flashing.
+"${TOOL[@]}" --chip esp32c3 --port "$PORT" flash-id ||
+  fail "Selected ESP32-C3 disconnected or failed verification"
 
 # Never bypass chip security or erase the entire flash.
 echo "[3/5] Backing up entire flash before first write"
