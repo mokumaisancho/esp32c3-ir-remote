@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Check Mac diagnostic Python syntax
+        run: python -m py_compile scripts/diagnose_wifi_usb.py
       - name: Check source-to-test impact contracts
         run: python scripts/check_impact.py
       - name: Test Wi-Fi and 5-second IR capture code (real function + mocked HAL)
