@@ -21,13 +21,13 @@ mkdir -p "$WORK/artifact"
 gh run download "$RUN_ID" -R "$REPO" -n esp32c3-ir-remote-firmware -D "$WORK/artifact" \
   || fail "Firmware artifact unavailable"
 cd "$WORK/artifact"
-for file in bootloader.bin partitions.bin firmware.bin SHA256SUMS.txt; do
+for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin SHA256SUMS.txt FLASH_LAYOUT.txt; do
   [[ -s "$file" ]] || fail "Missing artifact: $file"
 done
 # CI computes SHA256 from inside its parent directory, so the manifest
 # contains "artifact/<file>" although gh extracts ZIP members into this directory.
 # Keep the pinned hashes intact; strip only that exact fixed path prefix.
-for file in bootloader.bin partitions.bin firmware.bin firmware.elf; do
+for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin firmware.elf FLASH_LAYOUT.txt; do
   grep -Fq "  artifact/$file" SHA256SUMS.txt ||
     fail "Checksum manifest does not contain expected artifact/$file entry"
 done
@@ -50,37 +50,20 @@ for python in \
   fi
 done
 if (( ${#TOOL[@]} == 0 )); then
-  # Espressif publishes notarized self-contained macOS arm64 binaries on
-  # GitHub Releases. Reuse that official tool without PyPI/PlatformIO/pip.
-  # Digest is from the GitHub release API asset digest (v5.4.0).
-  echo "[2/5] Downloading SHA256-pinned official standalone esptool (no pip)"
-  [[ "$(uname -m)" == "arm64" ]] || fail "Unsupported Mac CPU for pinned standalone esptool"
-  ESPSRC="espressif/esptool"
-  ESPTAG="v5.4.0"
-  ESPTAR="esptool-v5.4.0-macos-arm64.tar.gz"
-  ESPSHA="ba332671130939e2e6db90c2784488f7e62a1459b0fe3c5ec66e9a366821de7a"
-  mkdir -p "$WORK/tools"
-  gh release download "$ESPTAG" -R "$ESPSRC" -p "$ESPTAR" -D "$WORK/tools" \
-    || fail "Could not download Espressif official esptool release"
-  print -r -- "$ESPSHA  $WORK/tools/$ESPTAR" | shasum -a 256 -c - \
-    || fail "Official esptool release SHA256 mismatch"
-  # The trusted archive is still checked for unsafe member paths before extraction.
-  tar -tzf "$WORK/tools/$ESPTAR" > "$WORK/tools/esptool-archive-list" \
-    || fail "Invalid official esptool archive"
-  if grep -Eq '(^/|(^|/)\.\.(/|$))' "$WORK/tools/esptool-archive-list"; then
-    fail "Unsafe path in official esptool archive"
-  fi
-  tar -xzf "$WORK/tools/$ESPTAR" -C "$WORK/tools" \
-    || fail "Could not unpack official esptool"
-  typeset -a esptool_bins
-  esptool_bins=("${(@f)$(find "$WORK/tools" -type f -name esptool -maxdepth 4 -print)}")
-  (( ${#esptool_bins[@]} == 1 )) || fail "Standalone esptool executable was not uniquely found"
-  chmod u+x "${esptool_bins[1]}"
-  ("${esptool_bins[1]}" version || "${esptool_bins[1]}" --version) 2>&1 | grep -Fq "5.4.0" \
-    || fail "Standalone esptool version mismatch"
-  TOOL=("${esptool_bins[1]}")
+  # Reuse the Mac-proven esptool installation route from esp32-csi-e2e,
+  # evidence/mac_usb_probe/run_20261016T003152238378Z_11692.json.
+  # A default pip package mirror previously returned "from versions: none".
+  echo "[2/5] Mac-proven isolated official PyPI esptool 5.5.0"
+  VENV="$WORK/esptool-venv"
+  python3 -m venv "$VENV" || fail "Isolated Python virtual environment unavailable"
+  PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    "$VENV/bin/python" -m pip --isolated install --no-input \
+    --index-url https://pypi.org/simple --timeout 15 --retries 2 \
+    'esptool==5.5.0' || fail "Official PyPI esptool installation failed"
+  "$VENV/bin/python" -c 'import importlib.metadata as m; assert m.version("esptool") == "5.5.0"' \
+    || fail "Verified esptool package version mismatch"
+  TOOL=("$VENV/bin/python" "-m" "esptool")
 fi
-
 echo "[2/5] Auto-discovering and identifying USB-connected ESP32-C3"
 
 # zsh null_glob avoids a fatal NOMATCH when a serial device family is absent.
@@ -148,7 +131,7 @@ echo "BACKUP=$BACKUP"
 
 echo "[4/5] Programming verified firmware at CI-confirmed offsets"
 "${TOOL[@]}" --chip esp32c3 --port "$PORT" write-flash \
-  0x0 bootloader.bin 0x8000 partitions.bin 0x10000 firmware.bin \
+  0x0 bootloader.bin 0x8000 partitions.bin 0xE000 boot_app0.bin 0x10000 firmware.bin \
   || fail "Flash failed; restore possible from backup"
 
 echo "[5/5] FLASH_DONE"
