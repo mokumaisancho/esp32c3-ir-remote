@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "PATCH_FIRMWARE_REAL_MAC_BACKUP_FLASH_PASS__AP_STA_AND_IR_HARDWARE_E2E_OPEN",
+  "current_status": "TEST_AND_FLASH_PASS_DEVICE_HTTP_ACCESS_UNVERIFIED_PHYSICAL_IR_UNTESTED",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -390,7 +390,7 @@
       ]
     },
     "note": "OpenOCD's static GPIO read cannot reconstruct 38kHz-modulated waveform or demodulated sub-millisecond marks. GitHub PING and CI build are not physical RX evidence.",
-    "next_action": "Tested new network/RMT fix in CI run 39099272784, not yet deployed to ESP32. Discover current STA IP through router DHCP, or explicitly flash the verified patch artifact, then perform real 5-second IR signal capture.",
+    "next_action": "User-controlled network selection: join ESP32C3-IR-Setup Wi-Fi from phone or Mac, then open http://192.168.4.1/api/status; if AP SSID missing entirely, investigate firmware boot/Serial log on Mac via authorized fixed read-only path. Do not reflash without RCA.",
     "flash_pin": {
       "script_git_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
       "script_commit": "5e17aed44da84fc64f4dc5fe5887b52e43e9accd",
@@ -1328,6 +1328,42 @@
       "On the Web UI press 5秒受信・記録 and press an IR remote key while count-down shows; verify positive RAW pulses and stored slot",
       "If status/learn still fail, diagnose boot/RMT based on live device observations; do not equate flash PASS with IR E2E"
     ],
-    "overall_status": "PASS_CI_AND_REAL_MAC_FLASH__DEVICE_BOOT_NETWORK_AND_IR_UNVERIFIED"
+    "overall_status": "FLASH_PASS_HTTP_FROM_MAC_UNREACHABLE_PENDING_AP_JOIN_AND_PHYSICAL_IR_TEST",
+    "firmware_installed": {
+      "status": "PASS_REAL_MAC_BACKUP_HASH_VERIFIED",
+      "ci_run_id": 39099272784,
+      "ci_commit": "45cf4ae13951bb9ce266d7aefd79617d056ebb03",
+      "flasher_blob": "6c8b244098ce71c2b0ace0edcd312f0fc470a8d6",
+      "mac_flash_port": "/dev/cu.usbmodem1101",
+      "backup": "/Users/apple/Library/Application Support/ESP Hardware Dev Console/backups/esp32c3-ir-remote/pre-ir-20261018T141836.bin",
+      "backup_bytes": 4194304,
+      "write_verify": "PASS_4_AREAS",
+      "flash_receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6246033800"
+    },
+    "network_probe": {
+      "status": "FAIL_MAC_CURRENT_NETWORK_TO_ESP_NOT_ESTABLISHED",
+      "probe_action": "ESP32_IR_HTTP_DIAG",
+      "worker_commit": "f16624206bf3f9a5484b5f4dc7c05fc01d8d4296",
+      "worker_verified_by_ping": true,
+      "ping": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6246069462",
+      "evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6246074449",
+      "queries": [
+        {
+          "url": "http://esp32-ir.local/api/status",
+          "result": "DNS_ERROR_ERRNO_8"
+        },
+        {
+          "url": "http://192.168.4.1/api/status",
+          "result": "TIMEOUT"
+        }
+      ],
+      "interpretation": "Mac may not be joined to ESP32-C3 setup AP; timeout on 192.168.4.1 does not prove ESP AP down. mDNS missing may reflect network boundary. Boot and AP broadcast are unproven."
+    },
+    "remaining_physical_acs": [
+      "Mac or phone directly join ESP32C3-IR-Setup Wi-Fi and confirm http://192.168.4.1/api/status returns JSON incl rmt_rx_ready",
+      "User presses remote during 5-second local UI capture; stored LittleFS record read back",
+      "No fabricated IR reception status"
+    ],
+    "next_action": "User-controlled network selection: join ESP32C3-IR-Setup Wi-Fi from phone or Mac, then open http://192.168.4.1/api/status; if AP SSID missing entirely, investigate firmware boot/Serial log on Mac via authorized fixed read-only path. Do not reflash without RCA."
   }
 }
