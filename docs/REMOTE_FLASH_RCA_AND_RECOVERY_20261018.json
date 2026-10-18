@@ -320,5 +320,65 @@
       "ISSUE_ACTION_ACCEPTED_BEFORE_FLASH",
       "ONE_TIME_FLASH_BACKUP_AND_UI_RECEIPT"
     ]
+  },
+  "ir_five_second_capture_20261018": {
+    "original_issue": "ESP32-IR-LEARN",
+    "ac_ids": [
+      "IR-5S-01",
+      "IR-5S-02",
+      "IR-5S-03",
+      "IR-5S-04"
+    ],
+    "goal": "Arm TSOP38238 GPIO5 for up to 5000ms, capture decoded mark/space microsecond timings, auto-save valid signal to LittleFS, collect real-device evidence.",
+    "source_status": "COMMITTED_UNVERIFIED_ON_HARDWARE",
+    "build": {
+      "workflow_run_id": 39092905791,
+      "source_commit": "e0a6b974ef82798f05d17031da5d3dd3661678df",
+      "reported_status": "IN_PROGRESS_AT_LAST_CHECK",
+      "url": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39092905791"
+    },
+    "files": [
+      "include/config.h",
+      "src/main.cpp",
+      "src/web_ui.h",
+      "README.md"
+    ],
+    "hardware": {
+      "chip": "ESP32-C3",
+      "receiver": "TSOP38238",
+      "pin": 5,
+      "physical_rx_measured": false,
+      "last_static_gpio_observation": "HIGH/idle; not IR capture"
+    },
+    "mvp": {
+      "ac": [
+        {
+          "id": "IR-5S-01",
+          "criterion": "Receiver timer set to exactly 5000ms in source and UI",
+          "status": "PASS_SOURCE_ONLY"
+        },
+        {
+          "id": "IR-5S-02",
+          "criterion": "RAW alternating signed microsecond signal is returned; valid signal automatically persisted and named with slot",
+          "status": "PASS_SOURCE_ONLY"
+        },
+        {
+          "id": "IR-5S-03",
+          "criterion": "Cloud firmware build passes for five-second capture revision",
+          "status": "PENDING"
+        },
+        {
+          "id": "IR-5S-04",
+          "criterion": "Mac flashes verified firmware, physical remote signal is captured within five seconds, automatic slot readback and GitHub receipt match real device data",
+          "status": "BLOCKED",
+          "blocked_by": [
+            "SUITE_CHECKOUT_DIRTY",
+            "ESP32_IR_FLASH ACTION_NOT_ALLOWED"
+          ]
+        }
+      ]
+    },
+    "note": "OpenOCD's static GPIO read cannot reconstruct 38kHz-modulated waveform or demodulated sub-millisecond marks. GitHub PING and CI build are not physical RX evidence.",
+    "next_action": "Inspect CI result; only after PASS update flash artifact RUN_ID and SHA-pinned Mac flash wrapper; then resolve Mac worker deployment and perform one hardware capture."
   }
 }
