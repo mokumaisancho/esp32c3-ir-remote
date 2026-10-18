@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "config.h"
+#include "diagnostic_policy.h"
 #include "web_ui.h"
 
 namespace {
@@ -33,6 +34,10 @@ Signal lastSignal;
 bool hasLastSignal = false;
 bool stationMode = false;
 bool setupApReady = false;
+bool mdnsReady = false;
+bool wasStaConnected = false;
+uint32_t staLastRetryMs = 0;
+uint32_t staRetryCount = 0;
 bool rmtRxReady = false;
 bool rmtTxReady = false;
 rmt_channel_handle_t rxChannel = nullptr;
@@ -382,6 +387,9 @@ void handleStatus() {
   json += "\"network_mode\":\"" + String(staConnected ? "AP+STA" : "AP") + "\",";
   json += "\"ip\":\"" + ip.toString() + "\",";
   json += "\"sta_connected\":" + String(staConnected ? "true" : "false") + ",";
+  json += "\"sta_status\":" + String(static_cast<int>(WiFi.status())) + ",";
+  json += "\"sta_retry_count\":" + String(staRetryCount) + ",";
+  json += "\"mdns_ready\":" + String(mdnsReady ? "true" : "false") + ",";
   json += "\"sta_ssid\":\"" + jsonEscape(staConnected ? WiFi.SSID() : String("")) + "\",";
   json += "\"sta_ip\":\"" + (staConnected ? WiFi.localIP().toString() : String("")) + "\",";
   json += "\"setup_ap_ready\":" + String(setupApReady ? "true" : "false") + ",";
@@ -413,9 +421,8 @@ void handleLearn() {
   if (!learnSignal(captured, elapsedMs, readAttempts, earlyFailures)) {
     const bool startFailed = rxLastStartError != ESP_OK;
     const bool resetFailed = rxLastResetError != ESP_OK;
-    const char *reason = startFailed ? "rmt_start_failed" :
-                         resetFailed ? "rmt_reset_failed" :
-                         rxLastSymbolCount > 0 ? "invalid_frame" : "rx_timeout";
+    const char *reason = irpolicy::rxFailureReason(startFailed, resetFailed,
+                                                   rxLastSymbolCount);
     String json = "{\"ok\":false,\"reason\":\"" + String(reason) + "\"";
     json += ",\"elapsed_ms\":" + String(elapsedMs);
     json += ",\"start_esp_err\":" + String(static_cast<int>(rxLastStartError));
@@ -629,15 +636,42 @@ void startNetwork() {
   WiFi.setHostname(ircfg::MDNS_HOST);
   setupApReady = WiFi.softAP(ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
   stationMode = connectStoredWifi();
-
-  if (MDNS.begin(ircfg::MDNS_HOST)) {
+  wasStaConnected = stationMode;
+  staLastRetryMs = millis();
+  if (stationMode && MDNS.begin(ircfg::MDNS_HOST)) {
     MDNS.addService("http", "tcp", 80);
+    mdnsReady = true;
   }
   Serial.printf("IR network: AP=%s (%s), STA=%s (%s)\\n",
                 setupApReady ? "ready" : "failed",
                 WiFi.softAPIP().toString().c_str(),
                 stationMode ? WiFi.SSID().c_str() : "disconnected",
                 stationMode ? WiFi.localIP().toString().c_str() : "-");
+}
+
+void maintainNetwork() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected != wasStaConnected) {
+    if (mdnsReady) { MDNS.end(); mdnsReady = false; }
+    wasStaConnected = connected;
+    if (connected && MDNS.begin(ircfg::MDNS_HOST)) {
+      MDNS.addService("http", "tcp", 80);
+      mdnsReady = true;
+    }
+  }
+  stationMode = connected;
+  if (!connected && irpolicy::retryDue(millis(), staLastRetryMs, 15000U)) {
+    Preferences prefs;
+    if (prefs.begin("irwifi", true)) {
+      const String ssid = prefs.getString("ssid", "");
+      prefs.end();
+      if (ssid.length() > 0) {
+        WiFi.reconnect();
+        ++staRetryCount;
+      }
+    }
+    staLastRetryMs = millis();
+  }
 }
 
 void setupRmt() {
@@ -695,6 +729,7 @@ void setup() {
 
 void loop() {
   server.handleClient();
+  maintainNetwork();
   if (rebootAt && static_cast<int32_t>(millis() - rebootAt) >= 0) {
     ESP.restart();
   }
