@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "FAILED_LIMIT_2_ATTEMPTS_PREWRITE_NO_FIRMWARE_AND_NO_PHYSICAL_RX",
+  "current_status": "MAC_WORKER_FORCE_DEPLOY_PASS_DEVICE_FLASH_BACKUP_AND_IR_RX_NOT_DONE",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -1177,5 +1177,52 @@
     "flash_write": "NOT_STARTED",
     "flasher_error": "flash_map_get timeout after 3001ms, -302 failed stub and flash probe 0KB",
     "receipt": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401"
+  },
+  "p0_06_force_execution_20261018": {
+    "scope": [
+      "P0-06",
+      "P0-07"
+    ],
+    "worker": {
+      "status": "PASS_REAL_MAC",
+      "active_deployed_commit": "0e58d97c88f3e9310b55ff1f57e945f1e9a70ee0",
+      "evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245554447",
+      "original_checkout_unchanged": true
+    },
+    "flash_attempts": [
+      {
+        "method": "esptool pip",
+        "status": "FAIL_BEFORE_BACKUP_OR_WRITE",
+        "error": "esptool unavailable, pip package resolution failed",
+        "evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245498487"
+      },
+      {
+        "method": "preinstalled Espressif OpenOCD USB-JTAG",
+        "status": "FAIL_BEFORE_BACKUP_OR_WRITE",
+        "error": "flasher stub timed out after 3001 ms during flash_map_get; failed to probe flash size",
+        "evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245559401"
+      }
+    ],
+    "hardware": {
+      "device_verified": "ESP32-C3 rev v0.4 via JTAG",
+      "flash_backed_up": false,
+      "firmware_written": false,
+      "physical_ir_5s_capture": false
+    },
+    "standalone_esptool": {
+      "official_release": "espressif/esptool v5.6.0, Mac arm64",
+      "official_asset_sha256": "08a58829a3f14bb08f2e39f4cad48dcb14b7000384268e7f06689836332d6e25",
+      "pinned_flasher_blob": "06dedb287e052bfbb701a21201c1f89122e7b39b",
+      "flasher_source": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/scripts/flash_esptool_standalone_mac.command",
+      "new_bridge_source_commit": "b0189be30719bed7eb3a63038fc0cf098b9a6e46",
+      "mac_deployed": false,
+      "reason": "GitHub manifest update rejected by tool safety check; do not bypass, or claim that standalone route has run"
+    },
+    "bootstrap_channel": {
+      "status": "RESTORED",
+      "path": "bootstrap/channels/stable.json",
+      "manifest": "bootstrap/manifests/stable-v1.json",
+      "restore_commit": "54ad25c87415541f4bb81d75103c0578a885ba58"
+    }
   }
 }
