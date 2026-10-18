@@ -1,0 +1,26 @@
+name: Public ESP32-C3 ROM ELF research
+on:
+  push:
+    paths:
+      - 'research/esp32c3_rom_public/**'
+      - '.github/workflows/esp32c3-rom-public.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32 capstone==5.0.6
+      - run: python research/esp32c3_rom_public/analyze.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: esp32c3-public-rom-results
+          path: research/esp32c3_rom_public/output/
+          if-no-files-found: warn
