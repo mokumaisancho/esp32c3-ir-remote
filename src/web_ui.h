@@ -31,7 +31,8 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 
 <section class="card">
 <h2>接続状態</h2>
-<div id="net">読み込み中…</div>
+<div id="net" style="white-space:pre-line">読み込み中…</div>
+<div id="rxReady" class="muted">RMT状態確認中…</div>
 </section>
 
 <section class="card">
@@ -62,7 +63,8 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 
 <section class="card">
 <h2>Wi-Fi設定</h2>
-<p class="muted">初回は設定AP <code>ESP32C3-IR-Setup</code> に接続し、この画面から家庭内Wi-Fiを保存します。</p>
+<p class="muted">設定AP <code>ESP32C3-IR-Setup</code>（<code>192.168.4.1</code>）は家庭内Wi-Fi接続後も復旧用として利用できます。接続先IPは上の接続状態欄に表示します。</p>
+<p class="muted">固定パスワードの設定APが常時利用可能になるため、家庭内の信頼できる場所でのみ運用してください。</p>
 <div class="row">
 <div class="grow"><input id="ssid" placeholder="SSID"></div>
 <div class="grow"><input id="pass" type="password" placeholder="Password"></div>
@@ -77,13 +79,17 @@ async function api(path,opt={}){
   const r=await fetch(path,opt);
   const t=await r.text();
   let d; try{d=JSON.parse(t)}catch{d={ok:false,error:t}}
-  if(!r.ok) throw new Error(d.error||d.message||t||r.status);
+  if(!r.ok) throw new Error((d.error||d.message||t||r.status)+(typeof d.elapsed_ms==='number'?'（実測 '+d.elapsed_ms+'ms）':''));
   return d;
 }
 function form(obj){const p=new URLSearchParams();Object.entries(obj).forEach(([k,v])=>p.set(k,v));return p}
 async function refreshStatus(){
   const d=await api('/api/status');
-  $('#net').innerHTML='<span class="badge">'+d.network_mode+'</span>'+d.ip+' · '+d.hostname;
+  const sta=d.sta_connected?'家庭内Wi-Fi: '+d.sta_ssid+'（IP '+d.sta_ip+'）':'家庭内Wi-Fi: 未接続';
+  const ap=d.setup_ap_ready?'復旧用Wi-Fi: '+d.setup_ap_ssid+'（IP '+d.setup_ap_ip+'）':'復旧用Wi-Fi: 起動失敗';
+  $('#net').textContent=sta+'\n'+ap+'\nホスト名: '+d.hostname;
+  $('#rxReady').textContent='赤外線受信 GPIO'+d.rx_gpio+': '+(d.rmt_rx_ready?'準備完了':'初期化失敗');
+  $('#learn').disabled=!d.rmt_rx_ready;
   if(d.has_last){$('#sendLast').disabled=false}
 }
 async function refreshSignals(){
@@ -106,7 +112,7 @@ $('#learn').onclick=async()=>{
   try{
     const d=await api('/api/learn',{method:'POST'});
     $('#learnStatus').textContent=d.stored?'受信成功・自動保存済み #'+d.slot:'受信成功（保存できませんでした）';
-    $('#lastMeta').textContent=d.pulses+' pulses · '+d.duration_us+' µs';
+    $('#lastMeta').textContent=d.pulses+' pulses · '+d.duration_us+' µs · '+d.elapsed_ms+'ms経過';
     $('#raw').textContent=d.raw.join(', ');
     $('#save').disabled=false; $('#sendLast').disabled=false; if(d.stored) await refreshSignals();
   }catch(e){$('#learnStatus').textContent='受信なし / '+e.message}
