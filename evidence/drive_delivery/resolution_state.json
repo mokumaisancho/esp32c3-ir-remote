@@ -17,7 +17,10 @@
     "artifact_hashes_verified": 7,
     "drive_artifact_file_id": "1J4642imZTYa0uO4luNq-3L0Q8bFyHOvc",
     "flash_result_for_this_commit": "NOT_RUN",
-    "wifi_trace_after_this_commit": "NOT_RUN"
+    "wifi_trace_after_this_commit": "NOT_RUN",
+    "drive_runner_doc_id": "1VXQfgieCbHWlnnKumotrbNlp6t4m3GNgEqElGJNqzoY",
+    "artifact_validation_reperformed": "PASS: 7 hash entries and source SHA via IR_VALIDATE_ONLY=1 on Linux",
+    "mac_execution": "NOT_RUN"
   },
   "gates": [
     {
@@ -27,9 +30,10 @@
     },
     {
       "id": "G2",
-      "state": "BLOCKED",
+      "state": "READY_FOR_MAC",
       "ac": "Existing Mac flasher must accept the new pinned commit and updated ZIP without changing the fixed launch path",
-      "blocker": "existing standalone Mac script pins previous source SHA bf96eeb66109e26e75a347fb2aac1d44168817c9 and previous artifact filename"
+      "blocker": null,
+      "implementation": "Existing IR_GOOGLE_DRIVE_LOADER.command pulls Google Doc Python code; explicit IR_FLASH_NEW=1 selects in-memory patch of existing standalone flasher pinned to new verified ZIP and commit. No changes to existing on-disk command."
     },
     {
       "id": "G3",
@@ -56,8 +60,9 @@
     "Do not overwrite original IR_ALL_IN_ONE.command"
   ],
   "next_actions": [
-    "Design reusable Drive-based update manifest with independent expected hashes and source commit",
-    "Validate stable Mac launcher handling in local tests",
-    "Request one user action only when end-to-end flow is ready"
+    "User downloads verified ZIP from Drive to Downloads only if absent",
+    "User runs IR_FLASH_NEW=1 zsh ~/Downloads/IR_GOOGLE_DRIVE_LOADER.command",
+    "Review backup/write/readback and subsequent WIFI_TRACE outcome",
+    "Do not assert Wi-Fi connectivity until IP and HTTP pass"
   ]
 }
