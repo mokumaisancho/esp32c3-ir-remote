@@ -5,7 +5,15 @@ REPO="mokumaisancho/esp32c3-ir-remote"
 BRANCH="fix/rmt-idf-error-diagnostics"
 cd "${0:A:h}/.."
 command -v gh >/dev/null || { print -u2 "BLOCKED: gh missing"; exit 2; }
-gh auth status >/dev/null 2>&1 || { print -u2 "BLOCKED: gh auth required"; exit 2; }
+# Auth errors must not be hidden: keyring, host, PATH and shell environment differ.
+# Remove inherited token overrides only for this gh invocation.
+auth_output="$(env -u GH_TOKEN -u GITHUB_TOKEN -u GHE_TOKEN gh auth status 2>&1)" || {
+  print -u2 "BLOCKED: gh authentication check failed (actual CLI output):"
+  print -u2 -- "$auth_output"
+  print -u2 "GH_CONFIG_DIR=${GH_CONFIG_DIR:-<default>} GH_HOST=${GH_HOST:-<default>}"
+  print -u2 "GH_BINARY=$(command -v gh)"
+  exit 2
+}
 [[ "$(uname -s)" == Darwin ]] || { print -u2 "BLOCKED: requires Mac"; exit 2; }
 
 # Refresh branch before doing anything destructive. Abort on local divergence.
