@@ -39,6 +39,9 @@ bool mdnsReady = false;
 bool wasStaConnected = false;
 uint32_t staLastRetryMs = 0;
 uint32_t staRetryCount = 0;
+bool wifiCredentialsSaved = false;
+bool wifiAttempted = false;
+uint32_t wifiAttemptStartedMs = 0;
 bool rmtRxReady = false;
 bool rmtTxReady = false;
 rmt_channel_handle_t rxChannel = nullptr;
@@ -407,6 +410,14 @@ void handleStatus() {
   json += "\"ip\":\"" + ip.toString() + "\",";
   json += "\"sta_connected\":" + String(staConnected ? "true" : "false") + ",";
   json += "\"sta_status\":" + String(static_cast<int>(WiFi.status())) + ",";
+  const bool wifiConnected = staConnected && WiFi.localIP() != IPAddress(0, 0, 0, 0);
+  const char *wifiPhase = !wifiCredentialsSaved ? "UNCONFIGURED" :
+      wifiConnected ? "CONNECTED" :
+      !wifiAttempted ? "SAVED" :
+      (millis() - wifiAttemptStartedMs < 12000U) ? "CONNECTING" : "FAILED";
+  json += "\"wifi_phase\":\"" + String(wifiPhase) + "\",";
+  json += "\"wifi_configured\":" + String(wifiCredentialsSaved ? "true" : "false") + ",";
+  json += "\"wifi_attempt_elapsed_ms\":" + String(wifiAttempted ? (millis() - wifiAttemptStartedMs) : 0U) + ",";
   json += "\"sta_retry_count\":" + String(staRetryCount) + ",";
   json += "\"mdns_ready\":" + String(mdnsReady ? "true" : "false") + ",";
   json += "\"sta_ssid\":\"" + jsonEscape(staConnected ? WiFi.SSID() : String("")) + "\",";
@@ -598,17 +609,25 @@ void handleWifi() {
     sendJson(500, "{\"ok\":false,\"error\":\"Wi-Fi設定保存を開始できません\"}");
     return;
   }
-  const bool ok =
-      prefs.putString("ssid", ssid) > 0 &&
-      prefs.putString("pass", password) >= 0;
+  // Empty passphrases are valid for an open network; verify round-trip.
+  const bool wroteSsid = prefs.putString("ssid", ssid) == ssid.length();
+  const bool wrotePass = prefs.putString("pass", password) == password.length();
+  const bool ok = wroteSsid && wrotePass &&
+      prefs.getString("ssid", "") == ssid &&
+      prefs.getString("pass", "") == password;
   prefs.end();
 
   if (!ok) {
     sendJson(500, "{\"ok\":false,\"error\":\"Wi-Fi設定保存に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\"ok\":true,\"rebooting\":true}");
-  rebootAt = millis() + 1200;
+  wifiCredentialsSaved = true;
+  wifiAttempted = true;
+  wifiAttemptStartedMs = millis();
+  // Begin STA connection immediately; keep AP and Web UI operational.
+  WiFi.begin(ssid.c_str(), password.c_str());
+  staLastRetryMs = millis();
+  sendJson(202, "{\"ok\":true,\"saved\":true,\"connected\":false,\"wifi_phase\":\"CONNECTING\"}");
 }
 
 void setupRoutes() {
@@ -635,9 +654,12 @@ bool connectStoredWifi() {
   const String ssid = prefs.getString("ssid", "");
   const String password = prefs.getString("pass", "");
   prefs.end();
+  wifiCredentialsSaved = !ssid.isEmpty();
   if (ssid.isEmpty()) return false;
 
   // Station is already enabled in WIFI_AP_STA; do not disable recovery AP.
+  wifiAttempted = true;
+  wifiAttemptStartedMs = millis();
   WiFi.begin(ssid.c_str(), password.c_str());
 
   const uint32_t deadline = millis() + 12000;
@@ -687,6 +709,9 @@ void maintainNetwork() {
       const String password = prefs.getString("pass", "");
       prefs.end();
       if (ssid.length() > 0) {
+        wifiCredentialsSaved = true;
+        wifiAttempted = true;
+        wifiAttemptStartedMs = millis();
         if (!WiFi.reconnect()) {
           // Recreate STA association if there is no active connection profile.
           WiFi.begin(ssid.c_str(), password.c_str());
