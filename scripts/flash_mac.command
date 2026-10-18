@@ -3,7 +3,8 @@
 set -euo pipefail
 
 REPO="mokumaisancho/esp32c3-ir-remote"
-RUN_ID="39099272784"
+RUN_ID="${IR_RUN_ID:?IR_RUN_ID is required}"
+EXPECTED_SHA="${IR_SOURCE_SHA:?IR_SOURCE_SHA is required}"
 PORT="" # Determined after ESP32-C3 identification; never assume tty suffix
 BASE="$HOME/Library/Application Support/ESP Hardware Dev Console"
 BACKUPS="$BASE/backups/esp32c3-ir-remote"
@@ -21,18 +22,21 @@ mkdir -p "$WORK/artifact"
 gh run download "$RUN_ID" -R "$REPO" -n esp32c3-ir-remote-firmware -D "$WORK/artifact" \
   || fail "Firmware artifact unavailable"
 cd "$WORK/artifact"
-for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin SHA256SUMS.txt FLASH_LAYOUT.txt; do
+for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin SHA256SUMS.txt FLASH_LAYOUT.txt SOURCE_SHA.txt; do
   [[ -s "$file" ]] || fail "Missing artifact: $file"
 done
 # CI computes SHA256 from inside its parent directory, so the manifest
 # contains "artifact/<file>" although gh extracts ZIP members into this directory.
 # Keep the pinned hashes intact; strip only that exact fixed path prefix.
-for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin firmware.elf FLASH_LAYOUT.txt; do
+for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin firmware.elf FLASH_LAYOUT.txt SOURCE_SHA.txt; do
   grep -Fq "  artifact/$file" SHA256SUMS.txt ||
     fail "Checksum manifest does not contain expected artifact/$file entry"
 done
 sed 's@  artifact/@  @' SHA256SUMS.txt | shasum -a 256 -c - ||
   fail "Firmware file hashes do not match CI SHA256 manifest"
+
+[[ "$(cat SOURCE_SHA.txt)" == "$EXPECTED_SHA" ]] || fail "Source SHA mismatch; do not flash stale firmware"
+echo "VERIFIED_SOURCE_SHA=$EXPECTED_SHA"
 
 # Search known ESP Hardware Dev Console Python environments before installing.
 typeset -a TOOL
@@ -135,6 +139,7 @@ echo "[4/5] Programming verified firmware at CI-confirmed offsets"
   || fail "Flash failed; restore possible from backup"
 
 echo "[5/5] FLASH_DONE"
+echo "VERIFIED_FIRMWARE_SHA256=$(shasum -a 256 firmware.bin | cut -d\  -f1)"
 echo "SETUP_WIFI=ESP32C3-IR-Setup"
 echo "SETUP_PASSWORD=esp32ir35"
 echo "WEB_UI=http://192.168.4.1/"
