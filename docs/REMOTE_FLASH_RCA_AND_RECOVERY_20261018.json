@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "MAC_WORKER_FORCE_DEPLOY_PASS_DEVICE_FLASH_BACKUP_AND_IR_RX_NOT_DONE",
+  "current_status": "P0_06_REAL_MAC_FULL_BACKUP_AND_FIRMWARE_FLASH_PASS_P0_07_PHYSICAL_IR_CAPTURE_NOT_YET_TESTED",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -1224,5 +1224,35 @@
       "manifest": "bootstrap/manifests/stable-v1.json",
       "restore_commit": "54ad25c87415541f4bb81d75103c0578a885ba58"
     }
+  },
+  "p0_06_esptool_success_20261018": {
+    "reason": "Reused actual success from esp32-csi-e2e Mac TCC Oct 16; isolated esptool==5.5.0 install explicitly using https://pypi.org/simple, bypassing configured pip mirror.",
+    "prior_proof": "https://github.com/mokumaisancho/esp32-csi-e2e/blob/main/evidence/mac_usb_probe/run_20261016T003152238378Z_11692.json",
+    "current_evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6245655333",
+    "code_commit": "https://github.com/mokumaisancho/esp32c3-ir-remote/commit/495a73316ad449dc84fed0701fcf0bc3dfad220b",
+    "worker_commit": "30ec30a9ec9774b5be3f53b0f9c2388341a0f82b",
+    "firmware_ci_run": 39092905791,
+    "port": "/dev/cu.usbmodem1101",
+    "chip": "ESP32-C3 (revision v0.4)",
+    "chip_mac": "44:b1:76:5d:8f:88",
+    "flash_backup": {
+      "path": "/Users/apple/Library/Application Support/ESP Hardware Dev Console/backups/esp32c3-ir-remote/pre-ir-20261018T132825.bin",
+      "size_bytes": 4194304,
+      "created": true,
+      "sha256_sidecar_generated": true,
+      "independent_sha_reverification": "NOT_OBSERVED"
+    },
+    "flash_offsets": {
+      "0x00000000": "bootloader.bin",
+      "0x00008000": "partitions.bin",
+      "0x0000e000": "boot_app0.bin",
+      "0x00010000": "firmware.bin"
+    },
+    "firmware_bytes": 1146928,
+    "all_four_area_hash_verification": "PASS_ESPTOOL_OUTPUT",
+    "hardware_reset": "PASS_ESPTOOL_OUTPUT",
+    "status": "PASS_REAL_MAC_USB_FLASH",
+    "ir_5s_receive": "NOT_TESTED_PHYSICAL_SIGNAL",
+    "note": "Do not equate a successful image write/reset with application boot, 5s IR input, or LittleFS readback."
   }
 }
