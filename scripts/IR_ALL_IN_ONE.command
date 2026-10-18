@@ -9,8 +9,10 @@ gh auth status >/dev/null 2>&1 || { print -u2 "BLOCKED: gh auth required"; exit 
 [[ "$(uname -s)" == Darwin ]] || { print -u2 "BLOCKED: requires Mac"; exit 2; }
 
 # Refresh branch before doing anything destructive. Abort on local divergence.
+[[ -z "$(git status --porcelain)" ]] || { print -u2 "BLOCKED: dirty local checkout; existing changes preserved"; exit 2; }
 git fetch origin "$BRANCH" || exit 2
-git checkout -B "$BRANCH" "origin/$BRANCH" || exit 2
+git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH" || exit 2
+git merge --ff-only "origin/$BRANCH" || { print -u2 "BLOCKED: diverged branch; existing changes preserved"; exit 2; }
 SHA="$(git rev-parse HEAD)"
 [[ -n "$SHA" ]] || exit 2
 LOGDIR="$HOME/Library/Logs/esp32c3-ir-remote"
