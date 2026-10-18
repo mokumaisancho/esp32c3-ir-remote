@@ -1,0 +1,198 @@
+{
+  "schema": "ESP32C3_ROM_MACHINE_CODE_CORE_ANALYSIS_V1",
+  "original_issue_id": "ESP32C3-ROM-001",
+  "status": "ACTUAL_ROM_FUNCTION_BODIES_STATICALLY_ANALYZED",
+  "source": {
+    "public_workflow": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39130586044",
+    "archive_sha256": "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46",
+    "machine_trace_script": "research/esp32c3_rom_public/focused_disasm.py",
+    "binary_revisions": [
+      "rev0",
+      "rev101",
+      "rev3"
+    ]
+  },
+  "validation": {
+    "function_bounds": "ELF STT_FUNC address/size and executable section",
+    "instruction_decoder": "Capstone RISC-V32+C",
+    "evidence": "Per-function complete trace stored in runner artifact; first <=150 instruction records printed to GitHub log",
+    "semantic_conclusions": "HUMAN_STATIC_INTERPRETATION_NOT_EXECUTED",
+    "covered_by_independent_objdump": "648 public entry jumps, not all internal function instructions",
+    "test_contamination_prevention": "Machine code input official release, no hardcoded semantic expected labels in extractor",
+    "uncertainty": "No live hardware tests, no full decompiler or dynamic traces"
+  },
+  "functions": [
+    {
+      "name": "hal_enable_mac",
+      "revision": "rev3",
+      "elf_address": "0x40042cd8",
+      "bytes": 30,
+      "instructions": 8,
+      "machine_code_sha256": "90c99023bd6dbef19ff6920a93cec51e8fc346c87dd7b0552ce6512e1865797e",
+      "cross_revision_identical_bytes": true,
+      "algorithm": [
+        {
+          "pc": "0x40042cdc",
+          "source": "lw a4,-0x400(a5), a5=0x60034000",
+          "operation": "r=mem32[0x60033c00]"
+        },
+        {
+          "pc": "0x40042ce0",
+          "source": "andi a4,a4,-0xf1",
+          "operation": "r &= 0xffffff0f"
+        },
+        {
+          "pc": "0x40042ce4",
+          "source": "sw a4,-0x400(a5)",
+          "operation": "mem32[0x60033c00]=r"
+        },
+        {
+          "pc": "0x40042ce8",
+          "source": "sw a0,-0x3cc(a5)",
+          "operation": "mem32[0x60033c34]=a0"
+        },
+        {
+          "pc": "0x40042cf0",
+          "source": "sw a1,0x88(a5), a5=0x60033000",
+          "operation": "mem32[0x60033088]=a1"
+        }
+      ],
+      "meaning": "Direct register writes and a four-bit mask operation proven; hardware interpretation needs independent register documentation"
+    },
+    {
+      "name": "GetSecurityInfoProc",
+      "revision": "rev3",
+      "elf_address": "0x4004b9da",
+      "bytes": 318,
+      "instructions": 110,
+      "structure": {
+        "output_bytes": 20,
+        "destination_argument": "a2",
+        "ret_zero_at": "0x4004bb12",
+        "copy_at": "0x4004bb04 (memcpy)",
+        "source_of_last_word": "ROM fixed 0x40000014"
+      },
+      "flags": [
+        {
+          "output_flag": 1,
+          "source": "ets_efuse_secure_boot_enabled()",
+          "pc": "0x4004b9f2"
+        },
+        {
+          "output_flag": 2,
+          "source": "ets_efuse_secure_boot_aggressive_revoke_enabled()",
+          "pc": "0x4004b9fc"
+        },
+        {
+          "output_flag": 4,
+          "source": "ets_efuse_security_download_modes_enabled()",
+          "pc": "0x4004ba0a"
+        },
+        {
+          "output_flag": 8,
+          "source": "bit21 of mem32[0x60008834]",
+          "pc": "0x4004ba20"
+        },
+        {
+          "output_flag": 16,
+          "source": "bit22 of mem32[0x60008834]",
+          "pc": "0x4004ba38"
+        },
+        {
+          "output_flag": 32,
+          "source": "bit23 of mem32[0x60008834]",
+          "pc": "0x4004ba50"
+        },
+        {
+          "output_flag": 64,
+          "source": "((0x96 >> ((mem32[0x60008830] >> 16)&7))&1)!=0",
+          "pc": "0x4004ba64-0x4004ba80"
+        },
+        {
+          "output_flag": 128,
+          "source": "bit19 of mem32[0x60008830]",
+          "pc": "0x4004ba86"
+        },
+        {
+          "output_flag": 256,
+          "source": "bit13 of mem32[0x60008830]",
+          "pc": "0x4004ba9e"
+        },
+        {
+          "output_flag": 1024,
+          "source": "bit10 of mem32[0x60008830]",
+          "pc": "0x4004bab6"
+        }
+      ],
+      "other_fields": [
+        "byte4=(mem32[0x60008834]>>18)&7",
+        "bytes5..11=ets_efuse_get_key_purpose(i) for i=4..10",
+        "bytes12..15=5 (uint32)",
+        "bytes16..19=mem32[0x40000014]"
+      ],
+      "limitations": "Flag bit mappings are directly derived from shifts/branches; semantic labels for individual eFuse bits require official verification."
+    },
+    {
+      "name": "r_emi_alloc_em_mapping_by_offset",
+      "revision": "rev3",
+      "elf_address": "0x40006bf2",
+      "bytes": 500,
+      "instructions": 164,
+      "observed_algorithm": [
+        "Index argument a0 is checked against 0..55",
+        "Allocation bitmap register selected by index: 0..31 => 0x600312c4, 32..47 => 0x600312c8, >=48 => 0x60031300",
+        "Already-allocated bitmap bits take error/logging path",
+        "Entry table index <=47 uses calculated address 0x60031204 + 4*index; >=48 uses 0x60032424 + 4*index (requires external hardware base validation)",
+        "Checks current table entry low 18 bits, treating nonzero as occupied",
+        "Invokes indirect allocation callback from configured global dispatch table with a1 argument",
+        "If callback result is nonzero: replaces low 18 bits of table entry with (result >> 2)&0x3ffff while retaining upper bits",
+        "Marks index allocated in bitmap, returns success-path zero; error paths delegate to callback"
+      ],
+      "raw_evidence": [
+        "0x40006c20 lw a3,0x2c4(a5), a5=0x60031000",
+        "0x40006c8e lw a3,0x2c8(a5)",
+        "0x40006c9c lw a3,0x300(a5)",
+        "0x40006d26 c.srli a0,2",
+        "0x40006d4c c.lw a0,0(s1)",
+        "0x40006d52 c.and a0,a5 where a5=0xfffc0000",
+        "0x40006d58 sw s3,0(s1)"
+      ],
+      "limitations": "First 150/164 instructions were printed in logs; full trace in job artifact. Exact callback API, upper word bits and memory bank semantics not proven."
+    },
+    {
+      "name": "r_emi_free_em_mapping_by_offset",
+      "revision": "rev3",
+      "elf_address": "0x40006de6",
+      "bytes": 460,
+      "instructions": 147,
+      "observed_algorithm": [
+        "Checks allocated bitmap corresponding to 0..55 index",
+        "Reads entry word from slot-address table",
+        "Clears associated bitmap bit",
+        "Reconstructs RAM pointer as 0x3fc00000 | ((entry << 2)&0xffffc)",
+        "Calls indirect free callback with the pointer",
+        "Clears entry low 18 bits by bitmask 0xfffc0000 and writes table word back"
+      ],
+      "evidence": [
+        "0x40006ec0 lw a3,0x2c4(a4), a4=0x60031000",
+        "0x40006ec6 sll a5,a5,s0",
+        "0x40006eca not a5,a5",
+        "0x40006ed0 sw a5,0x2c4(a4)",
+        "0x40006f04 c.slli a5,2",
+        "0x40006f08 c.and a5,a0 where a0=0xffffc",
+        "0x40006f0e c.or a0,a5 where a0=0x3fc00000",
+        "0x40006f10 c.jalr a4",
+        "0x40006f3c c.and a5,a4 where a4=0xfffc0000",
+        "0x40006f3e c.sw a5,0(s1)"
+      ],
+      "limitations": "No hardware execution, partial invalid-slot behavior and callbacks not yet completely classified."
+    }
+  ],
+  "remaining": [
+    "Extract full function 164-instruction list from artifact before certifying alloc final branch",
+    "Validate exact MMIO register semantics for BT EMI and Wi-Fi HAL against vendor and non-vendor reference",
+    "Independently verify these implementation instructions using GNU objdump or Ghidra, not just public JAL stubs",
+    "ECv4 runtime has not made ROM decisions; no successful integration evidence"
+  ],
+  "note": "This report is an explicitly interpretive analysis supported by raw machine code, not a generated test verdict."
+}
