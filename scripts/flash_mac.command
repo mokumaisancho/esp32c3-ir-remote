@@ -24,7 +24,15 @@ cd "$WORK/artifact"
 for file in bootloader.bin partitions.bin firmware.bin SHA256SUMS.txt; do
   [[ -s "$file" ]] || fail "Missing artifact: $file"
 done
-shasum -a 256 -c SHA256SUMS.txt || fail "Artifact SHA256 mismatch"
+# CI computes SHA256 from inside its parent directory, so the manifest
+# contains "artifact/<file>" although gh extracts ZIP members into this directory.
+# Keep the pinned hashes intact; strip only that exact fixed path prefix.
+for file in bootloader.bin partitions.bin firmware.bin firmware.elf; do
+  grep -Fq "  artifact/$file" SHA256SUMS.txt ||
+    fail "Checksum manifest does not contain expected artifact/$file entry"
+done
+sed 's@  artifact/@  @' SHA256SUMS.txt | shasum -a 256 -c - ||
+  fail "Firmware file hashes do not match CI SHA256 manifest"
 
 # Search known ESP Hardware Dev Console Python environments before installing.
 typeset -a TOOL
