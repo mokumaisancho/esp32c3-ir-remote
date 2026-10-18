@@ -57,7 +57,8 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 </section>
 
 <section class="card">
-<h2>保存済み信号</h2>
+<h2>保存済み信号（LittleFS永続保存）</h2>
+<div class="row"><button id="deleteSelected" class="danger" disabled>選択した信号を削除</button><span id="selectionStatus" class="muted">0件選択</span></div>
 <div id="signals">読み込み中…</div>
 </section>
 
@@ -96,17 +97,28 @@ async function refreshStatus(){
   $('#save').disabled=!d.has_last;
   $('#sendLast').disabled=!d.has_last;
 }
+const selectedIds=new Set();
+function updateSelection(){
+  $('#deleteSelected').disabled=selectedIds.size===0;
+  $('#selectionStatus').textContent=selectedIds.size+'件選択';
+}
 async function refreshSignals(){
   const a=await api('/api/signals');
+  const existing=new Set(a.map(s=>s.id));
+  for(const id of selectedIds){if(!existing.has(id))selectedIds.delete(id)}
+  updateSelection();
   if(!a.length){$('#signals').textContent='まだ保存されていません。';return}
   $('#signals').innerHTML='';
   a.forEach(s=>{
     const el=document.createElement('div'); el.className='signal';
-    const top=document.createElement('div'); top.textContent=s.name; top.style.fontWeight='650';
+    const top=document.createElement('div'); top.style.display='flex'; top.style.alignItems='center'; top.style.gap='8px';
+    const choose=document.createElement('input'); choose.type='checkbox'; choose.style.width='auto'; choose.checked=selectedIds.has(s.id);
+    choose.setAttribute('aria-label',s.name+'を選択'); choose.onchange=()=>{if(choose.checked)selectedIds.add(s.id);else selectedIds.delete(s.id);updateSelection()};
+    const title=document.createElement('span'); title.textContent=s.name; title.style.fontWeight='650';top.append(choose,title);
     const meta=document.createElement('div'); meta.className='muted'; meta.textContent='#'+s.id+' · '+s.pulses+' pulses · '+s.duration_us+' µs';
     const row=document.createElement('div'); row.className='row'; row.style.marginTop='8px';
     const send=document.createElement('button'); send.textContent='送信'; send.onclick=async()=>{send.disabled=true;try{await api('/api/send',{method:'POST',body:form({id:s.id})})}finally{send.disabled=false}};
-    const del=document.createElement('button'); del.textContent='削除'; del.className='danger'; del.onclick=async()=>{if(!confirm('「'+s.name+'」を削除しますか？'))return;await api('/api/delete',{method:'POST',body:form({id:s.id})});await refreshSignals()};
+    const del=document.createElement('button'); del.textContent='削除'; del.className='danger'; del.onclick=async()=>{if(!confirm('「'+s.name+'」を削除しますか？'))return;await api('/api/delete',{method:'POST',body:form({id:s.id})});selectedIds.delete(s.id);await refreshSignals()};
     row.append(send,del); el.append(top,meta,row); $('#signals').append(el);
   })
 }
@@ -126,6 +138,18 @@ $('#learn').onclick=async()=>{
   }catch(e){$('#learnStatus').textContent='受信なし / '+e.message}
   finally{clearInterval(timer);b.disabled=false}
 }
+$('#deleteSelected').onclick=async()=>{
+  const ids=[...selectedIds]; if(!ids.length)return;
+  if(!confirm(ids.length+'件の保存済み信号を完全削除しますか？'))return;
+  const button=$('#deleteSelected'); button.disabled=true;
+  const failed=[];
+  for(const id of ids){
+    try{await api('/api/delete',{method:'POST',body:form({id})});selectedIds.delete(id)}
+    catch(e){failed.push('#'+id+': '+e.message)}
+  }
+  await refreshSignals();
+  if(failed.length)alert('削除できなかった信号:\n'+failed.join('\n'));
+};
 $('#save').onclick=async()=>{
   const name=$('#name').value.trim(); if(!name){alert('識別名を入力してください');return}
   await api('/api/save',{method:'POST',body:form({name})}); $('#name').value=''; await refreshSignals();
