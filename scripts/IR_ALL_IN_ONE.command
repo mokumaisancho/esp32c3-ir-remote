@@ -57,10 +57,10 @@ report() {
     fi
     print '~~~'
   } > "$RECEIPT"
-  if (( GH_LIMITED == 0 )); then
+  if (( code == 0 )); then
     gh_checked issue comment 1 -R "$REPO" --body-file "$RECEIPT" >/dev/null 2>&1 || print -u2 "WARN: GitHub receipt upload failed: $RECEIPT"
   else
-    print -u2 "RECEIPT_LOCAL_ONLY_RATE_LIMIT=$RECEIPT"
+    print -u2 "RECEIPT_LOCAL_ONLY_AFTER_ERROR=$RECEIPT"
   fi
   if (( code != 0 )); then print -u2 "BLOCKED; detailed log: $LOG"; fi
 }
@@ -81,7 +81,7 @@ done
 [[ -n "$run_id" ]] || { print -u2 "BLOCKED: no CI run for source SHA"; exit 2; }
 print "Matching CI run=$run_id"
 for i in {1..72}; do
-  details="$(gh_checked run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | @tsv')" || exit 2
+  details="$(gh_checked run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | join("|")')" || exit 2
   IFS=
   [[ "$headsha" == "$SHA" ]] || { print -u2 "BLOCKED: CI source mismatch"; exit 2; }
   if [[ "$state" == "completed" ]]; then
