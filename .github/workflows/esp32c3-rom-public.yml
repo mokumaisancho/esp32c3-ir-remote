@@ -21,6 +21,7 @@ jobs:
       - run: python research/esp32c3_rom_public/reconcile.py
       - run: python research/esp32c3_rom_public/fast_reconcile.py
       - run: python research/esp32c3_rom_public/section_quality.py
+      - run: python research/esp32c3_rom_public/entry_probe.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
