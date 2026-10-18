@@ -5,23 +5,27 @@ REPO="mokumaisancho/esp32c3-ir-remote"
 BRANCH="fix/rmt-idf-error-diagnostics"
 cd "${0:A:h}/.."
 command -v gh >/dev/null || { print -u2 "BLOCKED: gh missing"; exit 2; }
-# Check the actual GitHub API rather than relying on intermittent keyring status.
+# No redundant preflight API request. Required GitHub commands authenticate
+# themselves; hard rate limits are not transient and MUST NOT be retried.
+GH_LIMITED=0
 gh_checked() {
   local attempt output
-  for attempt in 1 2 3; do
+  for attempt in 1 2; do
     if output="$(gh "$@" 2>&1)"; then
       print -r -- "$output"
       return 0
     fi
+    if print -r -- "$output" | grep -Eiq 'API rate limit exceeded|secondary rate limit|rate limit exceeded|abuse detection'; then
+      GH_LIMITED=1
+      print -u2 "BLOCKED: GITHUB_RATE_LIMIT; stop requests; wait for GitHub reset/cooldown."
+      print -u2 -- "$output"
+      return 3
+    fi
     print -u2 "GH_REQUEST_FAILED attempt=$attempt operation=$1"
     print -u2 -- "$output"
-    (( attempt == 3 )) || sleep "$attempt"
+    (( attempt == 2 )) || sleep 3
   done
   return 2
-}
-gh_checked api "repos/$REPO" --jq .full_name >/dev/null || {
-  print -u2 "BLOCKED: GitHub API failed after 3 attempts; no flash"
-  exit 2
 }
 [[ "$(uname -s)" == Darwin ]] || { print -u2 "BLOCKED: requires Mac"; exit 2; }
 
@@ -53,7 +57,11 @@ report() {
     fi
     print '~~~'
   } > "$RECEIPT"
-  gh_checked issue comment 1 -R "$REPO" --body-file "$RECEIPT" >/dev/null 2>&1 || print -u2 "WARN: GitHub receipt upload failed: $RECEIPT"
+  if (( GH_LIMITED == 0 )); then
+    gh_checked issue comment 1 -R "$REPO" --body-file "$RECEIPT" >/dev/null 2>&1 || print -u2 "WARN: GitHub receipt upload failed: $RECEIPT"
+  else
+    print -u2 "RECEIPT_LOCAL_ONLY_RATE_LIMIT=$RECEIPT"
+  fi
   if (( code != 0 )); then print -u2 "BLOCKED; detailed log: $LOG"; fi
 }
 trap report EXIT
@@ -62,7 +70,10 @@ print "Source branch=$BRANCH commit=$SHA"
 print "Waiting for matching GitHub CI build (timeout 12 minutes)."
 # Workflow push trigger normally starts automatically; dispatch if it has not.
 for i in {1..72}; do
-  run_id="$(gh_checked run list -R "$REPO" --workflow build.yml --branch "$BRANCH" --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)"
+  run_id="$(gh_checked run list -R "$REPO" --workflow build.yml --branch "$BRANCH" --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')" || {
+    print -u2 "BLOCKED: GitHub run lookup failed; no flash attempted"
+    exit 2
+  }
   if [[ -n "$run_id" ]]; then break; fi
   if (( i == 3 )); then gh_checked workflow run build.yml -R "$REPO" --ref "$BRANCH" || true; fi
   sleep 10
@@ -71,9 +82,32 @@ done
 print "Matching CI run=$run_id"
 for i in {1..72}; do
   details="$(gh_checked run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | @tsv')" || exit 2
-  state="$(gh_checked run view "$run_id" -R "$REPO" --json status --jq .status)"
-  conclusion="$(gh_checked run view "$run_id" -R "$REPO" --json conclusion --jq .conclusion)"
-  headsha="$(gh_checked run view "$run_id" -R "$REPO" --json headSha --jq .headSha)"
+  IFS=
+  [[ "$headsha" == "$SHA" ]] || { print -u2 "BLOCKED: CI source mismatch"; exit 2; }
+  if [[ "$state" == "completed" ]]; then
+    [[ "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI did not pass ($conclusion)"; exit 2; }
+    break
+  fi
+  sleep 10
+done
+[[ "$state" == "completed" && "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI timeout"; exit 2; }
+print "CI PASS; backup and flash will run only after artifact hash and chip checks."
+export IR_RUN_ID="$run_id" IR_SOURCE_SHA="$SHA"
+zsh scripts/flash_mac.command
+job_result="FLASH_WRITTEN_NOT_E2E_VERIFIED"
+print "Firmware flashed; starting read-only Wi-Fi diagnostics automatically."
+DIAG_PY="$HOME/Library/Application Support/ESP Hardware Dev Console/repo/.venv/bin/python"
+if [[ -x "$DIAG_PY" && -f scripts/diagnose_wifi_usb.py ]]; then
+  if "$DIAG_PY" scripts/diagnose_wifi_usb.py; then
+    print "POST_FLASH_WIFI_DIAGNOSTIC_DONE"
+  else
+    print -u2 "POST_FLASH_WIFI_DIAGNOSTIC_FAILED: flash integrity remains verified; see diagnostic log"
+  fi
+else
+  print -u2 "POST_FLASH_WIFI_DIAGNOSTIC_UNAVAILABLE: Python or script missing"
+fi
+print "Firmware flashed. STA HTTP and IR end-to-end acceptance still depend on measured device results."
+\\t' read -r state conclusion headsha <<< "$details"
   [[ "$headsha" == "$SHA" ]] || { print -u2 "BLOCKED: CI source mismatch"; exit 2; }
   if [[ "$state" == "completed" ]]; then
     [[ "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI did not pass ($conclusion)"; exit 2; }
