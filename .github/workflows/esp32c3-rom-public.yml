@@ -19,6 +19,7 @@ jobs:
       - run: python -m pip install --disable-pip-version-check pyelftools==0.32 capstone==5.0.6
       - run: python research/esp32c3_rom_public/analyze.py
       - run: python research/esp32c3_rom_public/reconcile.py
+      - run: python research/esp32c3_rom_public/fast_reconcile.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
