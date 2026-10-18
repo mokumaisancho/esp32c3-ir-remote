@@ -40,6 +40,7 @@ jobs:
       - run: python research/esp32c3_rom_public/mac_revision_diff.py
       - run: python research/esp32c3_rom_public/mac_instruction_diff.py
       - run: python research/esp32c3_rom_public/mac_complete_rca.py
+      - run: python research/esp32c3_rom_public/mac_rca_gate.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
