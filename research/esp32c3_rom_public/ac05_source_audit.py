@@ -3,7 +3,9 @@ P=pathlib.Path(__file__).resolve().parent
 O=P/"output"
 revs=("esp32c3_rev0_rom.elf","esp32c3_rev101_rom.elf","esp32c3_rev3_rom.elf")
 c=json.loads((O/"internal_function_candidates.json").read_text())
-source={}\ncounts={}\nrevision_hits={}
+source={}
+counts={}
+revision_hits={}
 for rev in revs:
  with (O/"targets"/(rev+".csv")).open() as f:
   names={n for row in csv.DictReader(f) for n in row["elf_function_names"].split(";") if n}
@@ -15,11 +17,15 @@ for rev in revs:
    b=h.get("source_bytes",h.get("raw_bytes",""))
    for name in h.get("function_hints",[]):
     if name and name not in names:
-     source.setdefault(name,set()).add((rev,kind,str(pc),str(reg).lower(),str(b)))\n     counts[name]=counts.get(name,0)+1\n     revision_hits.setdefault(name,set()).add(rev)
+     source.setdefault(name,set()).add((rev,kind,str(pc),str(reg).lower(),str(b)))
+     counts[name]=counts.get(name,0)+1
+     revision_hits.setdefault(name,set()).add(rev)
 errors=[];checked=0
 for candidate in c["all_candidates"]:
  name=candidate["elf_function_name"]
- if name not in source:errors.append({"name":name,"error":"NO_SOURCE_HITS"})\n if counts.get(name,0)!=candidate["static_evidence"]:errors.append({"name":name,"error":"EVIDENCE_COUNT_MISMATCH","observed":counts.get(name,0),"reported":candidate["static_evidence"]})\n if len(revision_hits.get(name,set()))!=candidate["revision_count"]:errors.append({"name":name,"error":"REVISION_COUNT_MISMATCH"})
+ if name not in source:errors.append({"name":name,"error":"NO_SOURCE_HITS"})
+ if counts.get(name,0)!=candidate["static_evidence"]:errors.append({"name":name,"error":"EVIDENCE_COUNT_MISMATCH","observed":counts.get(name,0),"reported":candidate["static_evidence"]})
+ if len(revision_hits.get(name,set()))!=candidate["revision_count"]:errors.append({"name":name,"error":"REVISION_COUNT_MISMATCH"})
  for h in candidate["first_evidence"]:
   tup=(h["revision"],h["kind"],str(h["instruction"]),str(h["register"]).lower(),str(h["bytes"]))
   if tup not in source.get(name,set()):errors.append({"name":name,"error":"HIT_MISMATCH","hit":h})
