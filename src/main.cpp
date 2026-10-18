@@ -638,6 +638,7 @@ void handleDelete() {
   sendJson(200, "{\"ok\":true}");
 }
 
+void diagMark(const char *phase);
 void handleWifi() {
   String ssid = server.arg("ssid");
   String password = server.arg("password");
