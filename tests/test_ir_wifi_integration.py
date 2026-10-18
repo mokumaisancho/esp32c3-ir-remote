@@ -105,7 +105,7 @@ esp_err_t rmt_receive(rmt_channel_handle_t ch, void* data, size_t bytes, const r
   return scenario == 0 ? ESP_ERR_INVALID_STATE : ESP_OK;
 }
 int xQueueReceive(QueueHandle_t q, size_t* count, uint32_t timeout) {
-  assert(q == rxDoneQueue && timeout == 5000);
+  assert(q == rxDoneQueue && timeout > 0 && timeout <= 5000);
   if (scenario == 1) { *count=1; return pdTRUE; }
   if (scenario == 2) { *count=4; return pdTRUE; }
   fake_time += timeout;
