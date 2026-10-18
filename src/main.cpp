@@ -702,24 +702,30 @@ void maintainNetwork() {
     }
   }
   stationMode = connected;
-  if (!connected && irpolicy::retryDue(millis(), staLastRetryMs, 15000U)) {
+  // A connection attempt may remain in progress beyond the initial 12 s.
+  // Calling reconnect/begin while ESP-IDF is still associating yields
+  // ESP_ERR_WIFI_STATE (observed on hardware at 27 s and 42 s).
+  // Allow up to 45 s before explicitly cancelling the previous attempt.
+  if (!connected && wifiCredentialsSaved && wifiAttempted &&
+      irpolicy::retryDue(millis(), wifiAttemptStartedMs, 45000U)) {
     Preferences prefs;
     if (prefs.begin("irwifi", true)) {
       const String ssid = prefs.getString("ssid", "");
       const String password = prefs.getString("pass", "");
       prefs.end();
-      if (ssid.length() > 0) {
-        wifiCredentialsSaved = true;
-        wifiAttempted = true;
+      if (!ssid.isEmpty()) {
+        // Cancel pending association before applying config again. Preserve AP
+        // and saved credentials (wifioff=false, eraseap=false).
+        WiFi.disconnect(false, false);
         wifiAttemptStartedMs = millis();
-        if (!WiFi.reconnect()) {
-          // Recreate STA association if there is no active connection profile.
-          WiFi.begin(ssid.c_str(), password.c_str());
-        }
+        WiFi.begin(ssid.c_str(), password.c_str());
+        staLastRetryMs = millis();
         ++staRetryCount;
+        Serial.printf("STA_RETRY count=%lu status=%d\\n",
+                      static_cast<unsigned long>(staRetryCount),
+                      static_cast<int>(WiFi.status()));
       }
     }
-    staLastRetryMs = millis();
   }
 }
 
