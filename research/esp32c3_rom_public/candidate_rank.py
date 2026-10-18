@@ -82,6 +82,7 @@ def main():
     output={"schema":"ROM_INTERNAL_FUNCTION_RESEARCH_PRIORITY_V1",
         "method":"Evidence grouped by ELF function metadata, public fixed ROM targets excluded",
         "source_revisions":list(REVS),"candidate_count":len(ranked["candidates"]),
+        "all_candidates":ranked["candidates"],
         "top_candidates":ranked["candidates"][:50],
         "exclusions":{k:ranked[k] for k in ("public_impl_excluded_hits","unattributed_hits")},
         "limitations":["Absence from fixed ROM API table does not imply undocumented API",
@@ -91,7 +92,7 @@ def main():
         "status":"RESEARCH_PRIORITIZATION_ONLY"}
     (OUT/"internal_function_candidates.json").write_text(json.dumps(output,indent=2)+"\n")
     print("INTERNAL_FUNCTION_CANDIDATES_RESULT "+json.dumps({
-        **{k:v for k,v in output.items() if k!="top_candidates"},
+        **{k:v for k,v in output.items() if k not in ("top_candidates","all_candidates")},
         "top_candidates":output["top_candidates"][:15]
     },separators=(",",":")))
     return output
