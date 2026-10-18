@@ -29,15 +29,14 @@ def extract_body_function(source: str, marker: str) -> str:
 
 
 class NetworkContracts(unittest.TestCase):
-    def test_recovery_ap_persists_during_station_attempt(self):
+    def test_wifimanager_owns_portal_and_ir_server_is_isolated(self):
         network = extract_body_function(SRC, "void startNetwork()")
-        connect = extract_body_function(SRC, "bool connectStoredWifi()")
-        self.assertIn("WiFi.mode(WIFI_AP_STA)", network)
-        self.assertIn("WiFi.softAP(", network)
-        self.assertLess(network.index("WiFi.softAP("), network.index("connectStoredWifi()"))
-        self.assertNotIn("WIFI_STA)", connect)
-        self.assertNotIn("WiFi.disconnect(true, true)", network)
-        self.assertIn("WiFi.begin(ssid.c_str(), password.c_str())", connect)
+        self.assertIn("wifiManager.autoConnect(", network)
+        self.assertIn("wifiManager.setConfigPortalBlocking(false)", network)
+        self.assertIn("wifiManager.setWiFiAutoReconnect(true)", network)
+        self.assertIn("WebServer server(8080)", SRC)
+        self.assertIn('MDNS.addService("http", "tcp", 8080)', network)
+        self.assertNotIn("WiFi.softAP(", network)
 
     def test_live_addresses_and_rmt_flags_exposed_without_password(self):
         status = extract_body_function(SRC, "void handleStatus()")
@@ -83,11 +82,11 @@ class WifiProvisioningContracts(unittest.TestCase):
 
 
 class WifiEventTraceContracts(unittest.TestCase):
-    def test_initial_trace_precedes_wifi_begin_and_reports_result(self):
-        fn = extract_body_function(SRC, "bool connectStoredWifi()")
-        self.assertLess(fn.index("event=INITIAL_BEGIN"), fn.index("WiFi.begin("))
-        self.assertIn("event=INITIAL_WINDOW_END", fn)
-        self.assertNotIn("password.c_str()", fn[fn.index("Serial.printf"):fn.index("WiFi.begin(")])
+    def test_manager_starts_nonblocking_portal_and_exposes_result(self):
+        fn = extract_body_function(SRC, "void startNetwork()")
+        self.assertLess(fn.index("setConfigPortalBlocking(false)"), fn.index("wifiManager.autoConnect("))
+        self.assertIn("event=WIFIMANAGER_READY", fn)
+        self.assertIn("WiFi.status() == WL_CONNECTED", fn)
 
     def test_event_callback_reports_disconnection_reason_and_dhcp(self):
         fn = extract_body_function(SRC, "void onWifiEvent(")
@@ -117,17 +116,14 @@ class PersistenceAndRecoveryContracts(unittest.TestCase):
         self.assertIn("LittleFS.rename(backupPath, finalPath)", save)
         self.assertIn("if (!LittleFS.exists(finalPath) && LittleFS.exists(backupPath))", load)
 
-    def test_station_retry_retains_credentials(self):
+    def test_wifi_manager_processes_portal_without_blocking_ir(self):
         maintain = extract_body_function(SRC, "void maintainNetwork()")
-        self.assertIn('prefs.getString("ssid", "")', maintain)
-        self.assertIn('prefs.getString("pass", "")', maintain)
-        self.assertIn("prefs.end()", maintain)
-        self.assertIn("WiFi.disconnect(false, false)", maintain)
-        self.assertIn("irpolicy::retryDue(millis(), wifiAttemptStartedMs, 45000U)", maintain)
-        self.assertNotIn("WiFi.reconnect()", maintain)
-        self.assertLess(maintain.index("WiFi.disconnect(false, false)"),
-                        maintain.index("WiFi.begin(ssid.c_str(), password.c_str())"))
-        self.assertIn("WiFi.begin(ssid.c_str(), password.c_str())", maintain)
+        loop = extract_body_function(SRC, "void loop()")
+        self.assertIn("wifiManager.process()", maintain)
+        self.assertIn("server.handleClient()", loop)
+        self.assertIn("maintainNetwork()", loop)
+        self.assertNotIn("WiFi.disconnect(", maintain)
+        self.assertNotIn("WiFi.begin(", maintain)
 
 
 class CaptureBehavior(unittest.TestCase):
