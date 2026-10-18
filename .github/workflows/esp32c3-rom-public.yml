@@ -28,6 +28,7 @@ jobs:
       - run: python research/esp32c3_rom_public/register_access.py
       - run: python research/esp32c3_rom_public/register_base_compare.py
       - run: python research/esp32c3_rom_public/published_prior_art.py
+      - run: python research/esp32c3_rom_public/exact_register_headers.py
       - run: python research/esp32c3_rom_public/candidate_rank.py
       - run: python research/esp32c3_rom_public/quality_gate.py
       - uses: actions/upload-artifact@v4
