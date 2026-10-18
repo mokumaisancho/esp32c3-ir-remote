@@ -75,6 +75,17 @@ class WifiProvisioningContracts(unittest.TestCase):
             self.assertIn(state, status)
         self.assertIn("WiFi.localIP() != IPAddress(0, 0, 0, 0)", status)
 
+    def test_persistent_signal_selection_and_delete_confirmation(self):
+        self.assertIn('LittleFS.begin(false)', SRC)
+        self.assertIn('LittleFS.rename(tempPath, finalPath)', SRC)
+        self.assertIn('loadSignalFromSlot(i, signal)', extract_body_function(SRC, "void handleSignals()"))
+        self.assertIn('id="deleteSelected"', UI)
+        self.assertIn("const selectedIds=new Set()", UI)
+        self.assertIn("choose.type='checkbox'", UI)
+        self.assertIn("if(!confirm(ids.length+", UI)
+        self.assertIn("for(const id of ids)", UI)
+        self.assertIn("selectedIds.delete(id)", UI)
+
     def test_ui_polls_actual_status(self):
         self.assertIn("setInterval(()=>refreshStatus()", UI)
         self.assertIn("保存済み・接続試行中（成功未確認）", UI)
