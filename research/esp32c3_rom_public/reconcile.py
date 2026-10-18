@@ -39,9 +39,13 @@ with tarfile.open(fileobj=io.BytesIO(archive),mode="r:gz") as tar:
   extra=[{"symbol":x,"address":hex(a),"size":z,"classification":"ELF_ONLY_UNVERIFIED"} for x,a,z in funcs if a not in known]
   missing=[{"symbol":r["name"],"address":hex(a),"group":r["group"]} for a,r in known.items() if a not in entries]
   matched=[{"rom_symbol":known[a]["name"],"elf_symbol":x,"address":hex(a)} for x,a,z in funcs if a in known]
+  # Separate same-name correspondences from address equality (independent evidence).
+  known_by_name={x["name"]:x for x in rows if x["kind"]=="function"}
+  name_matched=[{"rom_symbol":x,"rom_address":hex(known_by_name[x]["address"]),"elf_address":hex(a),"same_address":a==known_by_name[x]["address"]} for x,a,z in funcs if x in known_by_name]
+  save(n+"_name_matches.csv",name_matched,["rom_symbol","rom_address","elf_address","same_address"])
   save(n+"_elf_only.csv",extra,["symbol","address","size","classification"])
   save(n+"_baseline_missing.csv",missing,["symbol","address","group"])
   save(n+"_matched.csv",matched,["rom_symbol","elf_symbol","address"])
-  summary["revisions"][n]={"elf_function_symbols":len(funcs),"unique_entry_addresses":len(entries),"matched_elf_symbols":len(matched),"elf_only_symbols":len(extra),"baseline_missing":len(missing),"elf_only_distinct_addresses":len({int(x["address"],16) for x in extra})}
+  summary["revisions"][n]={"elf_function_symbols":len(funcs),"unique_entry_addresses":len(entries),"matched_elf_symbols":len(matched),"elf_only_symbols":len(extra),"baseline_missing":len(missing),"elf_only_distinct_addresses":len({int(x["address"],16) for x in extra}),"name_matches":len(name_matched)}
 (O/"reconciliation.json").write_text(json.dumps(summary,indent=2)+"\n")
 print(json.dumps(summary,indent=2))
