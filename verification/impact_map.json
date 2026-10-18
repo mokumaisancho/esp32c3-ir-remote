@@ -51,7 +51,7 @@
       "id": "FLASH-READBACK",
       "source": "scripts/flash_mac.command",
       "source_patterns": {
-        "readback": "read-flash 0x10000",
+        "readback": "\"$READ_FLASH\" 0x10000",
         "verify": "FLASH_READBACK_SHA256_PASS",
         "source_sha": "Source SHA mismatch"
       },
