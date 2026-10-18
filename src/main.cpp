@@ -53,30 +53,30 @@ void onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   const unsigned long ms = static_cast<unsigned long>(millis());
   switch (event) {
     case ARDUINO_EVENT_WIFI_STA_START:
-      Serial.printf("WIFI_TRACE t=%lu event=STA_START\\n", ms); break;
+      Serial.printf("WIFI_TRACE t=%lu event=STA_START\n", ms); break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED:
       ++wifiAssociationCount;
-      Serial.printf("WIFI_TRACE t=%lu event=STA_CONNECTED association_count=%lu\\n",
+      Serial.printf("WIFI_TRACE t=%lu event=STA_CONNECTED association_count=%lu\n",
                     ms, static_cast<unsigned long>(wifiAssociationCount)); break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
       wifiLastDisconnectReason = static_cast<int32_t>(info.wifi_sta_disconnected.reason);
       ++wifiDisconnectCount;
-      Serial.printf("WIFI_TRACE t=%lu event=STA_DISCONNECTED reason=%ld count=%lu\\n",
+      Serial.printf("WIFI_TRACE t=%lu event=STA_DISCONNECTED reason=%ld count=%lu\n",
                     ms, static_cast<long>(wifiLastDisconnectReason),
                     static_cast<unsigned long>(wifiDisconnectCount)); break;
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
       ++wifiGotIpCount;
       Serial.printf("WIFI_TRACE t=%lu event=STA_GOT_IP ip=" IPSTR
-                    " gateway=" IPSTR " count=%lu\\n",
+                    " gateway=" IPSTR " count=%lu\n",
                     ms, IP2STR(&info.got_ip.ip_info.ip),
                     IP2STR(&info.got_ip.ip_info.gw),
                     static_cast<unsigned long>(wifiGotIpCount)); break;
     case ARDUINO_EVENT_WIFI_STA_LOST_IP:
-      Serial.printf("WIFI_TRACE t=%lu event=STA_LOST_IP\\n", ms); break;
+      Serial.printf("WIFI_TRACE t=%lu event=STA_LOST_IP\n", ms); break;
     case ARDUINO_EVENT_WIFI_AP_START:
-      Serial.printf("WIFI_TRACE t=%lu event=AP_START\\n", ms); break;
+      Serial.printf("WIFI_TRACE t=%lu event=AP_START\n", ms); break;
     case ARDUINO_EVENT_WIFI_AP_STOP:
-      Serial.printf("WIFI_TRACE t=%lu event=AP_STOP\\n", ms); break;
+      Serial.printf("WIFI_TRACE t=%lu event=AP_STOP\n", ms); break;
     default: break;
   }
 }
@@ -668,7 +668,7 @@ void handleWifi() {
   wifiAttempted = true;
   wifiAttemptStartedMs = millis();
   // Begin STA connection immediately; keep AP and Web UI operational.
-  Serial.printf("WIFI_TRACE t=%lu event=CONFIG_UPDATE ssid_len=%u pass_len=%u\\n",
+  Serial.printf("WIFI_TRACE t=%lu event=CONFIG_UPDATE ssid_len=%u pass_len=%u\n",
                 static_cast<unsigned long>(millis()),
                 static_cast<unsigned>(ssid.length()),
                 static_cast<unsigned>(password.length()));
@@ -707,7 +707,7 @@ bool connectStoredWifi() {
   // Station is already enabled in WIFI_AP_STA; do not disable recovery AP.
   wifiAttempted = true;
   wifiAttemptStartedMs = millis();
-  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_BEGIN ssid_len=%u pass_len=%u\\n",
+  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_BEGIN ssid_len=%u pass_len=%u\n",
                 static_cast<unsigned long>(millis()),
                 static_cast<unsigned>(ssid.length()),
                 static_cast<unsigned>(password.length()));
@@ -718,7 +718,7 @@ bool connectStoredWifi() {
          static_cast<int32_t>(deadline - millis()) > 0) {
     delay(100);
   }
-  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_WINDOW_END status=%d connected=%d\\n",
+  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_WINDOW_END status=%d connected=%d\n",
                 static_cast<unsigned long>(millis()),
                 static_cast<int>(WiFi.status()), WiFi.status() == WL_CONNECTED);
   return WiFi.status() == WL_CONNECTED;
@@ -739,7 +739,7 @@ void startNetwork() {
     MDNS.addService("http", "tcp", 80);
     mdnsReady = true;
   }
-  Serial.printf("IR network: AP=%s (%s), STA=%s (%s)\\n",
+  Serial.printf("IR network: AP=%s (%s), STA=%s (%s)\n",
                 setupApReady ? "ready" : "failed",
                 WiFi.softAPIP().toString().c_str(),
                 stationMode ? WiFi.SSID().c_str() : "disconnected",
@@ -776,7 +776,7 @@ void maintainNetwork() {
         WiFi.begin(ssid.c_str(), password.c_str());
         staLastRetryMs = millis();
         ++staRetryCount;
-        Serial.printf("STA_RETRY count=%lu status=%d\\n",
+        Serial.printf("STA_RETRY count=%lu status=%d\n",
                       static_cast<unsigned long>(staRetryCount),
                       static_cast<int>(WiFi.status()));
       }
@@ -812,7 +812,7 @@ void setupRmt() {
   if (rmtTxReady) {
     rmtSetEOT(ircfg::IR_TX_PIN, ircfg::TX_ACTIVE_HIGH ? 0 : 1);
   }
-  Serial.printf("RMT readiness: RX=%d TX=%d RX_INIT_ERR=%d\\n", rmtRxReady, rmtTxReady, static_cast<int>(rxInitError));
+  Serial.printf("RMT readiness: RX=%d TX=%d RX_INIT_ERR=%d\n", rmtRxReady, rmtTxReady, static_cast<int>(rxInitError));
 }
 
 } // namespace
