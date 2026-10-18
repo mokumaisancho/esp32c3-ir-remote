@@ -1,0 +1,67 @@
+{
+  "schema": "ESP32C3_ROM_INDEPENDENT_QA_V1",
+  "issue_id": "ESP32C3-ROM-001",
+  "evidence": {
+    "action_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39125624019",
+    "script_paths": [
+      "research/esp32c3_rom_public/analyze.py",
+      "research/esp32c3_rom_public/reconcile.py",
+      "research/esp32c3_rom_public/fast_reconcile.py"
+    ],
+    "baseline_path": "research/esp32c3_rom_public/rom_api_baseline.csv"
+  },
+  "review": {
+    "deterministic_algorithm": {
+      "result": "YES_FOR_EXTRACTION",
+      "reason": "pyelftools parses ELF STT_FUNC, Capstone deterministically decodes byte stream; CSR and JAL from fixed RISC-V opcodes. No LLM classifier in these scripts."
+    },
+    "test_answer_leakage": {
+      "result": "NOT_PROVEN_ABSENT",
+      "reason": "Expected baseline count 864 and function count 648 are hardcoded and tested against same reference; archive digest is pinned; synthetic CSR 0x800 test mirrors expected prior research. No independent holdout/reference annotations or blind evaluation."
+    },
+    "false_success": {
+      "result": "CONFIRMED",
+      "reason": "0 matched known symbols for every revision with successful Actions; code lacks data adequacy/semantic matching gate."
+    },
+    "linker_elf_mismatch": {
+      "result": "UNRESOLVED",
+      "observation": "ELF STT_FUNC earliest 0x40001c00/0x40001f00/0x40001d00; linker entries start 0x40000018. Fixed section exists, but ELF function symbol list does not cover all fixed-section entries. Cannot call ELF-only symbols hidden functions."
+    },
+    "disassembly_claim": {
+      "result": "OVERSTATED_IF_LABELLED_COMPLETE",
+      "reason": "Linear Capstone decodability is not control-flow coverage; executable sections can contain data."
+    },
+    "csr_findings": {
+      "result": "CANDIDATES_ONLY",
+      "rev0": {
+        "0x800": 1,
+        "0x801": 1,
+        "0x802": 10
+      },
+      "source": "public Actions run log",
+      "rule": "CSR instruction encoding bits [31:20]; static bytes, not dynamic execution; undocumented classification requires independent TRM review."
+    },
+    "safety_gate": {
+      "result": "FAIL",
+      "must_fail_on": [
+        "zero linker/ELF match without section-symbol coverage explanation",
+        "unrecognized decoded instruction semantics",
+        "unverified unknown API interpretation"
+      ]
+    }
+  },
+  "conclusions": {
+    "ac01": "PASS",
+    "ac02": "PASS",
+    "ac03": "PARTIAL_DO_NOT_CLOSE",
+    "ac04": "PARTIAL_CANDIDATES_ONLY",
+    "ac05": "NOT_MET",
+    "overall": "NOT_COMPLETE"
+  },
+  "immediate_actions": [
+    "Cross-check known function addresses against executable bytes and raw ELF symbols including STT_NOTYPE and section start offsets",
+    "Partition fixed stub/trampoline/data areas before any unknown function classification",
+    "Implement independent oracle, mutation/negative tests, and fail-closed adequacy checks",
+    "ECv4 gate must consume actual evidence artifacts, not workflow exit code"
+  ]
+}
