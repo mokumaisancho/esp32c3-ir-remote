@@ -618,7 +618,7 @@ void handleSendSaved() {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\\"ok\\":true,\\"result\\":\\"DRIVER_OK\\",\\"verified_by_receiver\\":false}");
+  sendJson(200, "{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false}");
 }
 
 void handleSendLast() {
@@ -630,7 +630,7 @@ void handleSendLast() {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\\"ok\\":true,\\"result\\":\\"DRIVER_OK\\",\\"verified_by_receiver\\":false}");
+  sendJson(200, "{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false}");
 }
 
 void handleDelete() {
