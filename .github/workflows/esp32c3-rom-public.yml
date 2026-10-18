@@ -37,6 +37,7 @@ jobs:
       - run: python research/esp32c3_rom_public/rom_callgraph.py
       - run: python research/esp32c3_rom_public/verify_target_rows.py
       - run: python research/esp32c3_rom_public/quality_gate.py
+      - run: python research/esp32c3_rom_public/mac_revision_diff.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
