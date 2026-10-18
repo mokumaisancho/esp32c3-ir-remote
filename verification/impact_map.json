@@ -74,6 +74,24 @@
           "CI-GATE"
         ]
       }
+    },
+    {
+      "id": "WIFI-FIRST-CONNECT-TRACE",
+      "source": "src/main.cpp",
+      "source_patterns": {
+        "initial": "event=INITIAL_BEGIN",
+        "window_end": "event=INITIAL_WINDOW_END",
+        "disconnect_reason": "info\\.wifi_sta_disconnected\\.reason",
+        "dhcp": "event=STA_GOT_IP",
+        "registration": "WiFi\\.onEvent\\(onWifiEvent\\)"
+      },
+      "test_evidence": {
+        "tests/test_ir_wifi_integration.py": [
+          "test_initial_trace_precedes_wifi_begin_and_reports_result",
+          "test_event_callback_reports_disconnection_reason_and_dhcp",
+          "test_status_exposes_event_counters"
+        ]
+      }
     }
   ]
 }
