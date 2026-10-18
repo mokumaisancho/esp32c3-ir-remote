@@ -34,6 +34,7 @@ Signal lastSignal;
 bool hasLastSignal = false;
 bool stationMode = false;
 bool setupApReady = false;
+bool fsReady = false;
 bool mdnsReady = false;
 bool wasStaConnected = false;
 uint32_t staLastRetryMs = 0;
@@ -111,6 +112,7 @@ bool saveSignalToSlot(size_t slot, const Signal &signal) {
     return false;
   }
 
+  if (!fsReady) return false;
   const String finalPath = signalPath(slot);
   const String tempPath = finalPath + ".tmp";
   LittleFS.remove(tempPath);
@@ -142,17 +144,31 @@ bool saveSignalToSlot(size_t slot, const Signal &signal) {
     LittleFS.remove(tempPath);
     return false;
   }
-  LittleFS.remove(finalPath);
-  if (!LittleFS.rename(tempPath, finalPath)) {
+  // Preserve the old slot if the new file cannot be installed.
+  const String backupPath = finalPath + ".bak";
+  LittleFS.remove(backupPath);
+  const bool oldExists = LittleFS.exists(finalPath);
+  if (oldExists && !LittleFS.rename(finalPath, backupPath)) {
     LittleFS.remove(tempPath);
     return false;
   }
+  if (!LittleFS.rename(tempPath, finalPath)) {
+    if (oldExists) LittleFS.rename(backupPath, finalPath);
+    LittleFS.remove(tempPath);
+    return false;
+  }
+  if (oldExists) LittleFS.remove(backupPath);
   return true;
 }
 
 bool loadSignalFromSlot(size_t slot, Signal &signal) {
   if (slot >= ircfg::MAX_SIGNAL_SLOTS) return false;
-  File file = LittleFS.open(signalPath(slot), "r");
+  if (!fsReady) return false;
+  const String finalPath = signalPath(slot);
+  const String backupPath = finalPath + ".bak";
+  if (!LittleFS.exists(finalPath) && LittleFS.exists(backupPath))
+    LittleFS.rename(backupPath, finalPath);
+  File file = LittleFS.open(finalPath, "r");
   if (!file) return false;
 
   uint32_t magic = 0;
@@ -281,38 +297,41 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
   rxLastResetError = ESP_OK;
   if (!rxChannel || !rxDoneQueue) return false;
 
-  // Do not start another receive until the previous callback has finished.
-  xQueueReset(rxDoneQueue);
   const rmt_receive_config_t cfg = {
       .signal_range_min_ns = ircfg::RX_GLITCH_FILTER_US * 1000U,
       .signal_range_max_ns = ircfg::RX_IDLE_THRESHOLD_US * 1000U,
   };
-  ++readAttempts;
-  rxLastStartError = rmt_receive(rxChannel, rxSymbols, sizeof(rxSymbols), &cfg);
-  if (rxLastStartError != ESP_OK) {
-    ++earlyFailures;
-    elapsedMs = millis() - start;
-    return false;
+  while (static_cast<uint32_t>(millis() - start) < ircfg::LEARN_WINDOW_MS) {
+    xQueueReset(rxDoneQueue);
+    ++readAttempts;
+    rxLastStartError = rmt_receive(rxChannel, rxSymbols, sizeof(rxSymbols), &cfg);
+    if (rxLastStartError != ESP_OK) {
+      ++earlyFailures;
+      elapsedMs = millis() - start;
+      return false;
+    }
+    const uint32_t remaining = ircfg::LEARN_WINDOW_MS - (millis() - start);
+    size_t count = 0;
+    if (xQueueReceive(rxDoneQueue, &count, pdMS_TO_TICKS(remaining)) != pdTRUE) {
+      rxLastResetError = rmt_disable(rxChannel);
+      if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
+      if (rxLastResetError != ESP_OK) rmtRxReady = false;
+      break;
+    }
+    rxLastSymbolCount = static_cast<uint32_t>(count);
+    if (count > 0 && count <= ircfg::MAX_RMT_SYMBOLS) {
+      Signal candidate = normalizeReceived(rxSymbols, count);
+      if (candidate.pulses.size() >= 6 && candidate.pulses.size() <= ircfg::MAX_PULSES) {
+        signal = std::move(candidate);
+        elapsedMs = millis() - start;
+        return true;
+      }
+    }
+    // A noise burst must not end the user-visible capture window.
+    if (static_cast<uint32_t>(millis() - start) < ircfg::LEARN_WINDOW_MS) delay(1);
   }
-
-  size_t count = 0;
-  if (xQueueReceive(rxDoneQueue, &count,
-                    pdMS_TO_TICKS(ircfg::LEARN_WINDOW_MS)) != pdTRUE) {
-    // Stop and re-arm the IDF channel before accepting a new HTTP request.
-    rxLastResetError = rmt_disable(rxChannel);
-    if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
-    if (rxLastResetError != ESP_OK) rmtRxReady = false;
-    elapsedMs = millis() - start;
-    return false;
-  }
-  rxLastSymbolCount = static_cast<uint32_t>(count);
   elapsedMs = millis() - start;
-  if (count == 0 || count > ircfg::MAX_RMT_SYMBOLS) return false;
-  Signal candidate = normalizeReceived(rxSymbols, count);
-  if (candidate.pulses.size() < 6 || candidate.pulses.size() > ircfg::MAX_PULSES)
-    return false;
-  signal = std::move(candidate);
-  return true;
+  return false;
 }
 
 bool transmitSignal(const Signal &signal) {
@@ -399,6 +418,7 @@ void handleStatus() {
   json += "\"rx_gpio\":" + String(ircfg::IR_RX_PIN) + ",";
   json += "\"tx_gpio\":" + String(ircfg::IR_TX_PIN) + ",";
   json += "\"rmt_rx_ready\":" + String(rmtRxReady ? "true" : "false") + ",";
+  json += "\"filesystem_ready\":" + String(fsReady ? "true" : "false") + ",";
   json += "\"rmt_tx_ready\":" + String(rmtTxReady ? "true" : "false") + ",";
   json += "\"carrier_hz\":" + String(ircfg::IR_CARRIER_HZ) + ",";
   json += "\"duty\":" + String(ircfg::IR_DUTY, 2) + ",";
@@ -664,9 +684,13 @@ void maintainNetwork() {
     Preferences prefs;
     if (prefs.begin("irwifi", true)) {
       const String ssid = prefs.getString("ssid", "");
+      const String password = prefs.getString("pass", "");
       prefs.end();
       if (ssid.length() > 0) {
-        WiFi.reconnect();
+        if (!WiFi.reconnect()) {
+          // Recreate STA association if there is no active connection profile.
+          WiFi.begin(ssid.c_str(), password.c_str());
+        }
         ++staRetryCount;
       }
     }
@@ -711,9 +735,8 @@ void setup() {
   Serial.begin(115200);
   delay(150);
 
-  if (!LittleFS.begin(true)) {
-    Serial.println("LittleFS mount failed");
-  }
+  fsReady = LittleFS.begin(false);
+  if (!fsReady) Serial.println("LittleFS mount failed; automatic formatting disabled");
 
   setupRmt();
   startNetwork();
