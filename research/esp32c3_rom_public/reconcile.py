@@ -6,19 +6,18 @@ from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
 P=pathlib.Path(__file__).resolve().parent;O=P/"output"/"reconciliation";O.mkdir(parents=True,exist_ok=True)
 URL="https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz"
 SHA="caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46"
-LD="https://raw.githubusercontent.com/espressif/esp-idf/master/components/esp_rom/esp32c3/ld/esp32c3.rom.ld"
+LD_SOURCE="espressif/esp-idf/esp32c3.rom.ld blob f615f3ac3a5125837c74636463bec92b6db2465b"
 def get(url):return urllib.request.urlopen(url,timeout=120).read()
 archive=get(URL)
 assert hashlib.sha256(archive).hexdigest()==SHA,"archive hash mismatch"
-src=get(LD).decode(); rows=[];category="unknown";kind="unknown"
-for line in src.splitlines():
- m=re.search(r"Group\s+([\w]+)",line)
- if m:category=m.group(1)
- if "/* Functions */" in line:kind="function"
- if "/* Data (" in line:kind="data"
- m=re.search(r"^\s*(?:PROVIDE\s*\(\s*)?([A-Za-z_]\w*)\s*=\s*(0x[0-9a-fA-F]+)",line)
- if m:rows.append(dict(name=m.group(1),address=int(m.group(2),16),kind=kind,group=category))
-assert len(rows)==864 and sum(r["kind"]=="function" for r in rows)==648,"baseline drift"
+# Read the checked-in, provenance-tracked official linker CSV instead of unpinned master.
+# A current upstream source with the same row count may silently change addresses.
+with (P/"rom_api_baseline.csv").open(newline="") as f:
+ rows=[dict(name=x["symbol"],address=int(x["address"],16),
+            kind=x["type"],group=x["group"]) for x in csv.DictReader(f)]
+if len(rows)!=864 or sum(r["kind"]=="function" for r in rows)!=648 or len({x["name"] for x in rows})!=864:
+ raise RuntimeError("G1_PINNED_BASELINE_DRIFT")
+
 known={r["address"]:r for r in rows if r["kind"]=="function"}
 def save(name,rows,fields):
  with (O/name).open("w",newline="") as f:
