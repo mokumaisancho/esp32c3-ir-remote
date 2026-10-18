@@ -673,6 +673,7 @@ void handleWifi() {
                 static_cast<unsigned>(ssid.length()),
                 static_cast<unsigned>(password.length()));
   WiFi.begin(ssid.c_str(), password.c_str());
+  diagMark("CONFIG_STA_BEGIN_CALLED");
   staLastRetryMs = millis();
   sendJson(202, "{\"ok\":true,\"saved\":true,\"connected\":false,\"wifi_phase\":\"CONNECTING\"}");
 }
@@ -683,6 +684,7 @@ void setupRoutes() {
     server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
   });
   server.on("/api/status", HTTP_GET, handleStatus);
+  server.on("/api/diagnostics", HTTP_GET, handleDiagnostics);
   server.on("/api/learn", HTTP_POST, handleLearn);
   server.on("/api/save", HTTP_POST, handleSave);
   server.on("/api/signals", HTTP_GET, handleSignals);
@@ -695,14 +697,50 @@ void setupRoutes() {
   });
 }
 
+// Read-only, bounded boot flight recorder. No passwords or SSIDs stored.
+constexpr size_t kDiagSlots = 32;
+String diagSteps[kDiagSlots];
+uint32_t diagTimes[kDiagSlots] = {};
+size_t diagCount = 0;
+void diagMark(const char *phase) {
+  const size_t index = diagCount % kDiagSlots;
+  diagSteps[index] = phase;
+  diagTimes[index] = millis();
+  ++diagCount;
+  Serial.printf("WIFI_DIAG t=%lu step=%s\n", static_cast<unsigned long>(millis()), phase);
+}
+void handleDiagnostics() {
+  String json = "{\"ok\":true,\"uptime_ms\":" + String(millis());
+  json += ",\"wifi_status\":" + String(static_cast<int>(WiFi.status()));
+  json += ",\"configured\":" + String(wifiCredentialsSaved ? "true" : "false");
+  json += ",\"ap_ready\":" + String(setupApReady ? "true" : "false");
+  json += ",\"sta_connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false");
+  json += ",\"sta_ip\":\"" + WiFi.localIP().toString() + "\"";
+  json += ",\"last_disconnect_reason\":" + String(static_cast<long>(wifiLastDisconnectReason));
+  json += ",\"disconnect_count\":" + String(static_cast<unsigned long>(wifiDisconnectCount));
+  json += ",\"association_count\":" + String(static_cast<unsigned long>(wifiAssociationCount));
+  json += ",\"got_ip_count\":" + String(static_cast<unsigned long>(wifiGotIpCount));
+  json += ",\"retry_count\":" + String(static_cast<unsigned long>(staRetryCount));
+  json += ",\"events\":[";
+  const size_t n = diagCount < kDiagSlots ? diagCount : kDiagSlots;
+  const size_t first = diagCount > kDiagSlots ? diagCount - kDiagSlots : 0;
+  for (size_t i = 0; i < n; ++i) {
+    const size_t slot = (first + i) % kDiagSlots;
+    if (i) json += ",";
+    json += "{\"ms\":" + String(diagTimes[slot]) + ",\"step\":\"" + diagSteps[slot] + "\"}";
+  }
+  json += "]}";
+  sendJson(200, json);
+}
 bool connectStoredWifi() {
   Preferences prefs;
-  if (!prefs.begin("irwifi", true)) return false;
+  if (!prefs.begin("irwifi", true)) { diagMark("NVS_OPEN_FAILED"); return false; }
   const String ssid = prefs.getString("ssid", "");
   const String password = prefs.getString("pass", "");
   prefs.end();
   wifiCredentialsSaved = !ssid.isEmpty();
-  if (ssid.isEmpty()) return false;
+  if (ssid.isEmpty()) { diagMark("NVS_SSID_EMPTY"); return false; }
+  diagMark("NVS_CREDENTIALS_LOADED");
 
   // Station is already enabled in WIFI_AP_STA; do not disable recovery AP.
   wifiAttempted = true;
@@ -713,6 +751,7 @@ bool connectStoredWifi() {
                 static_cast<unsigned>(password.length()));
   WiFi.begin(ssid.c_str(), password.c_str());
 
+  diagMark("STA_BEGIN_CALLED");
   const uint32_t deadline = millis() + 12000;
   while (WiFi.status() != WL_CONNECTED &&
          static_cast<int32_t>(deadline - millis()) > 0) {
@@ -721,6 +760,7 @@ bool connectStoredWifi() {
   Serial.printf("WIFI_TRACE t=%lu event=INITIAL_WINDOW_END status=%d connected=%d\n",
                 static_cast<unsigned long>(millis()),
                 static_cast<int>(WiFi.status()), WiFi.status() == WL_CONNECTED);
+  diagMark(WiFi.status() == WL_CONNECTED ? "STA_CONNECTED_WINDOW" : "STA_WINDOW_EXPIRED");
   return WiFi.status() == WL_CONNECTED;
 }
 
@@ -728,17 +768,23 @@ void startNetwork() {
   // Keep the recovery AP available even when home Wi-Fi or mDNS fails.
   // Because this AP has a documented fixed password, keep the device only
   // on trusted premises and do not expose the HTTP server to the Internet.
+  diagMark("NETWORK_START");
   WiFi.onEvent(onWifiEvent);
+  diagMark("WIFI_CALLBACK_REGISTERED");
   WiFi.mode(WIFI_AP_STA);
+  diagMark("WIFI_AP_STA_MODE");
   WiFi.setHostname(ircfg::MDNS_HOST);
   setupApReady = WiFi.softAP(ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
+  diagMark(setupApReady ? "SETUP_AP_STARTED" : "SETUP_AP_FAILED");
   stationMode = connectStoredWifi();
   wasStaConnected = stationMode;
   staLastRetryMs = millis();
+  diagMark(stationMode ? "STA_CONNECTED" : "STA_NOT_CONNECTED");
   if (stationMode && MDNS.begin(ircfg::MDNS_HOST)) {
     MDNS.addService("http", "tcp", 80);
     mdnsReady = true;
   }
+  diagMark(mdnsReady ? "MDNS_READY" : "MDNS_NOT_READY");
   Serial.printf("IR network: AP=%s (%s), STA=%s (%s)\n",
                 setupApReady ? "ready" : "failed",
                 WiFi.softAPIP().toString().c_str(),
@@ -776,6 +822,7 @@ void maintainNetwork() {
         WiFi.begin(ssid.c_str(), password.c_str());
         staLastRetryMs = millis();
         ++staRetryCount;
+        diagMark("STA_RETRY_BEGIN_CALLED");
         Serial.printf("STA_RETRY count=%lu status=%d\n",
                       static_cast<unsigned long>(staRetryCount),
                       static_cast<int>(WiFi.status()));
@@ -820,14 +867,19 @@ void setupRmt() {
 void setup() {
   Serial.begin(115200);
   delay(150);
+  diagMark("SETUP_ENTERED");
 
   fsReady = LittleFS.begin(false);
+  diagMark(fsReady ? "FILESYSTEM_READY" : "FILESYSTEM_FAILED");
   if (!fsReady) Serial.println("LittleFS mount failed; automatic formatting disabled");
 
   setupRmt();
+  diagMark("IR_INIT_COMPLETE");
   startNetwork();
   setupRoutes();
+  diagMark("HTTP_ROUTES_REGISTERED");
   server.begin();
+  diagMark("HTTP_SERVER_STARTED");
 
   const IPAddress ip = stationMode ? WiFi.localIP() : WiFi.softAPIP();
   Serial.printf(
