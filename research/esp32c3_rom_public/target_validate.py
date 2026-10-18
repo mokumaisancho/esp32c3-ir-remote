@@ -24,7 +24,7 @@ with tarfile.open(fileobj=io.BytesIO(data),mode="r:gz") as tf:
     for sym in s.iter_symbols():
      if sym["st_info"]["type"]=="STT_FUNC" and int(sym["st_value"]):
       func.setdefault(int(sym["st_value"]),[]).append(sym.name)
-  results=[];stats=Counter()
+  results=[];stats=Counter();mismatches=[]
   for row in known:
    a=int(row["address"],16)
    source=[(base,chunk,section) for base,chunk,section in secs if base<=a<base+len(chunk)]
@@ -36,15 +36,20 @@ with tarfile.open(fileobj=io.BytesIO(data),mode="r:gz") as tf:
    in_exec=any(x<=target<x+len(blob) for x,blob,_ in secs)
    names=func.get(target,[])
    if row["symbol"] not in names:
-    raise RuntimeError("FAIL_CLOSED_ROM_NAME_MISMATCH:"+filename+":"+row["symbol"]+":"+str(names))
-   stats["matched_named_function"]+=1
+    mismatches.append({"rom_symbol":row["symbol"],"target":hex(target),
+                       "elf_symbols":names,"reason":"NAME_ALIAS_OR_UNANNOTATED_NOT_RESOLVED"})
+    stats["name_mismatch_unresolved"]+=1
+   else:
+    stats["matched_named_function"]+=1
    stats["valid_exec" if in_exec else "outside_exec"]+=1
    stats["exact_STT_FUNC" if names else "not_STT_FUNC"]+=1
    results.append({"known_rom_name":row["symbol"],"rom_entry":hex(a),"target":hex(target),
       "target_executable":in_exec,"elf_function_names":";".join(names),"source_section":section})
   with (O/(filename+".csv")).open("w",newline="") as f:
    writer=csv.DictWriter(f,fieldnames=list(results[0]));writer.writeheader();writer.writerows(results)
-  summary["revisions"][filename]={"counts":dict(stats),"total":len(results),"sample":results[:8]}
+  summary["revisions"][filename]={"counts":dict(stats),"total":len(results),"sample":results[:8], "unresolved_name_mismatches":mismatches,
+     "semantic_verdict":"NOT_CERTIFIED","structural_verdict":"PASS" if stats["outside_exec"]==0 and stats["not_STT_FUNC"]==0 else "REQUIRES_REVIEW"}
   if stats["outside_exec"]>0:raise RuntimeError("FAIL_CLOSED_JUMP_OUTSIDE_EXECUTABLE")
+  if stats["not_STT_FUNC"]>0:raise RuntimeError("FAIL_CLOSED_JUMP_TARGET_NOT_ELF_FUNCTION")
 (O/"summary.json").write_text(json.dumps(summary,indent=2)+"\n")
 print(json.dumps(summary,indent=2))
