@@ -4,6 +4,7 @@
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <WiFiManager.h>
 #include <esp32-hal-rmt.h>
 #include <driver/rmt_rx.h>
 #include <esp_err.h>
@@ -29,7 +30,9 @@ struct Signal {
   uint16_t dutyPermille = 300;
 };
 
-WebServer server(80);
+// Port 80 belongs to WiFiManager captive portal; keep IR API on 8080.
+WebServer server(8080);
+WiFiManager wifiManager;
 Signal lastSignal;
 bool hasLastSignal = false;
 bool stationMode = false;
@@ -674,6 +677,7 @@ void handleWifi() {
                 static_cast<unsigned long>(millis()),
                 static_cast<unsigned>(ssid.length()),
                 static_cast<unsigned>(password.length()));
+  // Legacy IR form retained; WiFiManager portal is the supported setup path.
   WiFi.begin(ssid.c_str(), password.c_str());
   diagMark("CONFIG_STA_BEGIN_CALLED");
   staLastRetryMs = millis();
@@ -734,103 +738,47 @@ void handleDiagnostics() {
   json += "]}";
   sendJson(200, json);
 }
-bool connectStoredWifi() {
-  Preferences prefs;
-  if (!prefs.begin("irwifi", true)) { diagMark("NVS_OPEN_FAILED"); return false; }
-  const String ssid = prefs.getString("ssid", "");
-  const String password = prefs.getString("pass", "");
-  prefs.end();
-  wifiCredentialsSaved = !ssid.isEmpty();
-  if (ssid.isEmpty()) { diagMark("NVS_SSID_EMPTY"); return false; }
-  diagMark("NVS_CREDENTIALS_LOADED");
-
-  // Station is already enabled in WIFI_AP_STA; do not disable recovery AP.
+// WiFiManager owns the access-point portal and STA association.
+void startNetwork() {
+  diagMark("NETWORK_START_WIFIMANAGER");
+  WiFi.onEvent(onWifiEvent);
+  wifiManager.setDebugOutput(true);
+  wifiManager.setConnectTimeout(25);
+  wifiManager.setConfigPortalBlocking(false);
+  wifiManager.setWiFiAutoReconnect(true);
+  // WiFiManager uses its ESP32-native WiFi credential store, not "irwifi".
+  // A saved legacy credential can still be entered through the portal.
+  wifiCredentialsSaved = WiFi.SSID().length() > 0;
+  const bool initialized = wifiManager.autoConnect(
+      ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
+  stationMode = WiFi.status() == WL_CONNECTED;
+  wasStaConnected = stationMode;
+  setupApReady = (WiFi.getMode() & WIFI_MODE_AP) != 0;
   wifiAttempted = true;
   wifiAttemptStartedMs = millis();
-  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_BEGIN ssid_len=%u pass_len=%u\n",
-                static_cast<unsigned long>(millis()),
-                static_cast<unsigned>(ssid.length()),
-                static_cast<unsigned>(password.length()));
-  WiFi.begin(ssid.c_str(), password.c_str());
-
-  diagMark("STA_BEGIN_CALLED");
-  const uint32_t deadline = millis() + 12000;
-  while (WiFi.status() != WL_CONNECTED &&
-         static_cast<int32_t>(deadline - millis()) > 0) {
-    delay(100);
-  }
-  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_WINDOW_END status=%d connected=%d\n",
-                static_cast<unsigned long>(millis()),
-                static_cast<int>(WiFi.status()), WiFi.status() == WL_CONNECTED);
-  diagMark(WiFi.status() == WL_CONNECTED ? "STA_CONNECTED_WINDOW" : "STA_WINDOW_EXPIRED");
-  return WiFi.status() == WL_CONNECTED;
-}
-
-void startNetwork() {
-  // Keep the recovery AP available even when home Wi-Fi or mDNS fails.
-  // Because this AP has a documented fixed password, keep the device only
-  // on trusted premises and do not expose the HTTP server to the Internet.
-  diagMark("NETWORK_START");
-  WiFi.onEvent(onWifiEvent);
-  diagMark("WIFI_CALLBACK_REGISTERED");
-  WiFi.mode(WIFI_AP_STA);
-  diagMark("WIFI_AP_STA_MODE");
-  WiFi.setHostname(ircfg::MDNS_HOST);
-  setupApReady = WiFi.softAP(ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
-  diagMark(setupApReady ? "SETUP_AP_STARTED" : "SETUP_AP_FAILED");
-  stationMode = connectStoredWifi();
-  wasStaConnected = stationMode;
-  staLastRetryMs = millis();
-  diagMark(stationMode ? "STA_CONNECTED" : "STA_NOT_CONNECTED");
+  diagMark(initialized ? "WIFIMANAGER_AUTOCONNECT" : "WIFIMANAGER_PORTAL");
   if (stationMode && MDNS.begin(ircfg::MDNS_HOST)) {
-    MDNS.addService("http", "tcp", 80);
+    MDNS.addService("http", "tcp", 8080);
     mdnsReady = true;
   }
-  diagMark(mdnsReady ? "MDNS_READY" : "MDNS_NOT_READY");
-  Serial.printf("IR network: AP=%s (%s), STA=%s (%s)\n",
-                setupApReady ? "ready" : "failed",
-                WiFi.softAPIP().toString().c_str(),
-                stationMode ? WiFi.SSID().c_str() : "disconnected",
-                stationMode ? WiFi.localIP().toString().c_str() : "-");
+  Serial.printf("WIFI_TRACE event=WIFIMANAGER_READY connected=%d portal=%d sta_ip=%s ir_port=8080\n",
+                stationMode ? 1 : 0, setupApReady ? 1 : 0,
+                WiFi.localIP().toString().c_str());
 }
 
 void maintainNetwork() {
+  wifiManager.process(); // Nonblocking portal and station management.
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected != wasStaConnected) {
     if (mdnsReady) { MDNS.end(); mdnsReady = false; }
     wasStaConnected = connected;
     if (connected && MDNS.begin(ircfg::MDNS_HOST)) {
-      MDNS.addService("http", "tcp", 80);
+      MDNS.addService("http", "tcp", 8080);
       mdnsReady = true;
     }
   }
   stationMode = connected;
-  // A connection attempt may remain in progress beyond the initial 12 s.
-  // Calling reconnect/begin while ESP-IDF is still associating yields
-  // ESP_ERR_WIFI_STATE (observed on hardware at 27 s and 42 s).
-  // Allow up to 45 s before explicitly cancelling the previous attempt.
-  if (!connected && wifiCredentialsSaved && wifiAttempted &&
-      irpolicy::retryDue(millis(), wifiAttemptStartedMs, 45000U)) {
-    Preferences prefs;
-    if (prefs.begin("irwifi", true)) {
-      const String ssid = prefs.getString("ssid", "");
-      const String password = prefs.getString("pass", "");
-      prefs.end();
-      if (!ssid.isEmpty()) {
-        // Cancel pending association before applying config again. Preserve AP
-        // and saved credentials (wifioff=false, eraseap=false).
-        WiFi.disconnect(false, false);
-        wifiAttemptStartedMs = millis();
-        WiFi.begin(ssid.c_str(), password.c_str());
-        staLastRetryMs = millis();
-        ++staRetryCount;
-        diagMark("STA_RETRY_BEGIN_CALLED");
-        Serial.printf("STA_RETRY count=%lu status=%d\n",
-                      static_cast<unsigned long>(staRetryCount),
-                      static_cast<int>(WiFi.status()));
-      }
-    }
-  }
+  setupApReady = (WiFi.getMode() & WIFI_MODE_AP) != 0;
 }
 
 void setupRmt() {
@@ -885,7 +833,7 @@ void setup() {
 
   const IPAddress ip = stationMode ? WiFi.localIP() : WiFi.softAPIP();
   Serial.printf(
-      "IR UI ready: http://%s.local/ or http://%s/\n",
+      "IR UI ready: http://%s.local:8080/ or http://%s:8080/\n",
       ircfg::MDNS_HOST,
       ip.toString().c_str());
 }
