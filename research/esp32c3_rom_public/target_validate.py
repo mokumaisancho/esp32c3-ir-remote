@@ -24,7 +24,7 @@ with tarfile.open(fileobj=io.BytesIO(data),mode="r:gz") as tf:
     for sym in s.iter_symbols():
      if sym["st_info"]["type"]=="STT_FUNC" and int(sym["st_value"]):
       func.setdefault(int(sym["st_value"]),[]).append(sym.name)
-  results=[];stats=Counter();mismatches=[]
+  results=[];stats=Counter(); mismatches=[];mismatches=[]
   for row in known:
    a=int(row["address"],16)
    source=[(base,chunk,section) for base,chunk,section in secs if base<=a<base+len(chunk)]
@@ -53,3 +53,5 @@ with tarfile.open(fileobj=io.BytesIO(data),mode="r:gz") as tf:
   if stats["not_STT_FUNC"]>0:raise RuntimeError("FAIL_CLOSED_JUMP_TARGET_NOT_ELF_FUNCTION")
 (O/"summary.json").write_text(json.dumps(summary,indent=2)+"\n")
 print(json.dumps(summary,indent=2))
+if any(x["name_mismatch_count"] for x in summary["revisions"].values()):
+ raise RuntimeError("FAIL_CLOSED_UNRECONCILED_LINKER_ELF_NAMES")
