@@ -58,6 +58,30 @@ class NetworkContracts(unittest.TestCase):
         self.assertIn("fetch(path,opt)", UI)
 
 
+class WifiProvisioningContracts(unittest.TestCase):
+    def test_save_does_not_claim_association(self):
+        save = extract_body_function(SRC, "void handleWifi()")
+        self.assertIn('prefs.getString("ssid", "") == ssid', save)
+        self.assertIn('prefs.getString("pass", "") == password', save)
+        self.assertIn("WiFi.begin(ssid.c_str(), password.c_str())", save)
+        self.assertIn('sendJson(202,', save)
+        self.assertIn('\\\"connected\\\":false', save)
+        self.assertNotIn("rebootAt = ", save)
+
+    def test_status_reports_real_network_phase(self):
+        status = extract_body_function(SRC, "void handleStatus()")
+        for field in ("wifi_phase", "wifi_configured", "wifi_attempt_elapsed_ms", "sta_ip", "sta_status"):
+            self.assertIn(field, status)
+        for state in ("UNCONFIGURED", "SAVED", "CONNECTING", "CONNECTED", "FAILED"):
+            self.assertIn(state, status)
+        self.assertIn("WiFi.localIP() != IPAddress(0, 0, 0, 0)", status)
+
+    def test_ui_polls_actual_status(self):
+        self.assertIn("setInterval(()=>refreshStatus()", UI)
+        self.assertIn("保存済み・接続試行中（成功未確認）", UI)
+        self.assertNotIn("保存しました。ESP32-C3を再起動します。", UI)
+
+
 class PersistenceAndRecoveryContracts(unittest.TestCase):
     def test_filesystem_preserves_existing_data_on_write_failure(self):
         save = extract_body_function(SRC, "bool saveSignalToSlot(")
