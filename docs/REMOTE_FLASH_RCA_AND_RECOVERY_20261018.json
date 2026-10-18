@@ -4,7 +4,7 @@
   "recorded_date": "2026-10-18",
   "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
   "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
-  "current_status": "P0_06_REAL_MAC_FULL_BACKUP_AND_FIRMWARE_FLASH_PASS_P0_07_PHYSICAL_IR_CAPTURE_NOT_YET_TESTED",
+  "current_status": "OLD_IR_FIRMWARE_FLASH_PASS_NEW_WIFI_RMT_PATCH_CI_PASS_NOT_FLASHED",
   "target": {
     "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
     "cloud_ci_run_id": "39088472851",
@@ -390,7 +390,7 @@
       ]
     },
     "note": "OpenOCD's static GPIO read cannot reconstruct 38kHz-modulated waveform or demodulated sub-millisecond marks. GitHub PING and CI build are not physical RX evidence.",
-    "next_action": "Do not flash again in this request: the user-specified two-attempt limit is reached. Root cause OpenOCD flasher-stub timeout remains unresolved. Next separate authorization would allow re-evaluation of the SHA256-verified standalone esptool option, confirm USB serial enumeration first, then an explicitly authorized new attempt and genuine IR receipt.",
+    "next_action": "Tested new network/RMT fix in CI run 39099272784, not yet deployed to ESP32. Discover current STA IP through router DHCP, or explicitly flash the verified patch artifact, then perform real 5-second IR signal capture.",
     "flash_pin": {
       "script_git_blob": "33eb9184631e3d280146e69008c84efeabcc3fd0",
       "script_commit": "5e17aed44da84fc64f4dc5fe5887b52e43e9accd",
@@ -1254,5 +1254,69 @@
     "status": "PASS_REAL_MAC_USB_FLASH",
     "ir_5s_receive": "NOT_TESTED_PHYSICAL_SIGNAL",
     "note": "Do not equate a successful image write/reset with application boot, 5s IR input, or LittleFS readback."
+  },
+  "wifi_ir_rx_recovery_20261018": {
+    "original_issue_id": "ESP32-IR-LEARN",
+    "observed_user_issue": [
+      "After saving home Wi-Fi, neither esp32-ir.local nor 192.168.4.1 was reachable",
+      "5-second IR learn returned failure immediately rather than visibly waiting"
+    ],
+    "rca": [
+      {
+        "cause": "Original firmware switches Wi-Fi from setup AP to STA after successful home connection; setup 192.168.4.1 disappears by design",
+        "finding": "CONFIRMED_SOURCE"
+      },
+      {
+        "cause": "STA IP was not shown, mDNS hostname may not resolve; access loss cannot be separated from station join failure using old UI",
+        "finding": "CONFIRMED_OBSERVABILITY_GAP; REAL_WIFI_JOIN_UNVERIFIED"
+      },
+      {
+        "cause": "rmtRead 5000ms is maximum wait and early failure/noise can cause immediate result; no UI readiness indicator",
+        "finding": "CONFIRMED_SOURCE; ROOT_CAUSE_OF_ACTUAL_EARLY_FAILURE_NOT_OBSERVED"
+      }
+    ],
+    "patch": {
+      "commit": "45cf4ae13951bb9ce266d7aefd79617d056ebb03",
+      "files": [
+        "src/main.cpp",
+        "src/web_ui.h",
+        "tests/test_ir_wifi_integration.py",
+        ".github/workflows/build.yml"
+      ],
+      "changes": [
+        "WIFI_AP_STA with persistent rescue setup AP even when STA joins",
+        "status JSON includes live STA SSID/IP, AP address, RMT initialization flags; no Wi-Fi password",
+        "5-second bounded receive loop re-arms after spurious/noisy/failed short reads and reports elapsed_ms / read_attempts / early_failures",
+        "Web UI displays both network routes, RX readiness, and measured receive time"
+      ]
+    },
+    "tests": {
+      "ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39099272784",
+      "ci_run_id": 39099272784,
+      "source_commit": "45cf4ae13951bb9ce266d7aefd79617d056ebb03",
+      "result": "PASS_CLOUD_HOST_REGRESSION_AND_ESP32_FIRMWARE_BUILD",
+      "host_tests": 5,
+      "scenarios": [
+        "Immediate mocked rmtRead failure still consumes >=5000ms",
+        "Invalid short frames consume full 5000ms budget",
+        "Valid frame exits promptly with >=6 pulses",
+        "No-signal blocking timeout consumes 5000ms",
+        "Web UI JS syntax / UI status contracts and persistent AP code-path static checks"
+      ],
+      "artifact_id": 12126056961,
+      "artifact_name": "esp32c3-ir-remote-firmware",
+      "device_wifi_observed": false,
+      "device_rmt_observed": false,
+      "device_flashing_this_patch": false
+    },
+    "current_mac_device": "Previously flashed image from CI run 39092905791; latest network/RMT patch has NOT been flashed",
+    "security_note": "Persistent setup AP uses documented fixed password. Do not expose device beyond trusted vicinity; consider per-device password provisioning before production",
+    "next_actions": [
+      "For current old firmware, from WRC-X3000GS3 router UI > WAN&LAN > LAN > 接続端末の表示 find station IP; direct HTTP to assigned IP",
+      "If no DHCP client, check whether ESP32C3-IR-Setup SSID still broadcasts and rejoin it",
+      "Deploy only tested firmware artifact with complete preflash backup and SHA verification when expressly authorized",
+      "After install, independently verify station + AP IP via /api/status, then physically test 5-second IR RAW capture and LittleFS readback"
+    ],
+    "overall_status": "SOURCE_CI_PASS_DEVICE_DEPLOY_AND_HARDWARE_TEST_PENDING"
   }
 }
