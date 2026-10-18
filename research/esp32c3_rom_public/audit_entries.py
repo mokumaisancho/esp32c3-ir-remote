@@ -79,6 +79,30 @@ def analyze(archive):
                              "target_equals_same_name_elf":target_name,
                              "target_elf_symbols":by_addr.get(target,[]) if target is not None else []})
             if len(rows)!=648:raise RuntimeError("G1_648_ENTRIES_NOT_COVERED")
+            # Capstone (third-party) and our independent encoding bit decoder
+            # must agree on the relative JAL displacement, without using ELF
+            # symbol names as either decoder's oracle.
+            divergent=[]
+            for row in rows:
+                if row["branch_kind"]!="JAL":
+                    divergent.append({"symbol":row["symbol"],"reason":"NOT_JAL"})
+                    continue
+                # Example: Capstone emits 'j 0x48294' for a relative offset.
+                raw_operand=row["first_instruction"].split()[-1]
+                try:
+                    capstone_offset=int(raw_operand,0)
+                    independent_offset=int(row["branch_target"],16)-int(row["known_address"],16)
+                except (ValueError, TypeError):
+                    divergent.append({"symbol":row["symbol"],"reason":"UNPARSEABLE_DISPLACEMENT"})
+                    continue
+                if capstone_offset!=independent_offset:
+                    divergent.append({"symbol":row["symbol"],"reason":"OFFSET_MISMATCH",
+                                      "capstone":capstone_offset,"independent":independent_offset})
+            if divergent:raise RuntimeError("G3_INDEPENDENT_DISASSEMBLER_MISMATCH:"+str(divergent[:10]))
+            unresolved=[{"symbol":r["symbol"],"address":r["known_address"],
+                         "target":r["branch_target"],"target_ELF_names":r["target_elf_symbols"],
+                         "same_name_present":bool(r["elf_same_name_address"])} for r in rows
+                        if not r["target_equals_same_name_elf"]]
             if not any(row["first_instruction"]!="UNDECODED" for row in rows):
                 raise RuntimeError("G3_NO_KNOWN_ENTRY_DECODES")
             intervals=[];exec_bytes=0
@@ -98,7 +122,9 @@ def analyze(archive):
               "not_covered_by_ELF_STT_FUNC_size_intervals_bytes":exec_bytes-named_bytes,
               "coverage_caution":"size intervals are symbol metadata not program reachability",
               "sample_entries":rows[:15],
-              "first_resolved_links":[r for r in rows if r["branch_target"] is not None][:20]}
+              "first_resolved_links":[r for r in rows if r["branch_target"] is not None][:20],
+              "independent_capstone_offset_agreement":648,
+              "unresolved_linker_names":unresolved}
             OUT.mkdir(parents=True,exist_ok=True)
             (OUT/(filename+".entries.json")).write_text(json.dumps(rows,indent=2)+"\n")
     (OUT/"entry_audit_summary.json").write_text(json.dumps(result,indent=2)+"\n")
