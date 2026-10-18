@@ -82,6 +82,30 @@ class WifiProvisioningContracts(unittest.TestCase):
         self.assertNotIn("保存しました。ESP32-C3を再起動します。", UI)
 
 
+class WifiEventTraceContracts(unittest.TestCase):
+    def test_initial_trace_precedes_wifi_begin_and_reports_result(self):
+        fn = extract_body_function(SRC, "bool connectStoredWifi()")
+        self.assertLess(fn.index("event=INITIAL_BEGIN"), fn.index("WiFi.begin("))
+        self.assertIn("event=INITIAL_WINDOW_END", fn)
+        self.assertNotIn("password.c_str()", fn[fn.index("Serial.printf"):fn.index("WiFi.begin(")])
+
+    def test_event_callback_reports_disconnection_reason_and_dhcp(self):
+        fn = extract_body_function(SRC, "void onWifiEvent(")
+        for event in ("STA_START", "STA_CONNECTED", "STA_DISCONNECTED",
+                      "STA_GOT_IP", "STA_LOST_IP", "AP_START", "AP_STOP"):
+            self.assertIn("event=" + event, fn)
+        self.assertIn("info.wifi_sta_disconnected.reason", fn)
+        self.assertIn("info.got_ip.ip_info.ip", fn)
+        self.assertNotIn("password", fn)
+        self.assertIn("WiFi.onEvent(onWifiEvent)", extract_body_function(SRC, "void startNetwork()"))
+
+    def test_status_exposes_event_counters(self):
+        fn = extract_body_function(SRC, "void handleStatus()")
+        for field in ("wifi_last_disconnect_reason", "wifi_disconnect_count",
+                      "wifi_association_count", "wifi_got_ip_count"):
+            self.assertIn(field, fn)
+
+
 class PersistenceAndRecoveryContracts(unittest.TestCase):
     def test_filesystem_preserves_existing_data_on_write_failure(self):
         save = extract_body_function(SRC, "bool saveSignalToSlot(")
