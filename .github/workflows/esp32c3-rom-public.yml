@@ -26,6 +26,8 @@ jobs:
         shell: bash
       - run: python research/esp32c3_rom_public/ac05_prior_art_countercheck.py 2>&1 | tee research/esp32c3_rom_public/ac05_prior_art_countercheck.log
         shell: bash
+      - run: python research/esp32c3_rom_public/novelty_falsification.py 2>&1 | tee research/esp32c3_rom_public/novelty_falsification.log
+        shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -35,4 +37,5 @@ jobs:
             research/esp32c3_rom_public/unit_tests.stdout.log
             research/esp32c3_rom_public/ac05_source_audit.log
             research/esp32c3_rom_public/ac05_prior_art_countercheck.log
+            research/esp32c3_rom_public/novelty_falsification.log
           if-no-files-found: warn
