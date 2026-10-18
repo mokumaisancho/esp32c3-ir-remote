@@ -85,7 +85,11 @@ def main():
         if serial_obj is None and ports and time.monotonic() >= next_try:
             target = next((p for p in ports if "usbmodem" in p), ports[0])
             try:
-                serial_obj = serial.Serial(target, 115200, timeout=0.3, dsrdtr=False, rtscts=False)
+                serial_obj = serial.Serial(port=None, baudrate=115200, timeout=0.3, dsrdtr=False, rtscts=False)
+                serial_obj.dtr = False
+                serial_obj.rts = False
+                serial_obj.port = target
+                serial_obj.open()
                 # Avoid programmatically toggling reset/boot pins.
                 emit("SERIAL_OPEN " + target)
             except Exception as exc:
