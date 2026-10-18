@@ -28,6 +28,9 @@ WebServer server(80);
 Signal lastSignal;
 bool hasLastSignal = false;
 bool stationMode = false;
+bool setupApReady = false;
+bool rmtRxReady = false;
+bool rmtTxReady = false;
 uint32_t rebootAt = 0;
 
 rmt_data_t rxSymbols[ircfg::MAX_RMT_SYMBOLS];
@@ -241,18 +244,45 @@ Signal normalizeReceived(const rmt_data_t *symbols, size_t count) {
   return signal;
 }
 
-bool learnSignal(Signal &signal) {
-  size_t symbolCount = ircfg::MAX_RMT_SYMBOLS;
-  const bool received =
-      rmtRead(ircfg::IR_RX_PIN, rxSymbols, &symbolCount, ircfg::LEARN_WINDOW_MS);
-  if (!received || symbolCount == 0) return false;
+// A single RMT read can finish early on noise, an invalid partial frame or a
+// driver error. Preserve the advertised receive window for an unsuccessful read.
+bool learnSignal(Signal &signal, uint32_t &elapsedMs,
+                 uint32_t &readAttempts, uint32_t &earlyFailures) {
+  const uint32_t start = millis();
+  readAttempts = 0;
+  earlyFailures = 0;
+  elapsedMs = 0;
 
-  signal = normalizeReceived(rxSymbols, symbolCount);
-  return signal.pulses.size() >= 6 && signal.pulses.size() <= ircfg::MAX_PULSES;
+  while ((millis() - start) < ircfg::LEARN_WINDOW_MS) {
+    const uint32_t remaining = ircfg::LEARN_WINDOW_MS - (millis() - start);
+    size_t symbolCount = ircfg::MAX_RMT_SYMBOLS;
+    const uint32_t readStart = millis();
+    const bool received =
+        rmtRead(ircfg::IR_RX_PIN, rxSymbols, &symbolCount, remaining);
+    ++readAttempts;
+
+    if (received && symbolCount > 0) {
+      Signal candidate = normalizeReceived(rxSymbols, symbolCount);
+      if (candidate.pulses.size() >= 6 &&
+          candidate.pulses.size() <= ircfg::MAX_PULSES) {
+        signal = std::move(candidate);
+        elapsedMs = millis() - start;
+        return true;
+      }
+    }
+
+    // Distinguish an immediate RMT failure from a normal receive timeout.
+    const uint32_t readElapsed = millis() - readStart;
+    if (!received && readElapsed < 50) ++earlyFailures;
+    if (readElapsed < 25) delay(25 - readElapsed);
+  }
+
+  elapsedMs = millis() - start;
+  return false;
 }
 
 bool transmitSignal(const Signal &signal) {
-  if (signal.pulses.empty()) return false;
+  if (!rmtTxReady || signal.pulses.empty()) return false;
 
   struct Segment {
     uint16_t duration;
@@ -315,15 +345,24 @@ String rawJson(const Signal &signal) {
 }
 
 void handleStatus() {
-  const IPAddress ip = stationMode ? WiFi.localIP() : WiFi.softAPIP();
+  const bool staConnected = WiFi.status() == WL_CONNECTED;
+  const IPAddress ip = staConnected ? WiFi.localIP() : WiFi.softAPIP();
   String json = "{";
   json += "\"ok\":true,";
   json += "\"profile\":\"" + jsonEscape(ircfg::PROFILE_NAME) + "\",";
-  json += "\"network_mode\":\"" + String(stationMode ? "STA" : "AP") + "\",";
+  json += "\"network_mode\":\"" + String(staConnected ? "AP+STA" : "AP") + "\",";
   json += "\"ip\":\"" + ip.toString() + "\",";
+  json += "\"sta_connected\":" + String(staConnected ? "true" : "false") + ",";
+  json += "\"sta_ssid\":\"" + jsonEscape(staConnected ? WiFi.SSID() : String("")) + "\",";
+  json += "\"sta_ip\":\"" + (staConnected ? WiFi.localIP().toString() : String("")) + "\",";
+  json += "\"setup_ap_ready\":" + String(setupApReady ? "true" : "false") + ",";
+  json += "\"setup_ap_ssid\":\"" + String(ircfg::SETUP_AP_SSID) + "\",";
+  json += "\"setup_ap_ip\":\"" + (setupApReady ? WiFi.softAPIP().toString() : String("")) + "\",";
   json += "\"hostname\":\"" + String(ircfg::MDNS_HOST) + ".local\",";
   json += "\"rx_gpio\":" + String(ircfg::IR_RX_PIN) + ",";
   json += "\"tx_gpio\":" + String(ircfg::IR_TX_PIN) + ",";
+  json += "\"rmt_rx_ready\":" + String(rmtRxReady ? "true" : "false") + ",";
+  json += "\"rmt_tx_ready\":" + String(rmtTxReady ? "true" : "false") + ",";
   json += "\"carrier_hz\":" + String(ircfg::IR_CARRIER_HZ) + ",";
   json += "\"duty\":" + String(ircfg::IR_DUTY, 2) + ",";
   json += "\"has_last\":" + String(hasLastSignal ? "true" : "false");
@@ -332,17 +371,33 @@ void handleStatus() {
 }
 
 void handleLearn() {
-  Signal captured;
-  if (!learnSignal(captured)) {
-    sendJson(408, "{\"ok\":false,\"error\":\"5秒以内に有効なIR信号を受信できませんでした\"}");
+  if (!rmtRxReady) {
+    sendJson(503, "{\"ok\":false,\"reason\":\"rmt_not_ready\","
+                  "\"error\":\"GPIO5のRMT受信初期化に失敗しました\"}");
     return;
   }
+
+  Signal captured;
+  uint32_t elapsedMs = 0;
+  uint32_t readAttempts = 0;
+  uint32_t earlyFailures = 0;
+  if (!learnSignal(captured, elapsedMs, readAttempts, earlyFailures)) {
+    const bool driverFail = readAttempts > 0 && earlyFailures == readAttempts;
+    String json = "{\"ok\":false,\"reason\":\"";
+    json += driverFail ? "rmt_read_failed" : "no_valid_signal";
+    json += "\",\"error\":\"";
+    json += driverFail ? "RMTが即時失敗を繰り返しました"
+                       : "5秒間、有効な赤外線信号を検出できませんでした";
+    json += "\",\"elapsed_ms\":" + String(elapsedMs);
+    json += ",\"read_attempts\":" + String(readAttempts);
+    json += ",\"early_failures\":" + String(earlyFailures) + "}";
+    sendJson(driverFail ? 503 : 408, json);
+    return;
+  }
+
   lastSignal = std::move(captured);
   hasLastSignal = true;
 
-  // Persist the RAW waveform before acknowledging the learning request.
-  // Never overwrite a user-named slot. A full or unavailable LittleFS store
-  // must be explicitly reported, not silently represented as a saved signal.
   const int slot = findFreeSlot();
   bool stored = false;
   String autoName;
@@ -360,6 +415,7 @@ void handleLearn() {
   json += "\"name\":\"" + jsonEscape(stored ? autoName : String("")) + "\",";
   json += "\"pulses\":" + String(lastSignal.pulses.size()) + ",";
   json += "\"duration_us\":" + String(signalDurationUs(lastSignal)) + ",";
+  json += "\"elapsed_ms\":" + String(elapsedMs) + ",";
   json += "\"raw\":" + rawJson(lastSignal);
   json += "}";
   sendJson(200, json);
@@ -522,8 +578,7 @@ bool connectStoredWifi() {
   prefs.end();
   if (ssid.isEmpty()) return false;
 
-  WiFi.mode(WIFI_STA);
-  WiFi.setHostname(ircfg::MDNS_HOST);
+  // Station is already enabled in WIFI_AP_STA; do not disable recovery AP.
   WiFi.begin(ssid.c_str(), password.c_str());
 
   const uint32_t deadline = millis() + 12000;
@@ -535,17 +590,22 @@ bool connectStoredWifi() {
 }
 
 void startNetwork() {
+  // Keep the recovery AP available even when home Wi-Fi or mDNS fails.
+  // Because this AP has a documented fixed password, keep the device only
+  // on trusted premises and do not expose the HTTP server to the Internet.
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.setHostname(ircfg::MDNS_HOST);
+  setupApReady = WiFi.softAP(ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
   stationMode = connectStoredWifi();
-  if (!stationMode) {
-    WiFi.disconnect(true, true);
-    delay(100);
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
-  }
 
   if (MDNS.begin(ircfg::MDNS_HOST)) {
     MDNS.addService("http", "tcp", 80);
   }
+  Serial.printf("IR network: AP=%s (%s), STA=%s (%s)\\n",
+                setupApReady ? "ready" : "failed",
+                WiFi.softAPIP().toString().c_str(),
+                stationMode ? WiFi.SSID().c_str() : "disconnected",
+                stationMode ? WiFi.localIP().toString().c_str() : "-");
 }
 
 void setupRmt() {
@@ -560,20 +620,16 @@ void setupRmt() {
       RMT_MEM_NUM_BLOCKS_2,
       ircfg::RMT_RESOLUTION_HZ);
 
-  if (!rxOk || !txOk) {
-    Serial.println("RMT init failed");
-    return;
+  rmtRxReady = rxOk &&
+      rmtSetRxMinThreshold(ircfg::IR_RX_PIN, ircfg::RX_GLITCH_FILTER_US) &&
+      rmtSetRxMaxThreshold(ircfg::IR_RX_PIN, ircfg::RX_IDLE_THRESHOLD_US);
+  rmtTxReady = txOk &&
+      rmtSetCarrier(ircfg::IR_TX_PIN, true, ircfg::TX_ACTIVE_HIGH,
+                    ircfg::IR_CARRIER_HZ, ircfg::IR_DUTY);
+  if (rmtTxReady) {
+    rmtSetEOT(ircfg::IR_TX_PIN, ircfg::TX_ACTIVE_HIGH ? 0 : 1);
   }
-
-  rmtSetRxMinThreshold(ircfg::IR_RX_PIN, ircfg::RX_GLITCH_FILTER_US);
-  rmtSetRxMaxThreshold(ircfg::IR_RX_PIN, ircfg::RX_IDLE_THRESHOLD_US);
-  rmtSetCarrier(
-      ircfg::IR_TX_PIN,
-      true,
-      ircfg::TX_ACTIVE_HIGH,
-      ircfg::IR_CARRIER_HZ,
-      ircfg::IR_DUTY);
-  rmtSetEOT(ircfg::IR_TX_PIN, ircfg::TX_ACTIVE_HIGH ? 0 : 1);
+  Serial.printf("RMT readiness: RX=%d TX=%d\\n", rmtRxReady, rmtTxReady);
 }
 
 } // namespace
