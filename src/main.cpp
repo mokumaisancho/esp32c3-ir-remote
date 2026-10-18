@@ -296,6 +296,7 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
     // Stop and re-arm the IDF channel before accepting a new HTTP request.
     rxLastResetError = rmt_disable(rxChannel);
     if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
+    if (rxLastResetError != ESP_OK) rmtRxReady = false;
     elapsedMs = millis() - start;
     return false;
   }
@@ -400,7 +401,7 @@ void handleStatus() {
 
 void handleLearn() {
   if (!rmtRxReady) {
-    sendJson(503, String("{\\\"ok\\\":false,\\\"reason\\\":\\\"rmt_not_ready\\\",\\\"init_esp_err\\\":") +
+    sendJson(503, String("{\"ok\":false,\"reason\":\"rmt_not_ready\",\"init_esp_err\":") +
                   String(static_cast<int>(rxInitError)) + "}");
     return;
   }
@@ -415,13 +416,13 @@ void handleLearn() {
     const char *reason = startFailed ? "rmt_start_failed" :
                          resetFailed ? "rmt_reset_failed" :
                          rxLastSymbolCount > 0 ? "invalid_frame" : "rx_timeout";
-    String json = "{\\\"ok\\\":false,\\\"reason\\\":\\\"" + String(reason) + "\\\"";
-    json += ",\\\"elapsed_ms\\\":" + String(elapsedMs);
-    json += ",\\\"start_esp_err\\\":" + String(static_cast<int>(rxLastStartError));
-    json += ",\\\"reset_esp_err\\\":" + String(static_cast<int>(rxLastResetError));
-    json += ",\\\"symbol_count\\\":" + String(rxLastSymbolCount);
-    json += ",\\\"read_attempts\\\":" + String(readAttempts);
-    json += ",\\\"early_failures\\\":" + String(earlyFailures) + "}";
+    String json = "{\"ok\":false,\"reason\":\"" + String(reason) + "\"";
+    json += ",\"elapsed_ms\":" + String(elapsedMs);
+    json += ",\"start_esp_err\":" + String(static_cast<int>(rxLastStartError));
+    json += ",\"reset_esp_err\":" + String(static_cast<int>(rxLastResetError));
+    json += ",\"symbol_count\":" + String(rxLastSymbolCount);
+    json += ",\"read_attempts\":" + String(readAttempts);
+    json += ",\"early_failures\":" + String(earlyFailures) + "}";
     sendJson(startFailed || resetFailed ? 503 : 408, json);
     return;
   }
