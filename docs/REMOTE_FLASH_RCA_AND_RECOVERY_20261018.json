@@ -397,5 +397,91 @@
       "bridge_branch": "poc/native-local-bridge-v3",
       "deployed_to_mac": false
     }
+  },
+  "rca_existing_components_reuse_20261018": {
+    "question": "Why did clean-checkout vs mutable-patch contradictions happen; can we reuse proven components instead of creating a new framework?",
+    "root_causes": [
+      {
+        "id": "REUSE-RCA-1",
+        "status": "CONFIRMED_SOURCE",
+        "finding": "Stable Bootstrap manifest mutates the tracked pinned Suite files that the existing resource gate requires to stay clean; end-to-end repeat-run not tested.",
+        "code_refs": [
+          "SUITE-Bridge-Bootstrap/bootstrap/runner.py",
+          "SUITE-Bridge-Bootstrap/bootstrap/manifests/stable-v1.json"
+        ]
+      },
+      {
+        "id": "REUSE-RCA-2",
+        "status": "CONFIRMED_SOURCE",
+        "finding": "Gatekeeper SuiteLoader runs before GIT_STATUS, creating a circular dependency for dirty-checkout RCA.",
+        "code_refs": [
+          "GPT-Development-Suite/src/suite_loader.py",
+          "GPT-Development-Suite/src/browser_native_host.py"
+        ]
+      },
+      {
+        "id": "REUSE-RCA-3",
+        "status": "CONFIRMED_SOURCE",
+        "finding": "Stable Chrome extension Bootstrap was treated as a route to install unrelated IR worker code; there is no corresponding worker deployment step.",
+        "code_refs": [
+          "SUITE-Bridge-Bootstrap/bootstrap/manifests/stable-v1.json"
+        ]
+      },
+      {
+        "id": "REUSE-RCA-4",
+        "status": "PENDING_CAUSE_DETAIL",
+        "finding": "Actual tracked filenames and their writers on TWO distinct Mac checkouts still unobserved; user checkout data must be preserved."
+      }
+    ],
+    "proven_reused_components": [
+      {
+        "component": "Git native worktree add/remove",
+        "proof": "Real Git on isolated sandbox: pinned staging clean while tracked-dirty source remains unchanged; stage modified and removed, real Git POC PASS",
+        "status": "PASS_MECHANISM_SANDBOX"
+      },
+      {
+        "component": "Previously safety-tested Bootstrap launcher",
+        "blob": "e18ab217f69b6283c387cd168d0cf079eb77472c",
+        "status": "REUSED_ON_BRANCH_NOT_INSTALLED_MAC"
+      },
+      {
+        "component": "Existing GitHub Issue #11 5s launchd transport and remote result receipts",
+        "status": "PASS_REAL_MAC_HISTORICAL",
+        "evidence": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244968925"
+      },
+      {
+        "component": "Existing launchd installer scripts/install_github_issue_bridge_launchd.py",
+        "status": "SOURCE_AVAILABLE_MAC_IR_TARGET_NOT_DEPLOYED"
+      }
+    ],
+    "patch": {
+      "repository": "mokumaisancho/SUITE-Bridge-Bootstrap",
+      "branch": "fix/isolated-worktree-bootstrap-20261018",
+      "last_commit": "f991002eb3e58f5cba1594ee625f93dc46ab9031",
+      "parts": [
+        "runner isolated worktree opt-in based on native Git",
+        "stable-v1 manifest isolated suite resource",
+        "schema opt-in field",
+        "safe fail-closed launcher (existing tested code blob)",
+        "6 real-git regression cases (source committed; CI execution NOT PASS)",
+        "partial parallel failure worktree cleanup"
+      ],
+      "test": {
+        "local_real_git_mechanism": "PASS",
+        "github_actions_run_id": 39093858223,
+        "github_actions_result": "FAILED_BEFORE_STEPS_0_EXECUTED",
+        "assertion": "DO_NOT_COUNT_AS_CODE_TEST_PASS_OR_CODE_TEST_FAIL",
+        "test_suite_execution": "NOT_OBSERVED",
+        "mac_activation": "NOT_DEPLOYED"
+      },
+      "caution": "Experimental fix branch is NOT automatically deployed. It modifies stable browser-extension bootstrap, not the IR worker. Must not claim resolution of IR flash."
+    },
+    "preferred_minimal_route": "Reuse Git/launchd and existing GitHub Issue transport; stage source in an isolated commit-pinned checkout and verify active worker SHA before sending a unique one-time IR flash. Do not rerun stable Chrome extension bootstrap as an IR deployment command.",
+    "quality_gate": {
+      "physical_ir_capture": "BLOCKED",
+      "active_worker_source_attestation": "BLOCKED",
+      "no_user_data_overwrite_observed": "PASS_SANDBOX_ONLY"
+    },
+    "status": "REUSABLE_FIX_COMMITTED_VALIDATION_PARTIAL_HARDWARE_BLOCKED"
   }
 }
