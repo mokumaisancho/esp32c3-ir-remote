@@ -895,7 +895,14 @@ void loop() {
                   WiFi.localIP().toString().c_str());
   }
   server.handleClient();
-  maintainNetwork();
+  // WiFiManager polling does not need to run on every HTTP iteration.
+  // Keep it responsive while eliminating per-loop portal processing overhead.
+  static uint32_t lastNetworkMaintenanceMs = 0;
+  const uint32_t networkNowMs = millis();
+  if (static_cast<uint32_t>(networkNowMs - lastNetworkMaintenanceMs) >= 25U) {
+    lastNetworkMaintenanceMs = networkNowMs;
+    maintainNetwork();
+  }
   if (rebootAt && static_cast<int32_t>(millis() - rebootAt) >= 0) {
     ESP.restart();
   }
