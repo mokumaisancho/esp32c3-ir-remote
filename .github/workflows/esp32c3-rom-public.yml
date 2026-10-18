@@ -18,32 +18,14 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --disable-pip-version-check pyelftools==0.32 capstone==5.0.6
       - run: sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq binutils-riscv64-linux-gnu
-      - run: python -m unittest discover -s research/esp32c3_rom_public -p 'test_*.py' -v
-      - run: python research/esp32c3_rom_public/audit_entries.py
-      - run: python research/esp32c3_rom_public/independent_objdump.py
-      - run: python research/esp32c3_rom_public/analyze.py
-      - run: python research/esp32c3_rom_public/reconcile.py
-      - run: python research/esp32c3_rom_public/fast_reconcile.py
-      - run: python research/esp32c3_rom_public/section_quality.py
-      - run: python research/esp32c3_rom_public/entry_probe.py
-      - run: python research/esp32c3_rom_public/target_validate.py
-      - run: python research/esp32c3_rom_public/register_access.py
-      - run: python research/esp32c3_rom_public/register_base_compare.py
-      - run: python research/esp32c3_rom_public/published_prior_art.py
-      - run: python research/esp32c3_rom_public/exact_register_headers.py
-      - run: python research/esp32c3_rom_public/candidate_rank.py
-      - run: python research/esp32c3_rom_public/focused_disasm.py
-      - run: python research/esp32c3_rom_public/independent_function_bytes.py
-      - run: python research/esp32c3_rom_public/rom_callgraph.py
-      - run: python research/esp32c3_rom_public/verify_target_rows.py
-      - run: python research/esp32c3_rom_public/quality_gate.py
-      - run: python research/esp32c3_rom_public/mac_revision_diff.py
-      - run: python research/esp32c3_rom_public/mac_instruction_diff.py
-      - run: python research/esp32c3_rom_public/mac_complete_rca.py
-      - run: python research/esp32c3_rom_public/mac_rca_gate.py
+      - run: python -m unittest discover -s research/esp32c3_rom_public -p 'test_*.py' -v 2>&1 | tee research/esp32c3_rom_public/unit_tests.stdout.log
+        shell: bash
+      - run: python research/esp32c3_rom_public/run_all_with_full_logs.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: esp32c3-public-rom-results
-          path: research/esp32c3_rom_public/output/
+          path: |
+            research/esp32c3_rom_public/output/
+            research/esp32c3_rom_public/unit_tests.stdout.log
           if-no-files-found: warn
