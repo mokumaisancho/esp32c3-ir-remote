@@ -163,7 +163,7 @@ $('#wifi').onclick=async()=>{
   finally{$('#wifi').disabled=false}
 }
 Promise.all([refreshStatus(),refreshSignals()]).catch(e=>{$('#net').textContent='ERROR: '+e.message});
-setInterval(()=>refreshStatus().catch(e=>{$('#net').textContent='接続状態取得失敗: '+e.message}),3000);
+setInterval(()=>{if(document.visibilityState==='visible')refreshStatus().catch(e=>{$('#net').textContent='接続状態取得失敗: '+e.message})},10000);
 </script>
 </body>
 </html>
