@@ -50,14 +50,35 @@ for python in \
   fi
 done
 if (( ${#TOOL[@]} == 0 )); then
-  echo "[2/5] Installing isolated esptool only (no PlatformIO)"
-  VENV="$BASE/tools/esptool-only"
-  if [[ ! -x "$VENV/bin/python" ]]; then
-    python3 -m venv "$VENV" || fail "Could not create esptool-only environment"
+  # Espressif publishes notarized self-contained macOS arm64 binaries on
+  # GitHub Releases. Reuse that official tool without PyPI/PlatformIO/pip.
+  # Digest is from the GitHub release API asset digest (v5.4.0).
+  echo "[2/5] Downloading SHA256-pinned official standalone esptool (no pip)"
+  [[ "$(uname -m)" == "arm64" ]] || fail "Unsupported Mac CPU for pinned standalone esptool"
+  ESPSRC="espressif/esptool"
+  ESPTAG="v5.4.0"
+  ESPTAR="esptool-v5.4.0-macos-arm64.tar.gz"
+  ESPSHA="ba332671130939e2e6db90c2784488f7e62a1459b0fe3c5ec66e9a366821de7a"
+  mkdir -p "$WORK/tools"
+  gh release download "$ESPTAG" -R "$ESPSRC" -p "$ESPTAR" -D "$WORK/tools" \
+    || fail "Could not download Espressif official esptool release"
+  print -r -- "$ESPSHA  $WORK/tools/$ESPTAR" | shasum -a 256 -c - \
+    || fail "Official esptool release SHA256 mismatch"
+  # The trusted archive is still checked for unsafe member paths before extraction.
+  tar -tzf "$WORK/tools/$ESPTAR" > "$WORK/tools/esptool-archive-list" \
+    || fail "Invalid official esptool archive"
+  if grep -Eq '(^/|(^|/)\.\.(/|$))' "$WORK/tools/esptool-archive-list"; then
+    fail "Unsafe path in official esptool archive"
   fi
-  "$VENV/bin/python" -m pip install --no-cache-dir -q 'esptool>=5.0,<6' \
-    || fail "Could not install esptool"
-  TOOL=("$VENV/bin/python" "-m" "esptool")
+  tar -xzf "$WORK/tools/$ESPTAR" -C "$WORK/tools" \
+    || fail "Could not unpack official esptool"
+  typeset -a esptool_bins
+  esptool_bins=("${(@f)$(find "$WORK/tools" -type f -name esptool -maxdepth 4 -print)}")
+  (( ${#esptool_bins[@]} == 1 )) || fail "Standalone esptool executable was not uniquely found"
+  chmod u+x "${esptool_bins[1]}"
+  ("${esptool_bins[1]}" version || "${esptool_bins[1]}" --version) 2>&1 | grep -Fq "5.4.0" \
+    || fail "Standalone esptool version mismatch"
+  TOOL=("${esptool_bins[1]}")
 fi
 
 echo "[2/5] Auto-discovering and identifying USB-connected ESP32-C3"
