@@ -38,35 +38,46 @@ sed 's@  artifact/@  @' SHA256SUMS.txt | shasum -a 256 -c - ||
 [[ "$(cat SOURCE_SHA.txt)" == "$EXPECTED_SHA" ]] || fail "Source SHA mismatch; do not flash stale firmware"
 echo "VERIFIED_SOURCE_SHA=$EXPECTED_SHA"
 
-# Search known ESP Hardware Dev Console Python environments before installing.
+# Reuse an installed esptool. Never pip-install during flash: low-disk-safe.
 typeset -a TOOL
 TOOL=()
 for python in \
   "$BASE/repo/.venv/bin/python" \
   "$BASE/repo/venv/bin/python" \
   "$BASE/.venv/bin/python" \
+  "$HOME/.platformio/penv/bin/python" \
+  "$HOME/.platformio/penv/bin/python3" \
   /opt/homebrew/bin/python3 \
   /usr/local/bin/python3 \
   "$(command -v python3)"; do
-  if [[ -x "$python" ]] && "$python" -c 'import importlib.metadata as m; assert m.version("esptool").split(".")[0] == "5"' >/dev/null 2>&1; then
+  if [[ -x "$python" ]] && "$python" -c 'import esptool' >/dev/null 2>&1; then
     TOOL=("$python" "-m" "esptool")
     break
   fi
 done
 if (( ${#TOOL[@]} == 0 )); then
-  # Reuse the Mac-proven esptool installation route from esp32-csi-e2e,
-  # evidence/mac_usb_probe/run_20261016T003152238378Z_11692.json.
-  # A default pip package mirror previously returned "from versions: none".
-  echo "[2/5] Mac-proven isolated official PyPI esptool 5.5.0"
-  VENV="$WORK/esptool-venv"
-  python3 -m venv "$VENV" || fail "Isolated Python virtual environment unavailable"
-  PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    "$VENV/bin/python" -m pip --isolated install --no-input \
-    --index-url https://pypi.org/simple --timeout 15 --retries 2 \
-    'esptool==5.5.0' || fail "Official PyPI esptool installation failed"
-  "$VENV/bin/python" -c 'import importlib.metadata as m; assert m.version("esptool") == "5.5.0"' \
-    || fail "Verified esptool package version mismatch"
-  TOOL=("$VENV/bin/python" "-m" "esptool")
+  for cmd in "$HOME/.platformio/penv/bin/esptool" "$HOME/.platformio/penv/bin/esptool.py" \
+             /opt/homebrew/bin/esptool /opt/homebrew/bin/esptool.py \
+             /usr/local/bin/esptool /usr/local/bin/esptool.py; do
+    if [[ -x "$cmd" ]] && "$cmd" version >/dev/null 2>&1; then
+      TOOL=("$cmd")
+      break
+    fi
+  done
+fi
+(( ${#TOOL[@]} )) || fail "No existing esptool; pip installation deliberately skipped to protect full disk."
+echo "REUSED_ESPTOOL=${TOOL[*]}"
+ESPT_HELP="$("${TOOL[@]}" --help 2>&1)" || fail "Existing esptool cannot run"
+if print -r -- "$ESPT_HELP" | grep -q 'read-flash'; then
+  READ_FLASH=read-flash
+  WRITE_FLASH=write-flash
+  FLASH_ID=flash-id
+elif print -r -- "$ESPT_HELP" | grep -q 'read_flash'; then
+  READ_FLASH=read_flash
+  WRITE_FLASH=write_flash
+  FLASH_ID=flash_id
+else
+  fail "Existing esptool does not support expected flash commands"
 fi
 echo "[2/5] Auto-discovering and identifying USB-connected ESP32-C3"
 
@@ -96,7 +107,7 @@ for candidate in "${candidates[@]}"; do
   [[ -c "$candidate" ]] || continue
   echo "PROBING=$candidate"
   # 'auto' discovers the actual chip, so an unrelated ESP32/S3 is not accepted.
-  probe_output="$("${TOOL[@]}" --chip auto --port "$candidate" flash-id 2>&1)" || {
+  probe_output="$("${TOOL[@]}" --chip auto --port "$candidate" "$FLASH_ID" 2>&1)" || {
     echo "SKIP: $candidate did not pass esptool identification"
     continue
   }
@@ -118,14 +129,14 @@ fi
 PORT="${matches[1]}"
 echo "SELECTED_PORT=$PORT"
 # Recheck specifically as ESP32-C3 immediately before backup and flashing.
-"${TOOL[@]}" --chip esp32c3 --port "$PORT" flash-id ||
+"${TOOL[@]}" --chip esp32c3 --port "$PORT" "$FLASH_ID" ||
   fail "Selected ESP32-C3 disconnected or failed verification"
 
 # Never bypass chip security or erase the entire flash.
 echo "[3/5] Backing up entire flash before first write"
 mkdir -p "$BACKUPS"
 BACKUP="$BACKUPS/pre-ir-$(date +%Y%m%dT%H%M%S).bin"
-"${TOOL[@]}" --chip esp32c3 --port "$PORT" read-flash 0 ALL "$BACKUP" \
+"${TOOL[@]}" --chip esp32c3 --port "$PORT" "$READ_FLASH" 0 ALL "$BACKUP" \
   || fail "Flash backup failed; nothing has been written"
 [[ -s "$BACKUP" ]] || fail "Flash backup empty"
 chmod 600 "$BACKUP"
@@ -134,13 +145,13 @@ chmod 600 "$BACKUP.sha256"
 echo "BACKUP=$BACKUP"
 
 echo "[4/5] Programming verified firmware at CI-confirmed offsets"
-"${TOOL[@]}" --chip esp32c3 --port "$PORT" write-flash \
+"${TOOL[@]}" --chip esp32c3 --port "$PORT" "$WRITE_FLASH" \
   0x0 bootloader.bin 0x8000 partitions.bin 0xE000 boot_app0.bin 0x10000 firmware.bin \
   || fail "Flash failed; restore possible from backup"
 
 echo "[5/5] Read back flashed application and compare SHA256"
 FIRMWARE_BYTES="$(stat -f %z firmware.bin)"
-"${TOOL[@]}" --chip esp32c3 --port "$PORT" read-flash 0x10000 "$FIRMWARE_BYTES" "$WORK/firmware.readback.bin" \
+"${TOOL[@]}" --chip esp32c3 --port "$PORT" "$READ_FLASH" 0x10000 "$FIRMWARE_BYTES" "$WORK/firmware.readback.bin" \
   || fail "Firmware readback failed (flash written but unverified)"
 [[ "$(shasum -a 256 firmware.bin | awk '{print $1}')" == "$(shasum -a 256 "$WORK/firmware.readback.bin" | awk '{print $1}')" ]] \
   || fail "Firmware flash readback SHA256 MISMATCH"
