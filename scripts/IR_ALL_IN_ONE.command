@@ -5,13 +5,22 @@ REPO="mokumaisancho/esp32c3-ir-remote"
 BRANCH="fix/rmt-idf-error-diagnostics"
 cd "${0:A:h}/.."
 command -v gh >/dev/null || { print -u2 "BLOCKED: gh missing"; exit 2; }
-# Auth errors must not be hidden: keyring, host, PATH and shell environment differ.
-# Remove inherited token overrides only for this gh invocation.
-auth_output="$(env -u GH_TOKEN -u GITHUB_TOKEN -u GHE_TOKEN gh auth status 2>&1)" || {
-  print -u2 "BLOCKED: gh authentication check failed (actual CLI output):"
-  print -u2 -- "$auth_output"
-  print -u2 "GH_CONFIG_DIR=${GH_CONFIG_DIR:-<default>} GH_HOST=${GH_HOST:-<default>}"
-  print -u2 "GH_BINARY=$(command -v gh)"
+# Check the actual GitHub API rather than relying on intermittent keyring status.
+gh_checked() {
+  local attempt output
+  for attempt in 1 2 3; do
+    if output="$(gh "$@" 2>&1)"; then
+      print -r -- "$output"
+      return 0
+    fi
+    print -u2 "GH_REQUEST_FAILED attempt=$attempt operation=$1"
+    print -u2 -- "$output"
+    (( attempt == 3 )) || sleep "$attempt"
+  done
+  return 2
+}
+gh_checked api "repos/$REPO" --jq .full_name >/dev/null || {
+  print -u2 "BLOCKED: GitHub API failed after 3 attempts; no flash"
   exit 2
 }
 [[ "$(uname -s)" == Darwin ]] || { print -u2 "BLOCKED: requires Mac"; exit 2; }
@@ -44,7 +53,7 @@ report() {
     fi
     print '~~~'
   } > "$RECEIPT"
-  gh issue comment 1 -R "$REPO" --body-file "$RECEIPT" >/dev/null 2>&1 || print -u2 "WARN: GitHub receipt upload failed: $RECEIPT"
+  gh_checked issue comment 1 -R "$REPO" --body-file "$RECEIPT" >/dev/null 2>&1 || print -u2 "WARN: GitHub receipt upload failed: $RECEIPT"
   if (( code != 0 )); then print -u2 "BLOCKED; detailed log: $LOG"; fi
 }
 trap report EXIT
@@ -53,18 +62,18 @@ print "Source branch=$BRANCH commit=$SHA"
 print "Waiting for matching GitHub CI build (timeout 12 minutes)."
 # Workflow push trigger normally starts automatically; dispatch if it has not.
 for i in {1..72}; do
-  run_id="$(gh run list -R "$REPO" --workflow build.yml --branch "$BRANCH" --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)"
+  run_id="$(gh_checked run list -R "$REPO" --workflow build.yml --branch "$BRANCH" --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)"
   if [[ -n "$run_id" ]]; then break; fi
-  if (( i == 3 )); then gh workflow run build.yml -R "$REPO" --ref "$BRANCH" || true; fi
+  if (( i == 3 )); then gh_checked workflow run build.yml -R "$REPO" --ref "$BRANCH" || true; fi
   sleep 10
 done
 [[ -n "$run_id" ]] || { print -u2 "BLOCKED: no CI run for source SHA"; exit 2; }
 print "Matching CI run=$run_id"
 for i in {1..72}; do
-  details="$(gh run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | @tsv')" || exit 2
-  state="$(gh run view "$run_id" -R "$REPO" --json status --jq .status)"
-  conclusion="$(gh run view "$run_id" -R "$REPO" --json conclusion --jq .conclusion)"
-  headsha="$(gh run view "$run_id" -R "$REPO" --json headSha --jq .headSha)"
+  details="$(gh_checked run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | @tsv')" || exit 2
+  state="$(gh_checked run view "$run_id" -R "$REPO" --json status --jq .status)"
+  conclusion="$(gh_checked run view "$run_id" -R "$REPO" --json conclusion --jq .conclusion)"
+  headsha="$(gh_checked run view "$run_id" -R "$REPO" --json headSha --jq .headSha)"
   [[ "$headsha" == "$SHA" ]] || { print -u2 "BLOCKED: CI source mismatch"; exit 2; }
   if [[ "$state" == "completed" ]]; then
     [[ "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI did not pass ($conclusion)"; exit 2; }
