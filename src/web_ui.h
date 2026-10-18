@@ -68,8 +68,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 <div class="row">
 <div class="grow"><input id="ssid" placeholder="SSID"></div>
 <div class="grow"><input id="pass" type="password" placeholder="Password"></div>
-<button id="wifi" class="secondary">保存して再起動</button>
+<button id="wifi" class="secondary">保存して接続</button>
 </div>
+<p id="wifiResult" class="muted">設定保存と接続成功は別々に確認します。</p>
 </section>
 </main>
 
@@ -87,7 +88,8 @@ async function refreshStatus(){
   const d=await api('/api/status');
   const sta=d.sta_connected?'家庭内Wi-Fi: '+d.sta_ssid+'（IP '+d.sta_ip+'）':'家庭内Wi-Fi: 未接続';
   const ap=d.setup_ap_ready?'復旧用Wi-Fi: '+d.setup_ap_ssid+'（IP '+d.setup_ap_ip+'）':'復旧用Wi-Fi: 起動失敗';
-  $('#net').textContent=sta+'\n'+ap+'\nホスト名: '+d.hostname;
+  $('#net').textContent=sta+'\n'+ap+'\n接続状態: '+(d.wifi_phase||'UNKNOWN')+' (WiFi.status='+d.sta_status+')\nホスト名: '+d.hostname;
+  if($('#wifiResult')) $('#wifiResult').textContent='自宅Wi-Fi: '+(d.wifi_phase||'UNKNOWN')+(d.sta_ip?' / '+d.sta_ip:'')+' / 再試行 '+d.sta_retry_count+'回';
   $('#rxReady').textContent='赤外線受信 GPIO'+d.rx_gpio+': '+(d.rmt_rx_ready?'準備完了':'初期化失敗');
   $('#learn').disabled=!d.rmt_rx_ready;
   if(d.has_last){$('#sendLast').disabled=false}
@@ -126,10 +128,11 @@ $('#sendLast').onclick=async()=>api('/api/send-last',{method:'POST'});
 $('#wifi').onclick=async()=>{
   const ssid=$('#ssid').value.trim(); if(!ssid){alert('SSIDを入力してください');return}
   $('#wifi').disabled=true;
-  try{await api('/api/wifi',{method:'POST',body:form({ssid,password:$('#pass').value})});alert('保存しました。ESP32-C3を再起動します。')}
+  try{const d=await api('/api/wifi',{method:'POST',body:form({ssid,password:$('#pass').value})});$('#wifiResult').textContent=d.saved?'保存済み・接続試行中（成功未確認）':'保存失敗'; await refreshStatus()}
   finally{$('#wifi').disabled=false}
 }
 Promise.all([refreshStatus(),refreshSignals()]).catch(e=>{$('#net').textContent='ERROR: '+e.message});
+setInterval(()=>refreshStatus().catch(e=>{$('#net').textContent='接続状態取得失敗: '+e.message}),3000);
 </script>
 </body>
 </html>
