@@ -92,7 +92,9 @@ async function refreshStatus(){
   if($('#wifiResult')) $('#wifiResult').textContent='自宅Wi-Fi: '+(d.wifi_phase||'UNKNOWN')+(d.sta_ip?' / '+d.sta_ip:'')+' / 再試行 '+d.sta_retry_count+'回';
   $('#rxReady').textContent='赤外線受信 GPIO'+d.rx_gpio+': '+(d.rmt_rx_ready?'準備完了':'初期化失敗');
   $('#learn').disabled=!d.rmt_rx_ready;
-  if(d.has_last){$('#sendLast').disabled=false}
+  // Reconcile action state from firmware, including after refresh/navigation.
+  $('#save').disabled=!d.has_last;
+  $('#sendLast').disabled=!d.has_last;
 }
 async function refreshSignals(){
   const a=await api('/api/signals');
@@ -114,9 +116,13 @@ $('#learn').onclick=async()=>{
   try{
     const d=await api('/api/learn',{method:'POST'});
     $('#learnStatus').textContent=d.stored?'受信成功・自動保存済み #'+d.slot:'受信成功（保存できませんでした）';
+    // Unlock immediately after the successful API response; rendering/list refresh
+    // must not prevent a saved capture from being transmitted.
+    $('#save').disabled=false;
+    $('#sendLast').disabled=false;
     $('#lastMeta').textContent=d.pulses+' pulses · '+d.duration_us+' µs · '+d.elapsed_ms+'ms経過';
-    $('#raw').textContent=d.raw.join(', ');
-    $('#save').disabled=false; $('#sendLast').disabled=false; if(d.stored) await refreshSignals();
+    $('#raw').textContent=Array.isArray(d.raw)?d.raw.join(', '):String(d.raw||'');
+    if(d.stored) await refreshSignals();
   }catch(e){$('#learnStatus').textContent='受信なし / '+e.message}
   finally{clearInterval(timer);b.disabled=false}
 }
