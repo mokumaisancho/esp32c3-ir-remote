@@ -16,7 +16,7 @@ for line in src.splitlines():
  if m:category=m.group(1)
  if "/* Functions */" in line:kind="function"
  if "/* Data (" in line:kind="data"
- m=re.search(r"^\s*([A-Za-z_]\w*)\s*=\s*(0x[0-9a-fA-F]+)",line)
+ m=re.search(r"^\s*(?:PROVIDE\s*\(\s*)?([A-Za-z_]\w*)\s*=\s*(0x[0-9a-fA-F]+)",line)
  if m:rows.append(dict(name=m.group(1),address=int(m.group(2),16),kind=kind,group=category))
 assert len(rows)==864 and sum(r["kind"]=="function" for r in rows)==648,"baseline drift"
 known={r["address"]:r for r in rows if r["kind"]=="function"}
