@@ -715,6 +715,28 @@ void diagMark(const char *phase) {
   ++diagCount;
   Serial.printf("WIFI_DIAG t=%lu step=%s\n", static_cast<unsigned long>(millis()), phase);
 }
+// Conservative evidence-based classification; do not infer router-side root cause.
+const char* wifiOutcome() {
+  if (WiFi.status() == WL_CONNECTED) return "CONNECTED";
+  const int32_t reason = wifiLastDisconnectReason;
+  switch (reason) {
+    case 201: return "AP_NOT_FOUND";
+    case 202: return "AUTH_FAILED";
+    case 15: case 204: return "HANDSHAKE_FAILED_OR_TIMEOUT";
+    case 200: return "BEACON_TIMEOUT";
+    case 203: return "ASSOCIATION_FAILED";
+    case 205: return "CONNECTION_FAILED_UNSPECIFIED";
+    case 206: return "SECURITY_PMKID_ERROR";
+    default: break;
+  }
+  if (wifiAssociationCount > wifiGotIpCount &&
+      static_cast<uint32_t>(millis() - wifiAttemptStartedMs) >= 30000U)
+    return "IP_NOT_OBTAINED_OR_CONNECTION_LOST";
+  if (wifiDisconnectCount > 0) return "DISCONNECTED_REASON_UNCLASSIFIED";
+  if (!wifiCredentialsSaved) return "CREDENTIALS_NOT_CONFIRMED";
+  if (wifiAttempted) return "CONNECTING_OR_PORTAL";
+  return "NOT_STARTED";
+}
 void handleDiagnostics() {
   String json = "{\"ok\":true,\"uptime_ms\":" + String(millis());
   json += ",\"wifi_status\":" + String(static_cast<int>(WiFi.status()));
@@ -723,6 +745,7 @@ void handleDiagnostics() {
   json += ",\"sta_connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false");
   json += ",\"sta_ip\":\"" + WiFi.localIP().toString() + "\"";
   json += ",\"last_disconnect_reason\":" + String(static_cast<long>(wifiLastDisconnectReason));
+  json += ",\"outcome\":\"" + String(wifiOutcome()) + "\"";
   json += ",\"disconnect_count\":" + String(static_cast<unsigned long>(wifiDisconnectCount));
   json += ",\"association_count\":" + String(static_cast<unsigned long>(wifiAssociationCount));
   json += ",\"got_ip_count\":" + String(static_cast<unsigned long>(wifiGotIpCount));
@@ -843,6 +866,7 @@ void loop() {
   static uint32_t lastWifiHeartbeatMs = 0;
   const uint32_t nowMs = millis();
   if (static_cast<uint32_t>(nowMs - lastWifiHeartbeatMs) >= 5000U) {
+    Serial.printf("WIFI_DIAG_RESULT t=%lu outcome=%s reason=%ld got_ip=%lu\n", static_cast<unsigned long>(nowMs), wifiOutcome(), static_cast<long>(wifiLastDisconnectReason), static_cast<unsigned long>(wifiGotIpCount));
     lastWifiHeartbeatMs = nowMs;
     Serial.printf("WIFI_TRACE t=%lu event=HEARTBEAT status=%d ap_ready=%d sta_connected=%d credentials=%d disconnect_reason=%ld disconnects=%lu associations=%lu got_ip=%lu retries=%lu ip=%s\n",
                   static_cast<unsigned long>(nowMs), static_cast<int>(WiFi.status()),
