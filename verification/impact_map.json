@@ -35,13 +35,15 @@
       "id": "STA-RETRY",
       "source": "src/main.cpp",
       "source_patterns": {
-        "reconnect": "WiFi.reconnect\\(\\)",
+        "reconnect": "WiFi\\.disconnect\\(false, false\\)",
         "fallback": "WiFi.begin\\(ssid.c_str\\(\\), password.c_str\\(\\)",
-        "telemetry": "sta_retry_count"
+        "telemetry": "sta_retry_count",
+        "retry_backoff": "irpolicy::retryDue\\(millis\\(\\), wifiAttemptStartedMs, 45000U\\)"
       },
       "test_evidence": {
         "tests/test_ir_wifi_integration.py": [
-          "test_station_retry_retains_credentials"
+          "test_station_retry_retains_credentials",
+          "self.assertNotIn(\"WiFi.reconnect()\", maintain)"
         ]
       }
     },
