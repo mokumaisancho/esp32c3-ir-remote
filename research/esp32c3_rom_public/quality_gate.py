@@ -64,18 +64,66 @@ def negative_tests(entry, targets, regs):
         else:raise RuntimeError("NEGATIVE_MUTATION_NOT_CAUGHT:"+label)
     return 4
 
+def validate_external_sources(registers, extras):
+    exact=extras["official_exact"]
+    base=extras["official_base"]
+    publication=extras["published_prior"]
+    priority=extras["internal_priority"]
+    require(exact.get("upstream_git_commit")=="1c42e514c90ae621af33bde3b6ad3dac22edcbfd",
+            "G1_UNPINNED_REGISTER_HEADERS")
+    require(exact.get("headers_scanned")==28,"G1_INCOMPLETE_VENDOR_HEADERS")
+    require(exact.get("simple_register_macros_resolved",0)>0,"G1_NO_VENDOR_REGISTER_MACROS")
+    require(publication.get("source",{}).get("year")==2025,"G1_PRIOR_ART_SOURCE_CHANGED")
+    require(priority.get("status")=="RESEARCH_PRIORITIZATION_ONLY","G4_INTERNAL_PRIORITY_SEMANTIC_OVERCLAIM")
+    require(priority.get("candidate_count",0)>=len(priority.get("top_candidates",[])),
+            "G4_CANDIDATE_COUNT_CORRUPTED")
+    for rev in REVS:
+        u=registers["revisions"][rev].get("unique_mmio_addresses")
+        a=exact["revisions"].get(rev,{})
+        b=base["revisions"].get(rev,{})
+        p=publication["revisions"].get(rev,{})
+        require(a.get("unique_rom_mmio_addresses")==u,"G4_EXACT_SOURCE_MMIO_DENOMINATOR:"+rev)
+        require(a.get("exact_vendor_register_offsets_matched",0)+a.get("not_matched_to_simple_vendor_macros",0)==u,
+                "G4_EXACT_SOURCE_PARTITION_INVALID:"+rev)
+        require(b.get("unique_addresses")==u,"G4_BASE_SOURCE_MMIO_DENOMINATOR:"+rev)
+        require(p.get("matched_published_addresses",0)+len(p.get("not_seen_strict_scanner",[]))==
+                p.get("published_prior_count"),"G4_PUBLISHED_DATASET_PARTITION_INVALID:"+rev)
+    return True
+
+def supplemental_negative_tests(registers, extras):
+    import copy
+    altered=copy.deepcopy(extras)
+    rev=REVS[0]
+    altered["official_exact"]["revisions"][rev]["unique_rom_mmio_addresses"]=-1
+    try:validate_external_sources(registers,altered)
+    except EvidenceError:pass
+    else:raise RuntimeError("NEGATIVE_SUPPLEMENTAL_DENOMINATOR_NOT_CAUGHT")
+    altered=copy.deepcopy(extras)
+    altered["official_exact"]["upstream_git_commit"]="0"*40
+    try:validate_external_sources(registers,altered)
+    except EvidenceError:pass
+    else:raise RuntimeError("NEGATIVE_SUPPLEMENTAL_UNPINNED_SOURCE_NOT_CAUGHT")
+    return 2
+
 def read(path):
     return json.loads(path.read_text())
 
 def main():
     files={"entry":OUT/"entry_audit"/"entry_audit_summary.json",
            "targets":OUT/"targets"/"summary.json",
-           "registers":OUT/"register_access"/"summary.json"}
+           "registers":OUT/"register_access"/"summary.json",
+           "official_exact":OUT/"register_access"/"official_exact_offset_comparison.json",
+           "official_base":OUT/"register_access"/"official_base_comparison.json",
+           "published_prior":OUT/"register_access"/"published_prior_art_comparison.json",
+           "internal_priority":OUT/"internal_function_candidates.json"}
     for name,p in files.items():
         if not p.is_file():raise EvidenceError("MISSING_EVIDENCE:"+name)
     sources={k:read(p) for k,p in files.items()}
     ng=negative_tests(sources["entry"],sources["targets"],sources["registers"])
     gates=validate(sources["entry"],sources["targets"],sources["registers"])
+    ext={k:v for k,v in sources.items() if k not in ("entry","targets","registers")}
+    validate_external_sources(sources["registers"],ext)
+    ng+=supplemental_negative_tests(sources["registers"],ext)
     proof={"schema":"ROM_QA_GATE_V1","issue_id":"ESP32C3-ROM-001",
         "evidence_sha256":{k:hashlib.sha256(p.read_bytes()).hexdigest() for k,p in files.items()},
         "negative_mutations_caught":ng,
