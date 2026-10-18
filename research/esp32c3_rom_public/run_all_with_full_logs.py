@@ -5,7 +5,7 @@ The first failure stops dependent stages. All produced evidence is uploaded by C
 import hashlib,json,pathlib,subprocess,sys,time
 ROOT=pathlib.Path(__file__).resolve().parent
 LOG=ROOT/"output"/"full_logs";LOG.mkdir(parents=True,exist_ok=True)
-TASKS=("audit_entries","independent_objdump","analyze","reconcile","fast_reconcile",
+TASKS=("audit_entries","ac03_coverage","independent_objdump","analyze","reconcile","fast_reconcile",
 "section_quality","entry_probe","target_validate","register_access","register_base_compare",
 "published_prior_art","exact_register_headers","candidate_rank","focused_disasm",
 "independent_function_bytes","rom_callgraph","verify_target_rows","quality_gate",
