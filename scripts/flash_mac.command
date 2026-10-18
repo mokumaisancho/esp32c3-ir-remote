@@ -65,7 +65,27 @@ if (( ${#TOOL[@]} == 0 )); then
     fi
   done
 fi
-(( ${#TOOL[@]} )) || fail "No existing esptool; pip installation deliberately skipped to protect full disk."
+if (( ${#TOOL[@]} == 0 )); then
+  # The previous temporary venv was removed after each flash. Install once
+  # into the EXISTING application venv, without pip cache, and reuse thereafter.
+  PERSISTENT_PY="$BASE/repo/.venv/bin/python"
+  [[ -x "$PERSISTENT_PY" ]] || fail "Persistent app Python venv not found"
+  "$PERSISTENT_PY" -m pip --version >/dev/null 2>&1 ||
+    fail "Persistent Python environment has no pip"
+  # Minimum free disk: 512 MiB. Do not attempt package installs on full disk.
+  FREE_KIB="$(df -Pk "$BASE" | awk 'NR==2 {print $4}')"
+  [[ "$FREE_KIB" == <-> ]] || fail "Cannot determine free disk space"
+  (( FREE_KIB >= 524288 )) ||
+    fail "Less than 512 MiB free; esptool installation skipped safely"
+  echo "[2/5] Installing esptool 5.5.0 once into existing application venv (no cache)"
+  PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    "$PERSISTENT_PY" -m pip --isolated install --no-input --no-cache-dir \
+      --index-url https://pypi.org/simple --timeout 15 --retries 2 \
+      'esptool==5.5.0' || fail "Persistent esptool install failed; flash not started"
+  "$PERSISTENT_PY" -c 'import esptool' >/dev/null 2>&1 ||
+    fail "Installed esptool cannot be imported"
+  TOOL=("$PERSISTENT_PY" "-m" "esptool")
+fi
 echo "REUSED_ESPTOOL=${TOOL[*]}"
 ESPT_HELP="$("${TOOL[@]}" --help 2>&1)" || fail "Existing esptool cannot run"
 if print -r -- "$ESPT_HELP" | grep -q 'read-flash'; then
