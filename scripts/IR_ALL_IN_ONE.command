@@ -1,0 +1,68 @@
+#!/bin/zsh
+# Single launch: pinned CI test/build -> verified download -> backup -> flash -> receipt.
+set -euo pipefail
+REPO="mokumaisancho/esp32c3-ir-remote"
+BRANCH="fix/rmt-idf-error-diagnostics"
+cd "${0:A:h}/.."
+command -v gh >/dev/null || { print -u2 "BLOCKED: gh missing"; exit 2; }
+gh auth status >/dev/null 2>&1 || { print -u2 "BLOCKED: gh auth required"; exit 2; }
+[[ "$(uname -s)" == Darwin ]] || { print -u2 "BLOCKED: requires Mac"; exit 2; }
+
+# Refresh branch before doing anything destructive. Abort on local divergence.
+git fetch origin "$BRANCH" || exit 2
+git checkout -B "$BRANCH" "origin/$BRANCH" || exit 2
+SHA="$(git rev-parse HEAD)"
+[[ -n "$SHA" ]] || exit 2
+LOGDIR="$HOME/Library/Logs/esp32c3-ir-remote"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/one-shot-$(date +%Y%m%dT%H%M%S).log"
+RECEIPT="$(mktemp /tmp/ir-receipt.XXXXXX.md)"
+status="BLOCKED"
+run_id=""
+report() {
+  code=$?
+  {
+    print "## ESP32-C3 one-shot local receipt"
+    print "Source commit: \`$SHA\`"
+    print "CI run: \`$run_id\`"
+    print "Result: \`$status\` (exit \`$code\`)"
+    print "Local log: \`$LOG\`"
+    print "Last diagnostic lines (redacted):"
+    print '~~~'
+    if [[ -f "$LOG" ]]; then
+      tail -n 35 "$LOG" | sed -E 's/([Pp]assword|[Tt]oken|[Ss]ecret|[Kk]ey)=([^[:space:]]+)/\\1=[REDACTED]/g'
+    fi
+    print '~~~'
+  } > "$RECEIPT"
+  gh issue comment 1 -R "$REPO" --body-file "$RECEIPT" >/dev/null 2>&1 || print -u2 "WARN: GitHub receipt upload failed: $RECEIPT"
+  if (( code != 0 )); then print -u2 "BLOCKED; detailed log: $LOG"; fi
+}
+trap report EXIT
+exec > >(tee "$LOG") 2>&1
+print "Source branch=$BRANCH commit=$SHA"
+print "Waiting for matching GitHub CI build (timeout 12 minutes)."
+# Workflow push trigger normally starts automatically; dispatch if it has not.
+for i in {1..72}; do
+  run_id="$(gh run list -R "$REPO" --workflow build.yml --branch "$BRANCH" --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)"
+  if [[ -n "$run_id" ]]; then break; fi
+  if (( i == 3 )); then gh workflow run build.yml -R "$REPO" --ref "$BRANCH" || true; fi
+  sleep 10
+done
+[[ -n "$run_id" ]] || { print -u2 "BLOCKED: no CI run for source SHA"; exit 2; }
+print "Matching CI run=$run_id"
+for i in {1..72}; do
+  details="$(gh run view "$run_id" -R "$REPO" --json status,conclusion,headSha --jq '[.status,.conclusion,.headSha] | @tsv')" || exit 2
+  read -r state conclusion headsha <<< "${details//$'\\t'/ }"
+  [[ "$headsha" == "$SHA" ]] || { print -u2 "BLOCKED: CI source mismatch"; exit 2; }
+  if [[ "$state" == "completed" ]]; then
+    [[ "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI did not pass ($conclusion)"; exit 2; }
+    break
+  fi
+  sleep 10
+done
+[[ "$state" == "completed" && "$conclusion" == "success" ]] || { print -u2 "BLOCKED: CI timeout"; exit 2; }
+print "CI PASS; backup and flash will run only after artifact hash and chip checks."
+export IR_RUN_ID="$run_id" IR_SOURCE_SHA="$SHA"
+zsh scripts/flash_mac.command
+status="FLASH_WRITTEN_NOT_E2E_VERIFIED"
+print "Firmware flashed. IR reception and STA HTTP end-to-end tests require live device interaction."
