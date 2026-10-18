@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "record_type": "ESP32_IR_REMOTE_FLASH_RECOVERY_HANDOFF",
+  "recorded_date": "2026-10-18",
+  "source_conversation": "https://chatgpt.com/share/6ad43390-ef94-83e8-96ba-add3c5084f71",
+  "original_goal": "ESP32-C3 IR learning firmware must be flashed from the connected Mac on a single bounded GitHub Issue command, without user Terminal paste or new .command download, with an automatic GitHub result receipt.",
+  "current_status": "BLOCKED_BEFORE_FLASH",
+  "target": {
+    "firmware_repo": "mokumaisancho/esp32c3-ir-remote",
+    "cloud_ci_run_id": "39088472851",
+    "flasher_commit": "0a9002897e62d7e18c42de347227817be177c580",
+    "flasher_git_blob": "719a72ee9070f105b3f386d43ec9af2c008ae620",
+    "worker_repo": "mokumaisancho/GPT-Development-Suite",
+    "worker_branch": "poc/native-local-bridge-v3",
+    "worker_commit": "a90ddb1be36d48e6a968fe9d17b77953957d943c",
+    "issue_url": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11"
+  },
+  "evidence": [
+    {
+      "id": "E01",
+      "state": "PASS_REAL",
+      "claim": "Issue to Mac and back over GitHub transport",
+      "url": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244840678"
+    },
+    {
+      "id": "E02",
+      "state": "BLOCKED",
+      "claim": "Live suite checkout tracked dirty -> SuiteLoader refuses GIT_STATUS/SYNC_PINNED",
+      "url": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244803227"
+    },
+    {
+      "id": "E03",
+      "state": "BLOCKED",
+      "claim": "Existing stable Bootstrap independent suite resource checkout tracked dirty",
+      "url": "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/logs/logs/2026-10-18/20261018T023849Z_7cef0d73c756.log"
+    },
+    {
+      "id": "E04",
+      "state": "CONFIRMED_SOURCE",
+      "claim": "Stable manifest mutates pinned tracked JS files via patch_auto_reply_loop_guard, so next bootstrap can detect dirty generated state",
+      "url": "https://github.com/mokumaisancho/SUITE-Bridge-Bootstrap/blob/main/bootstrap/manifests/stable-v1.json"
+    },
+    {
+      "id": "E05",
+      "state": "BLOCKED",
+      "claim": "New ESP32_IR_FLASH action not in installed worker",
+      "url": "https://github.com/mokumaisancho/GPT-Development-Suite/issues/11#issuecomment-6244829166"
+    },
+    {
+      "id": "E06",
+      "state": "PASS_SOURCE_ONLY",
+      "claim": "New fixed ESP32_IR_FLASH action source committed, Mac not deployed",
+      "url": "https://github.com/mokumaisancho/GPT-Development-Suite/commit/a90ddb1be36d48e6a968fe9d17b77953957d943c"
+    }
+  ],
+  "distinct_checkouts": [
+    {
+      "purpose": "issue_bridge",
+      "path": "~/Library/Application Support/SUITEBrowserBridge/checkouts/GPT-Development-Suite-live",
+      "failure": "SUITE_CHECKOUT_DIRTY",
+      "exact_modified_paths": "NOT_YET_OBSERVED"
+    },
+    {
+      "purpose": "stable_bootstrap",
+      "path": "~/Library/Application Support/SUITEBrowserBridge/checkouts/GPT-Development-Suite-autoreply-loopguard",
+      "failure": "RESOURCE_TRACKED_DIRTY:suite",
+      "exact_modified_paths": "NOT_YET_OBSERVED",
+      "possible_cause": "stable manifest patch step edits tracked files"
+    }
+  ],
+  "mvp": {
+    "definition": "One bounded authenticated command, SHA-pinned artifact/script, exactly-one ESP32-C3 USB chip, full preflash backup, verified flash offsets, immutable completion receipt read in the same ChatGPT turn",
+    "acceptance_criteria": [
+      {
+        "id": "AC01",
+        "criterion": "Known CI firmware image and SHA-verified flasher",
+        "status": "PASS_SOURCE_NOT_MAC"
+      },
+      {
+        "id": "AC02",
+        "criterion": "Issue #11 command roundtrip",
+        "status": "PASS_REAL_MAC"
+      },
+      {
+        "id": "AC03",
+        "criterion": "Read-only diagnostics enumerate tracked differences in BOTH checkouts without SuiteLoader",
+        "status": "OPEN_P0"
+      },
+      {
+        "id": "AC04",
+        "criterion": "Non-destructive isolated worker deployment without resetting or cleaning dirty checkouts",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC03"
+        ]
+      },
+      {
+        "id": "AC05",
+        "criterion": "New worker activated and ESP32_IR_FLASH explicitly accepted",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC04"
+        ]
+      },
+      {
+        "id": "AC06",
+        "criterion": "USB ESP32-C3 identified uniquely, entire preflash image SHA-backed up",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC05"
+        ]
+      },
+      {
+        "id": "AC07",
+        "criterion": "Flash succeeds + Web learning UI verified on device + structured GitHub receipt",
+        "status": "OPEN_P0",
+        "depends_on": [
+          "AC06"
+        ]
+      }
+    ]
+  },
+  "immediate_blocker": "Current live allowed actions cannot enumerate dirty paths because GIT_STATUS is downstream of SuiteLoader; old Bootstrap stable runner fails on a separate dirty resource before deploying worker.",
+  "safety_invariants": [
+    "Never reset --hard, clean -fdx or overwrite tracked or untracked user files in recovery",
+    "Do not treat Bootstrap tracked-dirty as the same checkout as SuiteLoader tracked-dirty",
+    "Do not issue repeated flash calls or retry an indeterminate flash outcome",
+    "No arbitrary command execution, remote argv, firmware, path or port selection",
+    "No change to unrelated stable Chrome extension flow solely for IR flash",
+    "Flash must fail closed unless backup completed; keep original and new copies separately",
+    "GitHub logs are evidence, not substitute for physical success"
+  ],
+  "next_safe_work": [
+    "Use already committed checkout-inspect feature implementation or introduce an equivalent bounded read-only action independent of SuiteLoader; deployment method must not itself require a clean existing checkout",
+    "Use an isolated immutable worker checkout and verified scheduled handover preserving in-flight Issue acknowledgement",
+    "After a Mac PING proves new worker code active, send fresh one-time ESP32_IR_FLASH with no args",
+    "Read the unique SUITE_EC_RESULT_V3 receipt and associated GitHub JSON, and classify PASS/BLOCKED on observation only"
+  ],
+  "notes": [
+    "Desktop Commander device appurunoAir.elecom reported offline during current investigation; do not rely on that tool.",
+    "Previous remote BOOTSTRAP_RUN used stable manifest which mutates JS tracked files and may reload a Chrome tab; avoid rerun as read-only step.",
+    "No physical flash, backup, Wi-Fi UI or IR learning was observed in this turn."
+  ]
+}
