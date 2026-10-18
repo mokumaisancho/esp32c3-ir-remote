@@ -169,7 +169,7 @@ uint32_t pdMS_TO_TICKS(uint32_t ms) { return ms; }
 int xQueueReset(QueueHandle_t q) { assert(q == rxDoneQueue); return pdTRUE; }
 esp_err_t rmt_receive(rmt_channel_handle_t ch, void* data, size_t bytes, const rmt_receive_config_t* cfg) {
   assert(ch == rxChannel && data == rxSymbols && bytes == sizeof(rxSymbols));
-  assert(cfg->signal_range_min_ns == 80000 && cfg->signal_range_max_ns == 15000000);
+  assert(cfg->signal_range_min_ns == 1000 && cfg->signal_range_max_ns == 15000000);
   return scenario == 0 ? ESP_ERR_INVALID_STATE : ESP_OK;
 }
 int xQueueReceive(QueueHandle_t q, size_t* count, uint32_t timeout) {
