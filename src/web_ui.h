@@ -35,9 +35,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 </section>
 
 <section class="card">
-<h2>3秒学習</h2>
+<h2>5秒受信・記録</h2>
 <div class="row">
-<button id="learn">3秒受信・学習</button>
+<button id="learn">5秒受信・記録</button>
 <button id="sendLast" class="secondary" disabled>今の信号を送信</button>
 </div>
 <p id="learnStatus">未受信</p>
@@ -102,13 +102,13 @@ async function refreshSignals(){
 }
 $('#learn').onclick=async()=>{
   const b=$('#learn'); b.disabled=true; $('#save').disabled=true; $('#sendLast').disabled=true; $('#raw').textContent='';
-  const start=Date.now(); const timer=setInterval(()=>{const left=Math.max(0,3000-(Date.now()-start));$('#learnStatus').textContent='受信待機中… '+(left/1000).toFixed(1)+'秒'},100);
+  const start=Date.now(); const timer=setInterval(()=>{const left=Math.max(0,5000-(Date.now()-start));$('#learnStatus').textContent='受信待機中… '+(left/1000).toFixed(1)+'秒'},100);
   try{
     const d=await api('/api/learn',{method:'POST'});
-    $('#learnStatus').textContent='受信成功';
+    $('#learnStatus').textContent=d.stored?'受信成功・自動保存済み #'+d.slot:'受信成功（保存できませんでした）';
     $('#lastMeta').textContent=d.pulses+' pulses · '+d.duration_us+' µs';
     $('#raw').textContent=d.raw.join(', ');
-    $('#save').disabled=false; $('#sendLast').disabled=false;
+    $('#save').disabled=false; $('#sendLast').disabled=false; if(d.stored) await refreshSignals();
   }catch(e){$('#learnStatus').textContent='受信なし / '+e.message}
   finally{clearInterval(timer);b.disabled=false}
 }
