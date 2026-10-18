@@ -42,6 +42,45 @@ uint32_t staRetryCount = 0;
 bool wifiCredentialsSaved = false;
 bool wifiAttempted = false;
 uint32_t wifiAttemptStartedMs = 0;
+volatile int32_t wifiLastDisconnectReason = -1;
+volatile uint32_t wifiDisconnectCount = 0;
+volatile uint32_t wifiGotIpCount = 0;
+volatile uint32_t wifiAssociationCount = 0;
+
+// WiFi callbacks run in a different FreeRTOS task. Only atomic scalar writes,
+// and serial logging, take place here; no WebServer/Preferences operations.
+void onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
+  const unsigned long ms = static_cast<unsigned long>(millis());
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_START:
+      Serial.printf("WIFI_TRACE t=%lu event=STA_START\\n", ms); break;
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+      ++wifiAssociationCount;
+      Serial.printf("WIFI_TRACE t=%lu event=STA_CONNECTED association_count=%lu\\n",
+                    ms, static_cast<unsigned long>(wifiAssociationCount)); break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      wifiLastDisconnectReason = static_cast<int32_t>(info.wifi_sta_disconnected.reason);
+      ++wifiDisconnectCount;
+      Serial.printf("WIFI_TRACE t=%lu event=STA_DISCONNECTED reason=%ld count=%lu\\n",
+                    ms, static_cast<long>(wifiLastDisconnectReason),
+                    static_cast<unsigned long>(wifiDisconnectCount)); break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      ++wifiGotIpCount;
+      Serial.printf("WIFI_TRACE t=%lu event=STA_GOT_IP ip=" IPSTR
+                    " gateway=" IPSTR " count=%lu\\n",
+                    ms, IP2STR(&info.got_ip.ip_info.ip),
+                    IP2STR(&info.got_ip.ip_info.gw),
+                    static_cast<unsigned long>(wifiGotIpCount)); break;
+    case ARDUINO_EVENT_WIFI_STA_LOST_IP:
+      Serial.printf("WIFI_TRACE t=%lu event=STA_LOST_IP\\n", ms); break;
+    case ARDUINO_EVENT_WIFI_AP_START:
+      Serial.printf("WIFI_TRACE t=%lu event=AP_START\\n", ms); break;
+    case ARDUINO_EVENT_WIFI_AP_STOP:
+      Serial.printf("WIFI_TRACE t=%lu event=AP_STOP\\n", ms); break;
+    default: break;
+  }
+}
+
 bool rmtRxReady = false;
 bool rmtTxReady = false;
 rmt_channel_handle_t rxChannel = nullptr;
@@ -419,6 +458,10 @@ void handleStatus() {
   json += "\"wifi_configured\":" + String(wifiCredentialsSaved ? "true" : "false") + ",";
   json += "\"wifi_attempt_elapsed_ms\":" + String(wifiAttempted ? (millis() - wifiAttemptStartedMs) : 0U) + ",";
   json += "\"sta_retry_count\":" + String(staRetryCount) + ",";
+  json += "\"wifi_last_disconnect_reason\":" + String(static_cast<long>(wifiLastDisconnectReason)) + ",";
+  json += "\"wifi_disconnect_count\":" + String(static_cast<unsigned long>(wifiDisconnectCount)) + ",";
+  json += "\"wifi_association_count\":" + String(static_cast<unsigned long>(wifiAssociationCount)) + ",";
+  json += "\"wifi_got_ip_count\":" + String(static_cast<unsigned long>(wifiGotIpCount)) + ",";
   json += "\"mdns_ready\":" + String(mdnsReady ? "true" : "false") + ",";
   json += "\"sta_ssid\":\"" + jsonEscape(staConnected ? WiFi.SSID() : String("")) + "\",";
   json += "\"sta_ip\":\"" + (staConnected ? WiFi.localIP().toString() : String("")) + "\",";
@@ -625,6 +668,10 @@ void handleWifi() {
   wifiAttempted = true;
   wifiAttemptStartedMs = millis();
   // Begin STA connection immediately; keep AP and Web UI operational.
+  Serial.printf("WIFI_TRACE t=%lu event=CONFIG_UPDATE ssid_len=%u pass_len=%u\\n",
+                static_cast<unsigned long>(millis()),
+                static_cast<unsigned>(ssid.length()),
+                static_cast<unsigned>(password.length()));
   WiFi.begin(ssid.c_str(), password.c_str());
   staLastRetryMs = millis();
   sendJson(202, "{\"ok\":true,\"saved\":true,\"connected\":false,\"wifi_phase\":\"CONNECTING\"}");
@@ -660,6 +707,10 @@ bool connectStoredWifi() {
   // Station is already enabled in WIFI_AP_STA; do not disable recovery AP.
   wifiAttempted = true;
   wifiAttemptStartedMs = millis();
+  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_BEGIN ssid_len=%u pass_len=%u\\n",
+                static_cast<unsigned long>(millis()),
+                static_cast<unsigned>(ssid.length()),
+                static_cast<unsigned>(password.length()));
   WiFi.begin(ssid.c_str(), password.c_str());
 
   const uint32_t deadline = millis() + 12000;
@@ -667,6 +718,9 @@ bool connectStoredWifi() {
          static_cast<int32_t>(deadline - millis()) > 0) {
     delay(100);
   }
+  Serial.printf("WIFI_TRACE t=%lu event=INITIAL_WINDOW_END status=%d connected=%d\\n",
+                static_cast<unsigned long>(millis()),
+                static_cast<int>(WiFi.status()), WiFi.status() == WL_CONNECTED);
   return WiFi.status() == WL_CONNECTED;
 }
 
@@ -674,6 +728,7 @@ void startNetwork() {
   // Keep the recovery AP available even when home Wi-Fi or mDNS fails.
   // Because this AP has a documented fixed password, keep the device only
   // on trusted premises and do not expose the HTTP server to the Internet.
+  WiFi.onEvent(onWifiEvent);
   WiFi.mode(WIFI_AP_STA);
   WiFi.setHostname(ircfg::MDNS_HOST);
   setupApReady = WiFi.softAP(ircfg::SETUP_AP_SSID, ircfg::SETUP_AP_PASSWORD);
