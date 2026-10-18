@@ -50,3 +50,19 @@ jobs:
           name: esp32c3-ir-remote-firmware
           path: artifact/
           if-no-files-found: error
+
+      - name: Build independent WiFiManager POC
+        run: pio run -e esp32-c3-wifi-poc
+      - name: Package independent WiFiManager POC
+        run: |
+          mkdir -p wifi-poc-artifact
+          for f in bootloader.bin partitions.bin firmware.bin firmware.elf; do cp ".pio/build/esp32-c3-wifi-poc/$f" wifi-poc-artifact/; done
+          cp artifact/boot_app0.bin wifi-poc-artifact/boot_app0.bin
+          cp artifact/FLASH_LAYOUT.txt wifi-poc-artifact/FLASH_LAYOUT.txt
+          cp artifact/SOURCE_SHA.txt wifi-poc-artifact/SOURCE_SHA.txt
+          sha256sum wifi-poc-artifact/* > wifi-poc-artifact/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32c3-wifimanager-poc
+          path: wifi-poc-artifact/
+          if-no-files-found: error
