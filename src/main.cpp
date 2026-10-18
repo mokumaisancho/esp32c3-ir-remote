@@ -891,6 +891,21 @@ void setup() {
 }
 
 void loop() {
+  // Late USB monitors miss setup() events. Emit periodic read-only state.
+  static uint32_t lastWifiHeartbeatMs = 0;
+  const uint32_t nowMs = millis();
+  if (static_cast<uint32_t>(nowMs - lastWifiHeartbeatMs) >= 5000U) {
+    lastWifiHeartbeatMs = nowMs;
+    Serial.printf("WIFI_TRACE t=%lu event=HEARTBEAT status=%d ap_ready=%d sta_connected=%d credentials=%d disconnect_reason=%ld disconnects=%lu associations=%lu got_ip=%lu retries=%lu ip=%s\n",
+                  static_cast<unsigned long>(nowMs), static_cast<int>(WiFi.status()),
+                  setupApReady ? 1 : 0, WiFi.status() == WL_CONNECTED ? 1 : 0,
+                  wifiCredentialsSaved ? 1 : 0, static_cast<long>(wifiLastDisconnectReason),
+                  static_cast<unsigned long>(wifiDisconnectCount),
+                  static_cast<unsigned long>(wifiAssociationCount),
+                  static_cast<unsigned long>(wifiGotIpCount),
+                  static_cast<unsigned long>(staRetryCount),
+                  WiFi.localIP().toString().c_str());
+  }
   server.handleClient();
   maintainNetwork();
   if (rebootAt && static_cast<int32_t>(millis() - rebootAt) >= 0) {
