@@ -334,14 +334,30 @@ void handleStatus() {
 void handleLearn() {
   Signal captured;
   if (!learnSignal(captured)) {
-    sendJson(408, "{\"ok\":false,\"error\":\"3秒以内に有効なIR信号を受信できませんでした\"}");
+    sendJson(408, "{\"ok\":false,\"error\":\"5秒以内に有効なIR信号を受信できませんでした\"}");
     return;
   }
   lastSignal = std::move(captured);
   hasLastSignal = true;
 
+  // Persist the RAW waveform before acknowledging the learning request.
+  // Never overwrite a user-named slot. A full or unavailable LittleFS store
+  // must be explicitly reported, not silently represented as a saved signal.
+  const int slot = findFreeSlot();
+  bool stored = false;
+  String autoName;
+  if (slot >= 0) {
+    autoName = "capture-" + String(slot);
+    Signal persistent = lastSignal;
+    persistent.name = autoName;
+    stored = saveSignalToSlot(static_cast<size_t>(slot), persistent);
+  }
+
   String json = "{";
   json += "\"ok\":true,";
+  json += "\"stored\":" + String(stored ? "true" : "false") + ",";
+  json += "\"slot\":" + String(stored ? slot : -1) + ",";
+  json += "\"name\":\"" + jsonEscape(stored ? autoName : String("")) + "\",";
   json += "\"pulses\":" + String(lastSignal.pulses.size()) + ",";
   json += "\"duration_us\":" + String(signalDurationUs(lastSignal)) + ",";
   json += "\"raw\":" + rawJson(lastSignal);
