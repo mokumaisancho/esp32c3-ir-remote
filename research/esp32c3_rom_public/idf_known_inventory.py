@@ -123,19 +123,23 @@ def main():
  # Macro expression evaluation is bounded and only makes conservative, exact numerical matches.
  macro_map=collections.defaultdict(list)
  for m in macros:macro_map[m["name"]].append(m)
- resolved={}
+ resolved={};ambiguous=set()
  for _ in range(12):
   changes=0
-  for m in macros:
-   if m["name"] in resolved:continue
-   number=address_expr(m["expression"],resolved)
-   if number is not None:
-    resolved[m["name"]]=number;changes+=1
+  for name,definitions in macro_map.items():
+   if name in ambiguous:continue
+   numbers={address_expr(d["expression"],resolved) for d in definitions}
+   numbers.discard(None)
+   if len(numbers)>1:
+    ambiguous.add(name);resolved.pop(name,None)
+    continue
+   if len(numbers)==1 and name not in resolved:
+    resolved[name]=next(iter(numbers));changes+=1
   if not changes:break
  register_rows=[]
  for m in macros:
   name=m["name"]
-  if name not in resolved:continue
+  if name not in resolved or name in ambiguous:continue
   if name.startswith("DR_REG_") or name.endswith(("_REG","_BASE")):
    register_rows.append({**m,"address":hex(resolved[name])})
  reg_by_addr=collections.defaultdict(list)
@@ -177,6 +181,16 @@ def main():
    mmiorows.append({"revision":rev,"address":address,"access_pc":hit["access_pc"],
      "matching_header_macros":";".join(matches),"header_exact_match":int(bool(matches)),
      "match_type":"EXACT_NUMERIC_MACRO_ONLY" if matches else "UNRESOLVED_BY_SELECTED_MACROS"})
+ baseline_verification=[]
+ for row in baseline:
+  ds=[x for x in ld_byname.get(row["symbol"],[]) if x["path"].endswith("/esp32c3.rom.ld") and x["address"]]
+  values={d["address"] for d in ds}
+  baseline_verification.append({"symbol":row["symbol"],"address":row["address"].lower(),
+     "found_in_primary_ld":bool(ds),"any_matching_primary_address":row["address"].lower() in values})
+ candidate_examples=[
+   {"name":x["name"],"classification":x["classification"],
+    "source_files":sorted({d["snapshot"]+":"+d["path"] for d in ld_byname[x["name"]]})[:7]}
+   for x in crows]
  report={"schema":"ROM_ESP_IDF_KNOWN_INVENTORY_V1","original_issue_id":"ESP32C3-ROM-001",
   "idf_commits":IDF_REFS,"rom_sha256":ROM_SHA,
   "source_files":len(manifest),"idf_linker_assignments":len(ldrows),
@@ -187,12 +201,20 @@ def main():
   "candidate_idf_header_name_matches":sum(x["idf_header_declaration"]>0 for x in crows),
   "candidate_not_named_in_selected_idf_sources":sum(x["classification"]=="UNRESOLVED_IN_SELECTED_IDF_SOURCES" for x in crows),
   "mmio_access_rows":len(mmiorows),"mmio_exact_header_name_rows":sum(x["header_exact_match"] for x in mmiorows),
+  "ambiguous_header_macro_names":len(ambiguous),
+  "baseline_present_in_primary_ld":sum(x["found_in_primary_ld"] for x in baseline_verification),
+  "baseline_matching_primary_ld_address":sum(x["any_matching_primary_address"] for x in baseline_verification),
+  "idf_linker_file_counts":{name:sum(x["snapshot"]==name and x["path"].endswith(".ld") for x in manifest) for name in IDF_REFS},
+  "candidate_known_names":[x["name"] for x in crows if x["classification"]!="UNRESOLVED_IN_SELECTED_IDF_SOURCES"],
+  "candidate_unresolved_names":[x["name"] for x in crows if x["classification"]=="UNRESOLVED_IN_SELECTED_IDF_SOURCES"],
+  "candidate_source_provenance":candidate_examples,
   "limitations":["Linker names are NOT all callable external APIs",
     "ELF functions are named by vendor ELF but do not prove public availability",
     "ECO-specific definitions are NOT assumed compatible with all three revision ELFs",
     "Header macro arithmetic is conservative, unmatched macros are not unimplemented hardware",
     "This inventory is bounded to listed three IDF versions and selected header directories",
     "An unmatched name is NOT evidence of functional novelty"]}
+ dump_csv(OUT/"baseline_crosscheck.csv",["symbol","address","found_in_primary_ld","any_matching_primary_address"],baseline_verification)
  dump_csv(OUT/"sources.csv",list(manifest[0]),manifest)
  dump_csv(OUT/"linker_symbols.csv",["snapshot","path","symbol","address","alias_of","ld_scope"],ldrows)
  dump_csv(OUT/"elf_symbols.csv",["revision","name","address","size","kind","declared_in_idf_ld","declared_in_idf_header"],elfrows)
