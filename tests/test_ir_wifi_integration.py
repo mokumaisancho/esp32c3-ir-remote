@@ -85,6 +85,13 @@ class WifiProvisioningContracts(unittest.TestCase):
         self.assertNotIn('id="deleteSelected"', UI)
         self.assertNotIn('selectedIds', UI)
 
+    def test_tx_carrier_polarity_is_not_reversed(self):
+        tx = extract_body_function(SRC, "bool transmitSignal(")
+        setup = extract_body_function(SRC, "void setupRmt()")
+        self.assertIn("!ircfg::TX_ACTIVE_HIGH", tx)
+        self.assertIn("!ircfg::TX_ACTIVE_HIGH", setup)
+        self.assertIn("rmtWrite(ircfg::IR_TX_PIN", tx)
+
     def test_ui_polls_actual_status(self):
         self.assertIn("refreshStatus().catch(", UI)
         self.assertIn("},10000);", UI)
