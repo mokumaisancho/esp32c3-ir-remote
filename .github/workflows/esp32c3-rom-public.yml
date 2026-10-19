@@ -36,6 +36,9 @@ jobs:
         shell: bash
       - run: python research/esp32c3_rom_public/candidate_mechanisms.py 2>&1 | tee research/esp32c3_rom_public/candidate_mechanisms.log
         shell: bash
+      - name: Verify revision-specific disabled BLE entry
+        run: python research/esp32c3_rom_public/eco_disabled_entry_probe.py 2>&1 | tee research/esp32c3_rom_public/eco_disabled_entry.log
+        shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -49,4 +52,5 @@ jobs:
             research/esp32c3_rom_public/idf_known_inventory.log
             research/esp32c3_rom_public/candidate_full_audit.log
             research/esp32c3_rom_public/candidate_mechanisms.log
+            research/esp32c3_rom_public/eco_disabled_entry.log
           if-no-files-found: warn
