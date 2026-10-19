@@ -105,8 +105,8 @@ def build(machine_zip, state):
                 if f["status"] == "ABSENT_SYMBOL":
                     continue
                 require(f["status"].startswith("FULL_BODY_VERIFIED"), "BODY_NOT_VERIFIED:" + name)
-                require(not f.get("zero_trap_encoding_rows_unchecked_by_gnu"), "UNVERIFIED_BYTES:" + name)
                 metrics = analyze_rows(f["instruction_listing"])
+                metrics["gnu_unchecked_zero_traps"] = len(f.get("zero_trap_encoding_rows_unchecked_by_gnu", []))
                 require(metrics["instructions"] == f["instruction_count"], "INSTRUCTION_COUNT:" + name)
                 require(metrics.get("conditional_branches", 0) == f["conditional_branch_count"], "BRANCH_COUNT:" + name)
                 require(
@@ -126,7 +126,7 @@ def build(machine_zip, state):
             has_nonreturn_indirect = totals["nonreturn_indirect_transfers"] > 0
             has_conditions = totals["conditional_branches"] > 0
             has_direct = totals["direct_transfers"] > 0
-            has_traps = totals["trap_or_undecoded"] > 0
+            has_traps = totals["trap_or_undecoded"] > 0 or totals["gnu_unchecked_zero_traps"] > 0
             if has_traps:
                 category = "TRAP_OR_UNDECODABLE"
             elif has_nonreturn_indirect:
