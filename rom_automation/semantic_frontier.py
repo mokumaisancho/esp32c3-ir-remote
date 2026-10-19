@@ -35,12 +35,26 @@ def source_literal(file_name, symbol):
     raise RuntimeError("MISSING_SOURCE_LITERAL:" + file_name + ":" + symbol)
 
 
+def source_literal_local(file_name, symbol):
+    path = pathlib.Path(__file__).with_name(file_name)
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign) and any(
+            isinstance(x, ast.Name) and x.id == symbol for x in stmt.targets
+        ):
+            return ast.literal_eval(stmt.value)
+    raise RuntimeError("MISSING_LOCAL_LITERAL:" + file_name + ":" + symbol)
+
+
 def modeled_names():
-    leaf = set(source_literal("leaf_isa_effect_differential.py", "NAMES"))
+    prior_leaf = set(source_literal("leaf_isa_effect_differential.py", "NAMES"))
+    # New leaf proof lives alongside the deterministic frontier.
+    new_leaf = set(source_literal_local("two_linear_effects.py", "NAMES"))
+    leaf = prior_leaf | new_leaf
     exact = set(source_literal("candidate_mechanisms.py", "CASE"))
-    require(len(leaf) == 23, "LEAF_COUNT_DRIFT")
-    require(len(exact) == 19, "OPCODE_EFFECT_COUNT_DRIFT")
-    require(len(leaf | exact) == 30, "UNION_COUNT_DRIFT")
+    require(len(prior_leaf) == 23 and len(new_leaf) == 2, "LEAF_COUNT_DRIFT")
+    require(len(leaf) == 25 and len(exact) == 19, "OPCODE_EFFECT_COUNT_DRIFT")
+    require(len(leaf | exact) == 32, "UNION_COUNT_DRIFT")
     return leaf, exact
 
 
@@ -88,7 +102,7 @@ def build(machine_zip, state):
     modeled = leaf | exact
     require(modeled <= canonical, "EFFECT_NAMES_NOT_CANONICAL")
     remaining = canonical - modeled
-    require(len(remaining) == 58, "PENDING_58_COUNT_DRIFT")
+    require(len(remaining) == 56, "PENDING_56_COUNT_DRIFT")
     task_by_name = {x["name"]: x for x in state["tasks"]}
     items = []
     with zipfile.ZipFile(machine_zip) as z:
@@ -172,6 +186,8 @@ def build(machine_zip, state):
         "candidate_count": 88,
         "effects_proven_static_only": len(modeled),
         "leaf_replays": len(leaf),
+        "original_leaf_replays": 23,
+        "new_leaf_replays": 2,
         "other_opcode_witnesses": len(modeled - leaf),
         "awaiting_bounded_effect": len(items),
         "silicon_experiments_run": 0,
@@ -180,6 +196,7 @@ def build(machine_zip, state):
             "machine_archive": MACHINE_SHA,
             "leaf_script": sha(SOURCES / "leaf_isa_effect_differential.py"),
             "opcode_script": sha(SOURCES / "candidate_mechanisms.py"),
+            "new_effect_script": sha(pathlib.Path(__file__).with_name("two_linear_effects.py")),
         },
         "category_counts": category_counts,
         "raw_indirect_occurrences_including_returns": sum(
