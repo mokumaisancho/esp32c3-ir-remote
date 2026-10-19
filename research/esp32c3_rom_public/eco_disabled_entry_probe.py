@@ -58,7 +58,7 @@ def main():
    target=jal(raw,ENTRY)
    cmd=["riscv64-linux-gnu-objdump","-d","--start-address="+hex(ENTRY),"--stop-address="+hex(ENTRY+4),str(p)]
    disasm=subprocess.check_output(cmd,text=True,timeout=120)
-   require(re.search(r"(?m)^\s*40001d24:\s+"+raw[::-1].hex()+r"\s+",disasm,re.I) is not None,
+   require(re.search(r"(?m)^\s*40001d24:\s+"+raw[:cap[0].size][::-1].hex()+r"\s+",disasm,re.I) is not None,
      "GNU_OBJDUMP_RAW_BYTES_DISAGREE")
    actual=symbol(elf,"r_lld_scan_start_eco")
    per[name]={"entry_word":raw.hex(),"native_disasm":disasm.strip(),"capstone_mnemonic":cap[0].mnemonic,
