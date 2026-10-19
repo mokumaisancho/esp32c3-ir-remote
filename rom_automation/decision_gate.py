@@ -16,8 +16,8 @@ def sha(path):
   for part in iter(lambda:f.read(1048576),b""):h.update(part)
  return h.hexdigest()
 def read(z,key):return json.loads(z.read(key))
-def evaluate(ghidra,machine,review_file,batch=8):
- require(sha(ghidra)==GHIDRA_SHA,"GHIDRA_SOURCE_HASH")
+def evaluate(ghidra,machine,review_file,batch=8,expected_ghidra_sha=GHIDRA_SHA):
+ require(sha(ghidra)==expected_ghidra_sha,"GHIDRA_SOURCE_HASH")
  require(sha(machine)==MACHINE_SHA,"MACHINE_SOURCE_HASH")
  with zipfile.ZipFile(ghidra) as g,zipfile.ZipFile(machine) as m:
   tri=read(g,"output/ghidra/triage_88.json")
@@ -75,7 +75,7 @@ def evaluate(ghidra,machine,review_file,batch=8):
    "candidate_count":88,"known_name_reviewed":88,"semantic_review_closed":closed,
    "semantic_review_pending":88-closed,"novel_api_proven":0,
    "release_discovery":allow,"reason":"Independent reviewed proof plus pinned signoff required",
-   "source_sha256":{"ghidra":GHIDRA_SHA,"machine":MACHINE_SHA,"rom":ROM_SHA},
+   "source_sha256":{"ghidra":expected_ghidra_sha,"machine":MACHINE_SHA,"rom":ROM_SHA},
    "tasks":rows,"execution_queue":[{"task_id":t["task_id"],"name":t["name"],"priority":t["priority"]} for t in q[:batch]],
    "next_action":"Review candidate-specific function effects and prior code; do not retest unchanged data" if q else "Obtain approved evidence digest or scan additional ROM",
    "limitations":["An exact ROM symbol name is not a public API","Ghidra pseudocode does not prove real silicon behavior","No automated novel claim is issued","No new candidate search until all 88 separately adjudicated and approved"]}
@@ -84,8 +84,9 @@ def main():
  p=argparse.ArgumentParser()
  p.add_argument("--ghidra",type=pathlib.Path,required=True);p.add_argument("--machine",type=pathlib.Path,required=True)
  p.add_argument("--review",type=pathlib.Path,required=True);p.add_argument("--out",type=pathlib.Path,required=True)
+ p.add_argument("--ghidra-sha",default=GHIDRA_SHA)
  a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
- state=evaluate(a.ghidra,a.machine,a.review)
+ state=evaluate(a.ghidra,a.machine,a.review,expected_ghidra_sha=a.ghidra_sha)
  (a.out/"state.json").write_text(json.dumps(state,indent=2)+"\n")
  (a.out/"queue.json").write_text(json.dumps(state["execution_queue"],indent=2)+"\n")
  (a.out/"gate.env").write_text("discover="+str(state["release_discovery"]).lower()+"\n")
