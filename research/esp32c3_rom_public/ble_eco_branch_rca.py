@@ -37,7 +37,7 @@ def main():
  if len(jump)!=1 or jump[0]["target"]!="0x40029580" or "r_lld_scan_start" not in jump[0]["exact_target_elf_names"]:
   raise RuntimeError("BLE_ECO_BASE_SCANNING_CALL_UNVERIFIED")
  fixed=json.loads((O/"disabled_entries"/"rev101_disabled_ble_entry.json").read_text())
- if fixed["revision_entry_machine"]["esp32c_rev101_rom.elf"]["target"]!=hex(ENTRY):
+ if fixed["revision_entry_machine"]["esp32c3_rev101_rom.elf"]["target"]!=hex(ENTRY):
   raise RuntimeError("BLE_ECO_FIXED_ENTRY_NOT_VERIFIED")
  def mutation():
   changed=dict(words);changed["0x4002a4ca"]={**words["0x4002a4ca"],"operands":"a5, a5, 2"}
