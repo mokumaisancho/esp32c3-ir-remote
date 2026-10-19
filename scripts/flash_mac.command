@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPO="mokumaisancho/esp32c3-ir-remote"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RUN_ID="${IR_RUN_ID:?IR_RUN_ID is required}"
+RUN_ID="${IR_RUN_ID:-}" # Only required when fetching firmware from GitHub Actions
 EXPECTED_SHA="${IR_SOURCE_SHA:?IR_SOURCE_SHA is required}"
 PORT="" # Determined after ESP32-C3 identification; never assume tty suffix
 BASE="$HOME/Library/Application Support/ESP Hardware Dev Console"
@@ -15,13 +15,19 @@ trap 'rm -rf "$WORK"' EXIT
 fail() { echo "BLOCKED: $1" >&2; exit 2; }
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS only"
-command -v gh >/dev/null || fail "GitHub CLI gh missing"
-# GitHub API verified by launcher; do not repeat unreliable keyring status preflight.
-
-echo "[1/5] Downloading CI-PASS firmware"
+echo "[1/5] Loading pinned CI-PASS firmware"
 mkdir -p "$WORK/artifact"
-downloaded=0
-for attempt in 1 2; do
+if [[ -n "${IR_FIRMWARE_ZIP:-}" ]]; then
+  [[ -f "$IR_FIRMWARE_ZIP" ]] || fail "Local firmware ZIP not found: $IR_FIRMWARE_ZIP"
+  command -v unzip >/dev/null || fail "unzip missing"
+  unzip -q "$IR_FIRMWARE_ZIP" -d "$WORK/artifact" || fail "Local firmware ZIP extraction failed"
+  echo "FIRMWARE_SOURCE=LOCAL_ZIP; GH_AUTH_NOT_REQUIRED"
+else
+  [[ -n "$RUN_ID" ]] || fail "IR_RUN_ID required when IR_FIRMWARE_ZIP is unset"
+  command -v gh >/dev/null || fail "GitHub CLI gh missing"
+  # GitHub API verified by launcher; do not repeat unreliable keyring status preflight.
+  downloaded=0
+  for attempt in 1 2; do
   download_log="$WORK/gh-download.log"
   if gh run download "$RUN_ID" -R "$REPO" -n esp32c3-ir-remote-firmware -D "$WORK/artifact" >"$download_log" 2>&1; then
     downloaded=1
@@ -34,7 +40,8 @@ for attempt in 1 2; do
   echo "GH_ARTIFACT_DOWNLOAD_FAILED attempt=$attempt" >&2
   (( attempt == 2 )) || sleep 3
 done
-(( downloaded == 1 )) || fail "Firmware artifact unavailable after 2 attempts"
+  (( downloaded == 1 )) || fail "Firmware artifact unavailable after 2 attempts"
+fi
 cd "$WORK/artifact"
 for file in bootloader.bin partitions.bin boot_app0.bin firmware.bin SHA256SUMS.txt FLASH_LAYOUT.txt SOURCE_SHA.txt; do
   [[ -s "$file" ]] || fail "Missing artifact: $file"
