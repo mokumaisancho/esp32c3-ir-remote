@@ -62,6 +62,9 @@ jobs:
       - name: Verify SPI ROM download semantics across revisions
         run: python research/esp32c3_rom_public/spi_slave_semantic_rca.py 2>&1 | tee research/esp32c3_rom_public/spi_slave_semantic_rca.log
         shell: bash
+      - name: Verify rev101 BLE scan ECO control paths
+        run: python research/esp32c3_rom_public/ble_eco_branch_rca.py 2>&1 | tee research/esp32c3_rom_public/ble_eco_branch_rca.log
+        shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -78,5 +81,6 @@ jobs:
             research/esp32c3_rom_public/eco_disabled_entry.log
             research/esp32c3_rom_public/prior_catalog_name_audit.log
             research/esp32c3_rom_public/spi_slave_semantic_rca.log
+            research/esp32c3_rom_public/ble_eco_branch_rca.log
             research/esp32c3_rom_public/leaf_isa_effect_differential.log
           if-no-files-found: warn
