@@ -164,8 +164,9 @@ struct Signal {
   std::vector<uint32_t> interFrameGapUs;
 };
 struct FakeServer {
-  bool hasArg(const char*) const { return false; }
-  std::string arg(const char*) const { return "0"; }
+  bool multi = false;
+  bool hasArg(const char*) const { return multi; }
+  std::string arg(const char*) const { return multi ? "1" : "0"; }
 } server;
 struct FakeSerial {
   template <typename... A> void printf(const char*, A...) const {}
@@ -210,6 +211,7 @@ int xQueueReceive(QueueHandle_t q, size_t* count, uint32_t timeout) {
   assert(q == rxDoneQueue && timeout > 0 && timeout <= 5000);
   if (scenario == 1) { *count=1; return pdTRUE; }
   if (scenario == 2) { *count=4; return pdTRUE; }
+  if (scenario == 5) { *count=4; fake_time += 110; return pdTRUE; }
   fake_time += timeout;
   return 0;
 }
@@ -238,13 +240,17 @@ int main(){
   scenario=2; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(ok && elapsed<50 && attempts==1 && s.pulses.size()==6);
+  scenario=5; fake_time=0; rmtRxReady=true; server.multi=true;
+  ok=learnSignal(s,elapsed,attempts,early);
+  assert(ok && s.extraFrames.size()==4 && s.interFrameGapUs.size()==4 && elapsed<=1200);
+  server.multi=false;
   scenario=3; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(!ok && elapsed==5000 && attempts==1 && early==0 && rxLastResetError==ESP_OK && rmtRxReady);
   scenario=4; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(!ok && rxLastResetError==ESP_ERR_INVALID_STATE && !rmtRxReady);
-  std::cout << "DIRECT_IDF_RECEIVE_5_SCENARIOS_PASS\n";
+  std::cout << "DIRECT_IDF_RECEIVE_6_SCENARIOS_PASS\n";
 }
 """
         with tempfile.TemporaryDirectory() as tmp:
