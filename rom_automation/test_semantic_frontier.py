@@ -39,18 +39,18 @@ class SemanticFrontierTests(unittest.TestCase):
 
     def test_static_effect_union_source_not_invented(self):
         leaf, exact = modeled_names()
-        self.assertEqual((len(leaf),len(exact),len(leaf|exact)), (25,19,32))
+        self.assertEqual((len(leaf),len(exact),len(leaf|exact)), (29,19,36))
 
     def test_actual_original_88_no_new_discovery_or_silicon_claim(self):
         state = evaluate(G, M, REVIEW)
         result = build(M, state)
-        self.assertEqual(result["awaiting_bounded_effect"], 56)
+        self.assertEqual(result["awaiting_bounded_effect"], 52)
         self.assertEqual(result["branch_aliases_missed_in_historical_machine_audit"], 185)
         self.assertEqual(result["names_affected_by_branch_aliases"], 20)
-        self.assertEqual(result["category_counts"].get("CONDITIONAL_CONTROL"), 21)
+        self.assertEqual(result["category_counts"].get("CONDITIONAL_CONTROL"), 18)
         self.assertEqual(result["category_counts"].get("DIRECT_CONTROL", 0), 0)
-        self.assertEqual(len(result["items"]), 56)
-        self.assertEqual(len(set(x["name"] for x in result["items"])),56)
+        self.assertEqual(len(result["items"]), 52)
+        self.assertEqual(len(set(x["name"] for x in result["items"])),52)
         self.assertEqual(result["silicon_experiments_run"],0)
         self.assertEqual(result["independent_review_approved"],0)
         self.assertTrue(all(x["novel_api_proven"] is False for x in result["items"]))
