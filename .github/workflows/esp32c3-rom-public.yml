@@ -36,6 +36,8 @@ jobs:
         shell: bash
       - run: python research/esp32c3_rom_public/candidate_mechanisms.py 2>&1 | tee research/esp32c3_rom_public/candidate_mechanisms.log
         shell: bash
+      - name: Analyze full 88 candidate function bodies
+        run: python research/esp32c3_rom_public/candidate_function_dossiers.py > research/esp32c3_rom_public/88_dossiers.stdout.log 2> research/esp32c3_rom_public/88_dossiers.stderr.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,6 +49,8 @@ jobs:
             research/esp32c3_rom_public/ac05_prior_art_countercheck.log
             research/esp32c3_rom_public/novelty_falsification.log
             research/esp32c3_rom_public/idf_known_inventory.log
+            research/esp32c3_rom_public/88_dossiers.stdout.log
+            research/esp32c3_rom_public/88_dossiers.stderr.log
             research/esp32c3_rom_public/candidate_full_audit.log
             research/esp32c3_rom_public/candidate_mechanisms.log
           if-no-files-found: warn
