@@ -1,8 +1,7 @@
 #pragma once
 // Included within main.cpp's anonymous namespace after the IR send implementation.
 // Time-zone policy is intentionally explicit: all schedules use Japan Standard Time.
-#include <ctime>
-#include "weekly_alarm_logic.h"
+// Requires <ctime> and weekly_alarm_logic.h included by main.cpp.
 
 constexpr uint8_t WEEKLY_RULE_LIMIT = 12;
 constexpr uint32_t WEEKLY_MAGIC = 0x314C4157U; // WAL1
@@ -23,6 +22,7 @@ struct WeeklyRule {
 WeeklyRule weeklyRules[WEEKLY_RULE_LIMIT];
 bool weeklyClockSynced = false;
 uint32_t weeklyLastPollMs = 0;
+uint32_t weeklyBlockedDay[WEEKLY_RULE_LIMIT] = {};
 String weeklyLastOutcome = "NOT_STARTED";
 
 uint32_t weeklyMix(uint32_t hash, const void *data, size_t n) {
@@ -197,14 +197,16 @@ void weeklyPoll() {
   const uint32_t day = weekly_alarm::civilDayKey(local);
   for (uint8_t i = 0; i < WEEKLY_RULE_LIMIT; ++i) {
     WeeklyRule &r = weeklyRules[i];
-    if (r.slot == 255 ||
+    if (r.slot == 255 || weeklyBlockedDay[i] == day ||
         !weekly_alarm::due(r.days, r.minute, r.enabled, r.lastFiredDay, local))
       continue;
     // Persist the occurrence BEFORE emitting IR. Prevent duplicate actions
     // after power loss/reboot in the same minute, and upon clock corrections.
+    const uint32_t previousDay = r.lastFiredDay;
     r.lastFiredDay = day;
     if (!weeklyPersist()) {
-      r.lastFiredDay = 0;  // Fail closed: never run a non-durable occurrence.
+      r.lastFiredDay = previousDay;
+      weeklyBlockedDay[i] = day;  // Do not hammer LittleFS every 500ms after failure.
       weeklyLastOutcome = "PERSIST_FAILED";
       Serial.printf("WEEKLY_ALARM_BLOCKED id=%u reason=persistence\n", i);
       continue;
@@ -299,6 +301,7 @@ void handleWeeklySet() {
   r.enabled = server.arg("enabled") == "1" ? 1 : 0;
   r.fingerprint = weeklySignalSignature(signal);
   r.lastFiredDay = 0; // Changing a schedule explicitly re-arms it.
+  weeklyBlockedDay[id] = 0;
   if (!weeklyPersist()) {
     r = old;
     sendJson(500, "{\"ok\":false,\"error\":\"予定をLittleFSに保存できません\"}");
@@ -315,6 +318,7 @@ void handleWeeklyDelete() {
   }
   const WeeklyRule old = weeklyRules[id];
   weeklyRules[id] = WeeklyRule{};
+  weeklyBlockedDay[id] = 0;
   if (!weeklyPersist()) {
     weeklyRules[id] = old;
     sendJson(500, "{\"ok\":false,\"error\":\"予定を削除できません\"}");
