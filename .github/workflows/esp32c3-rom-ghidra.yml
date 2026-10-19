@@ -6,6 +6,7 @@ on:
       - 'research/esp32c3_rom_public/ghidra_scripts/**'
       - 'research/esp32c3_rom_public/ghidra_prepare.py'
       - 'research/esp32c3_rom_public/ghidra_review_results.py'
+      - 'research/esp32c3_rom_public/ghidra_triage.py'
       - '.github/workflows/esp32c3-rom-ghidra.yml'
 permissions:
   contents: read
@@ -33,6 +34,7 @@ jobs:
           python research/esp32c3_rom_public/run_all_with_full_logs.py 2>&1 | tee research/esp32c3_rom_public/ghidra_batch.log
           python research/esp32c3_rom_public/idf_known_inventory.py 2>&1 | tee research/esp32c3_rom_public/ghidra_known.log
           python research/esp32c3_rom_public/candidate_full_audit.py 2>&1 | tee research/esp32c3_rom_public/ghidra_candidate_bodies.log
+          python research/esp32c3_rom_public/candidate_mechanisms.py 2>&1 | tee research/esp32c3_rom_public/ghidra_mechanisms.log
           python research/esp32c3_rom_public/ghidra_prepare.py 2>&1 | tee research/esp32c3_rom_public/ghidra_prepare.log
         shell: bash
       - name: Fetch and SHA-pin official Ghidra
@@ -62,6 +64,7 @@ jobs:
             echo "=== GHIDRA_END $rev ==="
           done
           python research/esp32c3_rom_public/ghidra_review_results.py 2>&1 | tee "$OUT/review_validation.log"
+          python research/esp32c3_rom_public/ghidra_triage.py 2>&1 | tee "$OUT/triage_validation.log"
         shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
