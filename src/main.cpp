@@ -405,6 +405,38 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
       Signal candidate = normalizeReceived(rxSymbols, count);
       if (candidate.pulses.size() >= 6 && candidate.pulses.size() <= ircfg::MAX_PULSES) {
         signal = std::move(candidate);
+        if (server.hasArg("multi") && server.arg("multi") == "1") {
+          // Collect subsequent frames for up to 1.2 seconds after the first.
+          // Short NEC repeat frames are valid even when they have under six pulses.
+          const uint32_t multiUntil = millis() + 1200U;
+          uint32_t prevEnd = millis();
+          while (static_cast<int32_t>(multiUntil - millis()) > 0 &&
+                 signal.extraFrames.size() < MAX_EXTRA_FRAMES) {
+            xQueueReset(rxDoneQueue);
+            const esp_err_t err = rmt_receive(rxChannel, rxSymbols, sizeof(rxSymbols), &cfg);
+            if (err != ESP_OK) { Serial.printf("IR_MULTI_START_ERR=%d\n", static_cast<int>(err)); break; }
+            const uint32_t remain = multiUntil - millis();
+            size_t extraCount = 0;
+            if (xQueueReceive(rxDoneQueue, &extraCount, pdMS_TO_TICKS(remain)) != pdTRUE) {
+              rxLastResetError = rmt_disable(rxChannel);
+              if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
+              if (rxLastResetError != ESP_OK) rmtRxReady = false;
+              break;
+            }
+            const uint32_t endMs = millis();
+            if (extraCount == 0 || extraCount > ircfg::MAX_RMT_SYMBOLS) continue;
+            Signal extra = normalizeReceived(rxSymbols, extraCount);
+            if (extra.pulses.size() < 2 || extra.pulses.size() > ircfg::MAX_PULSES) continue;
+            const uint32_t durationMs = (signalDurationUs(extra) + 999U) / 1000U;
+            const uint32_t deltaMs = endMs - prevEnd;
+            const uint32_t gapMs = deltaMs > durationMs ? deltaMs - durationMs : 0U;
+            signal.interFrameGapUs.push_back(gapMs * 1000U);
+            signal.extraFrames.push_back(std::move(extra.pulses));
+            prevEnd = endMs;
+          }
+          Serial.printf("IR_MULTI_CAPTURE frames=%u\n",
+                        static_cast<unsigned>(signal.extraFrames.size() + 1));
+        }
         elapsedMs = millis() - start;
         return true;
       }
@@ -584,6 +616,7 @@ void handleLearn() {
   json += "\"name\":\"" + jsonEscape(stored ? autoName : String("")) + "\",";
   json += "\"pulses\":" + String(lastSignal.pulses.size()) + ",";
   json += "\"duration_us\":" + String(signalDurationUs(lastSignal)) + ",";
+  json += "\"frames\":" + String(lastSignal.extraFrames.size() + 1) + ",";
   json += "\"elapsed_ms\":" + String(elapsedMs) + ",";
   json += "\"raw\":" + rawJson(lastSignal);
   json += "}";
