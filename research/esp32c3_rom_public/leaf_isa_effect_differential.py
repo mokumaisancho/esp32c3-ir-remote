@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic RV32I/C instruction-effect replay for 17 original ROM candidates.
+"""Deterministic RV32I/C instruction-effect replay for 18 original ROM candidates.
 
 Derive effects from the entire GNU-word-verified Capstone instruction list,
 compare with independently specified expected functions over fixed boundary and
@@ -12,7 +12,7 @@ REVS=("esp32c3_rev0_rom.elf","esp32c3_rev101_rom.elf","esp32c3_rev3_rom.elf")
 MASK=0xffffffff
 MEM_ADDRS=(0x60035088,0x600330a0,0x60033c34,0x60033090,0x60033c64,
  0x60033084,0x6003308c,0x6003511c,0x60035118,0x60033ca0,
- 0x6000883c,0x60033c00,0x60033c38,0x60033c24,0x60033088)
+ 0x6000883c,0x60033c00,0x60033c38,0x60033c24,0x60033088,0x600240a4)
 NAMES=(
  "hal_clear_rx_beacon_pti","hal_disable_sta_beacon_filter",
  "hal_enable_sta_beacon_filter","hal_mac_rx_get_last_dscr",
@@ -21,7 +21,7 @@ NAMES=(
  "hal_pwr_interrupt_clr_event","hal_pwr_interrupt_get_event",
  "hal_mac_init","ets_efuse_ecc_16to17_mode",
  "ets_efuse_ecc_flash_page_size","hal_pm_unblock_txq",
- "hal_disable_mac","hal_enable_mac","ets_efuse_ecc_en")
+ "hal_disable_mac","hal_enable_mac","ets_efuse_ecc_en","spi_slave_rom_check_conn")
 def sign_int(s):return int(s.strip(),0)
 def execute(code,initial,a0,a1):
  regs={"zero":0,"a0":a0,"a1":a1}
@@ -44,6 +44,7 @@ def execute(code,initial,a0,a1):
   elif op=="c.andi":regs[args[0]]=(read(args[0])&(sign_int(args[1])&MASK))&MASK
   elif op=="c.srli":regs[args[0]]=(read(args[0])>>(sign_int(args[1])&31))&MASK
   elif op=="not":regs[args[0]]=(~read(args[1]))&MASK
+  elif op=="seqz":regs[args[0]]=int(read(args[1])==0)
   elif op in ("c.and","c.or"):
    x=read(args[0]);y=read(args[1]);regs[args[0]]=(x&y if op=="c.and" else x|y)&MASK
   elif op in ("lw","sw"):
@@ -82,6 +83,7 @@ def expected(name,initial,a0,a1):
  elif name=="hal_enable_mac":
   m[0x60033c00]&=0xffffff0f;m[0x60033c34]=a0;m[0x60033088]=a1
  elif name=="ets_efuse_ecc_en":ret=(m[0x6000883c]>>12)&1
+ elif name=="spi_slave_rom_check_conn":ret=int(m[0x600240a4]==0xa5)
  else:raise RuntimeError("UNKNOWN_EXPECTED_CASE:"+name)
  return ret&MASK,{k:v&MASK for k,v in m.items()}
 def samples():
@@ -95,6 +97,8 @@ def samples():
 def validate(name,rows):
  failures=[];effects=[]
  for idx,(m,a0,a1) in enumerate(samples()):
+  if name=="spi_slave_rom_check_conn" and idx in (0,1,2):
+   m[0x600240a4]=(0xa5,0xa4,0xa6)[idx]
   calc_mem=m.copy()
   got_ret,got_mem,trace=execute(rows,calc_mem,a0,a1)
   expected_ret,expected_mem=expected(name,m,a0,a1)
@@ -136,7 +140,7 @@ def main():
  if count!=1:raise RuntimeError("MUTATION_TARGET_MISSING")
  failures,_=validate("hal_mac_rx_set_dscr_reload",mutated)
  if not failures:raise RuntimeError("NEGATIVE_MUTANT_NOT_DETECTED")
- record={"schema":"ROM_17_LEAF_ISA_EFFECT_DIFFERENTIAL_V1",
+ record={"schema":"ROM_18_LEAF_ISA_EFFECT_DIFFERENTIAL_V2",
    "candidate_names_tested":len(reports),"revision_function_bodies_verified":versions,
    "deterministic_register_memory_vectors":trials,
    "negative_opcode_operand_mutations_detected":1,
@@ -147,5 +151,5 @@ def main():
     "Fixed manual expected effects are independent formulas but not independent source hardware oracle",
     "Does not establish API safety or undocumented functionality"]}
  (OUT/"leaf_isa_effect_differential.json").write_text(json.dumps(record,indent=2)+"\n")
- print("ROM_17_LEAF_SEMANTICS_RESULT",json.dumps({k:v for k,v in record.items() if k!="function_results"},sort_keys=True))
+ print("ROM_18_LEAF_SEMANTICS_RESULT",json.dumps({k:v for k,v in record.items() if k!="function_results"},sort_keys=True))
 if __name__=="__main__":main()
