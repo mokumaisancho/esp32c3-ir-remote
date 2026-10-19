@@ -69,10 +69,10 @@ jobs:
         run: |
           set -euo pipefail
           python rom_automation/next_candidate_dossiers.py --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/next_batch 2>&1 | tee rom_automation/output/next_batch.log
-      - name: Analyze remaining 51 semantic gaps (returns != indirect calls)
+      - name: Analyze remaining 50 semantic gaps (returns != indirect calls)
         run: |
           set -euo pipefail
-          python rom_automation/semantic_frontier.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/semantic_frontier_51.json 2>&1 | tee rom_automation/output/semantic_frontier.log
+          python rom_automation/semantic_frontier.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/semantic_frontier_50.json 2>&1 | tee rom_automation/output/semantic_frontier.log
       - name: Verify two additional original ROM effects
         run: |
           set -euo pipefail
@@ -89,6 +89,10 @@ jobs:
         run: |
           set -euo pipefail
           python rom_automation/rom_candidate_cfg.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --out rom_automation/output/rom_candidate_cfg.json 2>&1 | tee rom_automation/output/rom_candidate_cfg.log
+      - name: Verify SPI slave ROM init net effects against 43 Ghidra assignments
+        run: |
+          set -euo pipefail
+          python rom_automation/spi_slave_rom_effects.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --out rom_automation/output/spi_slave_rom_effects.json 2>&1 | tee rom_automation/output/spi_slave_rom_effects.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
