@@ -45,7 +45,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 <section class="card">
 <h2>5秒受信・記録</h2>
 <div class="row">
-<button id="learn">5秒受信・記録</button><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input id="multi" type="checkbox" style="width:auto">長押し・複数フレームを学習</label>
+<select id="rxBackend" aria-label="受信方式"><option value="rmt">RMT（従来）</option><option value="library">IRremoteESP8266（比較）</option></select><button id="learn">5秒受信・記録</button><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input id="multi" type="checkbox" style="width:auto">長押し・複数フレームを学習</label>
 <button id="sendLast" class="secondary" disabled>今の信号を送信</button><span id="txStatus" class="muted" role="status">送信未実施</span>
 </div>
 <p id="learnStatus">未受信</p>
@@ -122,13 +122,13 @@ $('#learn').onclick=async()=>{
   const b=$('#learn'); b.disabled=true; $('#save').disabled=true; $('#sendLast').disabled=true; $('#raw').textContent='';
   const start=Date.now(); const timer=setInterval(()=>{const left=Math.max(0,5000-(Date.now()-start));$('#learnStatus').textContent='受信待機中… '+(left/1000).toFixed(1)+'秒'},100);
   try{
-    const d=await api('/api/learn',{method:'POST',body:form({multi:$('#multi').checked?'1':'0'})});
+    const d=await api('/api/learn',{method:'POST',body:form({multi:$('#multi').checked?'1':'0',backend:$('#rxBackend').value})});
     $('#learnStatus').textContent=d.stored?'受信成功・自動保存済み #'+d.slot:'受信成功（保存できませんでした）';
     // Unlock immediately after the successful API response; rendering/list refresh
     // must not prevent a saved capture from being transmitted.
     $('#save').disabled=false;
     $('#sendLast').disabled=false;
-    $('#lastMeta').textContent=d.pulses+' pulses · '+(d.frames||1)+' frames · '+d.duration_us+' µs · '+d.elapsed_ms+'ms経過';
+    $('#lastMeta').textContent=(d.backend||'rmt')+' · '+d.pulses+' pulses · '+(d.frames||1)+' frames · '+d.duration_us+' µs · '+d.elapsed_ms+'ms経過';
     $('#raw').textContent=Array.isArray(d.raw)?d.raw.join(', '):String(d.raw||'');
     if(d.stored) await refreshSignals();
   }catch(e){$('#learnStatus').textContent='受信なし / '+e.message}
