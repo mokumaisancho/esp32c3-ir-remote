@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic RV32I/C instruction-effect replay for 18 original ROM candidates.
+"""Deterministic RV32I/C instruction-effect replay for 23 original ROM candidates.
 
 Derive effects from the entire GNU-word-verified Capstone instruction list,
 compare with independently specified expected functions over fixed boundary and
@@ -12,7 +12,8 @@ REVS=("esp32c3_rev0_rom.elf","esp32c3_rev101_rom.elf","esp32c3_rev3_rom.elf")
 MASK=0xffffffff
 MEM_ADDRS=(0x60035088,0x600330a0,0x60033c34,0x60033090,0x60033c64,
  0x60033084,0x6003308c,0x6003511c,0x60035118,0x60033ca0,
- 0x6000883c,0x60033c00,0x60033c38,0x60033c24,0x60033088,0x600240a4)
+ 0x6000883c,0x60033c00,0x60033c38,0x60033c24,0x60033088,0x600240a4,
+ 0x60011084,0x6001104c,0x60006100,0x6001c11c,0x6001c030,0x6001c120)
 NAMES=(
  "hal_clear_rx_beacon_pti","hal_disable_sta_beacon_filter",
  "hal_enable_sta_beacon_filter","hal_mac_rx_get_last_dscr",
@@ -21,7 +22,8 @@ NAMES=(
  "hal_pwr_interrupt_clr_event","hal_pwr_interrupt_get_event",
  "hal_mac_init","ets_efuse_ecc_16to17_mode",
  "ets_efuse_ecc_flash_page_size","hal_pm_unblock_txq",
- "hal_disable_mac","hal_enable_mac","ets_efuse_ecc_en","spi_slave_rom_check_conn")
+ "hal_disable_mac","hal_enable_mac","ets_efuse_ecc_en","spi_slave_rom_check_conn",
+ "ic_mac_init","r_bt_bb_get_intr_mask","r_bt_bb_intr_mask_set","rom_bt_filter_reg","rom_phy_ant_init")
 def sign_int(s):return int(s.strip(),0)
 def execute(code,initial,a0,a1):
  regs={"zero":0,"a0":a0,"a1":a1}
@@ -47,12 +49,12 @@ def execute(code,initial,a0,a1):
   elif op=="seqz":regs[args[0]]=int(read(args[1])==0)
   elif op in ("c.and","c.or"):
    x=read(args[0]);y=read(args[1]);regs[args[0]]=(x&y if op=="c.and" else x|y)&MASK
-  elif op in ("lw","sw"):
+  elif op in ("lw","sw","c.lw","c.sw"):
    m=re.fullmatch(r"(-?(?:0x[0-9a-f]+|\d+))\((\w+)\)",args[1])
    if not m:raise RuntimeError("MEMORY_OPERAND_PARSE:"+str(row))
    addr=(read(m.group(2))+sign_int(m.group(1)))&MASK
    if addr not in MEM_ADDRS:raise RuntimeError("UNEXPECTED_MMIO_ACCESS:"+hex(addr))
-   if op=="lw":regs[args[0]]=mem[addr]
+   if op in ("lw","c.lw"):regs[args[0]]=mem[addr]
    else:
     mem[addr]=read(args[0]);trace.append({"pc":row["pc"],"address":hex(addr),"written_value":hex(mem[addr])})
   else:raise RuntimeError("UNSUPPORTED_INSTRUCTION_FOR_LEAF:"+op+":"+str(row))
@@ -84,6 +86,19 @@ def expected(name,initial,a0,a1):
   m[0x60033c00]&=0xffffff0f;m[0x60033c34]=a0;m[0x60033088]=a1
  elif name=="ets_efuse_ecc_en":ret=(m[0x6000883c]>>12)&1
  elif name=="spi_slave_rom_check_conn":ret=int(m[0x600240a4]==0xa5)
+ elif name=="ic_mac_init":m[0x60033ca0]&=0xff00efff;ret=0
+ elif name=="r_bt_bb_get_intr_mask":ret=m[0x60011084]
+ elif name=="r_bt_bb_intr_mask_set":m[0x60011084]=a0
+ elif name=="rom_bt_filter_reg":
+  m[0x6001104c]|=0x10
+  v=m[0x60006100]
+  m[0x60006100]=(v|0x00400000)
+  m[0x60006100]|=0x02000000
+  m[0x60006100]=(m[0x60006100]&0xfe7fffff)|0x00800000
+ elif name=="rom_phy_ant_init":
+  m[0x6001c11c]&=0xffffe800
+  m[0x6001c030]=(m[0x6001c030]&0xfffc07ff)|0x0001a000
+  m[0x6001c120]=(m[0x6001c120]&0x00ff00ff)|0x1e001e00
  else:raise RuntimeError("UNKNOWN_EXPECTED_CASE:"+name)
  return ret&MASK,{k:v&MASK for k,v in m.items()}
 def samples():
@@ -140,7 +155,7 @@ def main():
  if count!=1:raise RuntimeError("MUTATION_TARGET_MISSING")
  failures,_=validate("hal_mac_rx_set_dscr_reload",mutated)
  if not failures:raise RuntimeError("NEGATIVE_MUTANT_NOT_DETECTED")
- record={"schema":"ROM_18_LEAF_ISA_EFFECT_DIFFERENTIAL_V2",
+ record={"schema":"ROM_23_LEAF_ISA_EFFECT_DIFFERENTIAL_V3",
    "candidate_names_tested":len(reports),"revision_function_bodies_verified":versions,
    "deterministic_register_memory_vectors":trials,
    "negative_opcode_operand_mutations_detected":1,
@@ -151,5 +166,5 @@ def main():
     "Fixed manual expected effects are independent formulas but not independent source hardware oracle",
     "Does not establish API safety or undocumented functionality"]}
  (OUT/"leaf_isa_effect_differential.json").write_text(json.dumps(record,indent=2)+"\n")
- print("ROM_18_LEAF_SEMANTICS_RESULT",json.dumps({k:v for k,v in record.items() if k!="function_results"},sort_keys=True))
+ print("ROM_23_LEAF_SEMANTICS_RESULT",json.dumps({k:v for k,v in record.items() if k!="function_results"},sort_keys=True))
 if __name__=="__main__":main()
