@@ -65,6 +65,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 
 <section class="card">
 <h2>保存済み信号（LittleFS永続保存）</h2>
+<label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:#666"><input type="checkbox" id="txFastMode" style="width:auto">高速試験：先頭1フレームだけ送信（通常はOFF、調光・調色で動作確認用）</label>
 <div id="signals">読み込み中…</div>
 </section>
 
@@ -111,7 +112,7 @@ async function refreshSignals(){
   a.forEach(s=>{
     const el=document.createElement('div'); el.className='signal';
     const name=document.createElement('span');name.className='signal-name';name.textContent='#'+s.id+' '+s.name;name.title=name.textContent;
-    const send=document.createElement('button'); send.textContent='送信'; send.onclick=async()=>{send.disabled=true;setTxStatus('送信要求: '+s.name);try{const t=performance.now();const result=await api('/api/send',{method:'POST',body:form({id:s.id})});setTxStatus('RMT '+(result.result||'OK')+' / ESP処理 '+result.tx_duration_ms+'ms / HTTP往復 '+Math.round(performance.now()-t)+'ms / 試行#'+result.tx_attempt+' / 機器の受信は未確認: '+s.name)}catch(e){setTxStatus('送信失敗: '+e.message)}finally{send.disabled=false}};
+    const send=document.createElement('button'); send.textContent='送信'; send.onclick=async()=>{send.disabled=true;setTxStatus('送信要求: '+s.name);try{const t=performance.now();const result=await api('/api/send',{method:'POST',body:form({id:s.id,max_frames:$('#txFastMode').checked?'1':'0'})});setTxStatus('RMT '+(result.result||'OK')+' / 先頭 '+result.tx_first_frame_ms+'ms / フレーム '+result.tx_frames_sent+' / 待機 '+result.tx_gap_wait_ms+'ms / 保存読込 '+result.load_ms+'ms / ESP処理 '+result.tx_duration_ms+'ms / HTTP往復 '+Math.round(performance.now()-t)+'ms / 試行#'+result.tx_attempt+' / 機器の受信は未確認: '+s.name)}catch(e){setTxStatus('送信失敗: '+e.message)}finally{send.disabled=false}};
     const del=document.createElement('button'); del.textContent='削除'; del.className='danger';
     del.onclick=async()=>{if(!confirm('「'+s.name+'」を削除しますか？'))return;del.disabled=true;try{await api('/api/delete',{method:'POST',body:form({id:s.id})});await refreshSignals()}catch(e){alert('削除失敗: '+e.message);del.disabled=false}};
     const meta=document.createElement('span');meta.className='signal-meta';meta.textContent=s.pulses+' pulses · '+s.duration_us+' µs'+(s.frames>1?' · '+s.frames+'F':'');meta.title=meta.textContent;
@@ -139,7 +140,7 @@ $('#save').onclick=async()=>{
   await api('/api/save',{method:'POST',body:form({name})}); $('#name').value=''; await refreshSignals();
 }
 function setTxStatus(message){$('#txStatus').textContent=new Date().toLocaleTimeString()+' '+message}
-$('#sendLast').onclick=async()=>{const b=$('#sendLast');b.disabled=true;setTxStatus('直近信号を送信中');try{const t=performance.now();const result=await api('/api/send-last',{method:'POST'});setTxStatus('RMT '+(result.result||'OK')+' / ESP処理 '+result.tx_duration_ms+'ms / HTTP往復 '+Math.round(performance.now()-t)+'ms / 試行#'+result.tx_attempt+' / 機器の受信は未確認')}catch(e){setTxStatus('送信失敗: '+e.message)}finally{b.disabled=false}};
+$('#sendLast').onclick=async()=>{const b=$('#sendLast');b.disabled=true;setTxStatus('直近信号を送信中');try{const t=performance.now();const result=await api('/api/send-last',{method:'POST',body:form({max_frames:$('#txFastMode').checked?'1':'0'})});setTxStatus('RMT '+(result.result||'OK')+' / 先頭 '+result.tx_first_frame_ms+'ms / フレーム '+result.tx_frames_sent+' / 待機 '+result.tx_gap_wait_ms+'ms / 保存読込 '+result.load_ms+'ms / ESP処理 '+result.tx_duration_ms+'ms / HTTP往復 '+Math.round(performance.now()-t)+'ms / 試行#'+result.tx_attempt+' / 機器の受信は未確認')}catch(e){setTxStatus('送信失敗: '+e.message)}finally{b.disabled=false}};
 $('#wifi').onclick=async()=>{
   const ssid=$('#ssid').value.trim(); if(!ssid){alert('SSIDを入力してください');return}
   $('#wifi').disabled=true;
