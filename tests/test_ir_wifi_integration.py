@@ -102,6 +102,23 @@ class WifiProvisioningContracts(unittest.TestCase):
         self.assertIn("IR_RX_BEGIN", learn)
         self.assertIn("IR_RX_TIMEOUT", learn)
 
+    def test_fast_trial_preserves_default_full_replay_and_tracks_latency(self):
+        tx = extract_body_function(SRC, "bool transmitSignal(")
+        saved = extract_body_function(SRC, "void handleSendSaved()")
+        last = extract_body_function(SRC, "void handleSendLast()")
+        self.assertIn("maxFrames = MAX_EXTRA_FRAMES + 1", tx)
+        self.assertIn("std::min(signal.extraFrames.size(), maxFrames - 1)", tx)
+        self.assertIn("lastTxFirstFrameMs", tx)
+        self.assertIn("lastTxGapMs", tx)
+        self.assertIn("lastTxFrameCount", tx)
+        self.assertIn("transmitSignal(signal, maxFrames)", saved)
+        self.assertIn("transmitSignal(lastSignal, maxFrames)", last)
+        self.assertIn("const uint32_t loadMs = millis() - requestMs", saved)
+        self.assertIn("id=\"txFastMode\"", UI)
+        self.assertIn("max_frames:$('#txFastMode').checked?'1':'0'", UI)
+        self.assertIn("result.tx_gap_wait_ms", UI)
+        self.assertIn("result.tx_first_frame_ms", UI)
+
     def test_ui_polls_actual_status(self):
         self.assertIn("refreshStatus().catch(", UI)
         self.assertIn("},10000);", UI)
