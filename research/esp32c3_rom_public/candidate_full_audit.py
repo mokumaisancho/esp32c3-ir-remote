@@ -13,7 +13,9 @@ OUT.mkdir(parents=True,exist_ok=True)
 REVS=("esp32c3_rev0_rom.elf","esp32c3_rev101_rom.elf","esp32c3_rev3_rom.elf")
 URL="https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz"
 SHA="caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46"
-BRANCHES={"beq","bne","blt","bge","bltu","bgeu","c.beqz","c.bnez"}
+# Branch aliases are emitted by Capstone but missing from earlier pinned archives.
+BRANCHES={"beq","bne","blt","bge","bltu","bgeu","c.beqz","c.bnez",
+          "beqz","bnez","bltz","bgez","bgtz","blez","bgt","ble","bgtu","bleu"}
 def require(cond,msg):
  if not cond:raise RuntimeError(msg)
 def symbols(elf):
