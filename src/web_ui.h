@@ -28,6 +28,14 @@ button:disabled{opacity:.45;cursor:default} input{background:#fff;width:100%}
 @media(max-width:690px){#signals{grid-template-columns:1fr}}
 
 .badge{display:inline-block;padding:3px 8px;border:1px solid #ddd;border-radius:999px;font-size:.8rem;margin-right:6px}
+.alarm-days{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.alarm-days label{display:flex;align-items:center;gap:3px;font-size:.85rem}
+.alarm-days input,.alarm-options input{width:auto}
+.alarm-entry{padding:7px 0;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.alarm-entry .details{flex:1 1 250px;min-width:0;font-size:.84rem}
+.alarm-entry button{padding:6px 9px;font-size:.8rem}
+#alarmTime{width:105px}
+#alarmSignal{min-width:145px;max-width:250px;flex:1}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all}
 </style>
 </head>
@@ -69,6 +77,35 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 <div id="signals">読み込み中…</div>
 </section>
 
+<section class="card" id="lightingAlarms">
+<h2>照明アラーム（毎週繰り返し）</h2>
+<p id="alarmClock" class="muted" role="status">Wi-Fi時刻を確認中…</p>
+<p class="muted">日本時間（JST）。NTPの時刻取得と家庭内Wi-Fi接続が確認できるまで自動送信しません。過ぎた時刻の後追い実行はしません。</p>
+<div class="alarm-days" id="alarmWeekdays" aria-label="実行する曜日">
+<label><input type="checkbox" value="1" checked>月</label>
+<label><input type="checkbox" value="2" checked>火</label>
+<label><input type="checkbox" value="3" checked>水</label>
+<label><input type="checkbox" value="4" checked>木</label>
+<label><input type="checkbox" value="5" checked>金</label>
+<label><input type="checkbox" value="6">土</label>
+<label><input type="checkbox" value="0">日</label>
+</div>
+<div class="row" style="margin-top:10px">
+<label for="alarmTime">時刻</label>
+<input type="time" id="alarmTime" value="07:00" required>
+<label for="alarmSignal">赤外線コマンド</label>
+<select id="alarmSignal" aria-label="保存済み赤外線コマンド"><option value="">保存済み信号を取得中…</option></select>
+</div>
+<div class="row alarm-options" style="margin-top:8px">
+<label><input type="checkbox" id="alarmEnabled" checked>有効</label>
+<label><input type="checkbox" id="alarmFirstOnly">先頭1フレームだけ送信（高速試験）</label>
+<button id="addAlarm">アラームを追加</button>
+</div>
+<p id="alarmMessage" class="muted" role="status"></p>
+<div id="alarmList">読み込み中…</div>
+<p class="muted">最大16件。登録したアラームはLittleFSに保存し、再起動後も保持します。参照中の信号は、先にアラームを削除してから消去してください。</p>
+</section>
+
 <section class="card">
 <h2>Wi-Fi設定</h2>
 <p class="muted">設定AP <code>ESP32C3-IR-Setup</code>（<code>192.168.4.1</code>）は家庭内Wi-Fi接続後も復旧用として利用できます。接続先IPは上の接続状態欄に表示します。</p>
@@ -104,8 +141,21 @@ async function refreshStatus(){
   $('#save').disabled=!d.has_last;
   $('#sendLast').disabled=!d.has_last;
 }
+let cachedAlarmSignals=[];
+function updateAlarmSignalOptions(){
+  const el=$('#alarmSignal');const selected=el.value;el.replaceChildren();
+  cachedAlarmSignals.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=String(s.id);opt.textContent='#'+s.id+' '+s.name;
+    el.append(opt);
+  });
+  if(cachedAlarmSignals.some(s=>String(s.id)===selected))el.value=selected;
+  if(!cachedAlarmSignals.length){const opt=document.createElement('option');opt.value='';opt.textContent='先に赤外線信号を保存してください';el.append(opt)}
+}
 async function refreshSignals(){
   const a=await api('/api/signals');
+  cachedAlarmSignals=a;
+  updateAlarmSignalOptions();
   const list=$('#signals');
   if(!a.length){list.textContent='まだ保存されていません。';return}
   list.replaceChildren();
@@ -141,14 +191,65 @@ $('#save').onclick=async()=>{
 }
 function setTxStatus(message){$('#txStatus').textContent=new Date().toLocaleTimeString()+' '+message}
 $('#sendLast').onclick=async()=>{const b=$('#sendLast');b.disabled=true;setTxStatus('直近信号を送信中');try{const t=performance.now();const result=await api('/api/send-last',{method:'POST',body:form({max_frames:$('#txFastMode').checked?'1':'0'})});setTxStatus('RMT '+(result.result||'OK')+' / 先頭 '+result.tx_first_frame_ms+'ms / フレーム '+result.tx_frames_sent+' / 待機 '+result.tx_gap_wait_ms+'ms / 保存読込 '+result.load_ms+'ms / ESP処理 '+result.tx_duration_ms+'ms / HTTP往復 '+Math.round(performance.now()-t)+'ms / 試行#'+result.tx_attempt+' / 機器の受信は未確認')}catch(e){setTxStatus('送信失敗: '+e.message)}finally{b.disabled=false}};
+const WEEKDAY_LABELS=['日','月','火','水','木','金','土'];
+const dayText=mask=>[1,2,3,4,5,6,0].filter(d=>mask&(1<<d)).map(d=>WEEKDAY_LABELS[d]).join('・');
+const two=x=>String(x).padStart(2,'0');
+async function refreshAlarms(){
+  const data=await api('/api/alarms');
+  $('#alarmClock').textContent='時刻: '+data.clock+' / '+data.timezone+
+    (data.clock_valid?'（時刻取得済み）':'（時刻未同期・実行停止中）')+
+    ' / 保存領域: '+(data.storage_ready?'正常':'ERROR')+
+    ' / 前回: '+data.last_event;
+  const list=$('#alarmList');
+  list.replaceChildren();
+  if(!data.rules.length){list.textContent='アラームはまだありません。';return}
+  data.rules.forEach(r=>{
+    const el=document.createElement('div');el.className='alarm-entry';
+    const details=document.createElement('div');details.className='details';
+    const name=cachedAlarmSignals.find(s=>s.id===r.slot)?.name||'信号がありません';
+    details.textContent='#'+r.id+' '+dayText(r.days)+' '+two(r.hour)+':'+two(r.minute)+
+      ' / '+name+' (#'+r.slot+')'+(r.first_only?' / 先頭のみ':' / 全フレーム')+
+      (r.enabled?'':' / 停止中');
+    const toggle=document.createElement('button');toggle.className='secondary';
+    toggle.textContent=r.enabled?'停止':'有効化';
+    toggle.onclick=async()=>{toggle.disabled=true;try{
+      await api('/api/alarms/save',{method:'POST',body:form({id:r.id,days:r.days,hour:r.hour,minute:r.minute,slot:r.slot,enabled:r.enabled?'0':'1',first_only:r.first_only?'1':'0'})});
+      await refreshAlarms();
+    }catch(e){$('#alarmMessage').textContent='切替失敗: '+e.message;toggle.disabled=false}};
+    const del=document.createElement('button');del.className='danger';del.textContent='削除';
+    del.onclick=async()=>{if(!confirm('この照明アラームを削除しますか？'))return;del.disabled=true;try{
+      await api('/api/alarms/delete',{method:'POST',body:form({id:r.id})});
+      await refreshAlarms();
+    }catch(e){$('#alarmMessage').textContent='削除失敗: '+e.message;del.disabled=false}};
+    el.append(details,toggle,del);list.append(el);
+  });
+}
+$('#addAlarm').onclick=async()=>{
+  const days=[...document.querySelectorAll('#alarmWeekdays input:checked')].reduce((mask,item)=>mask|(1<<Number(item.value)),0);
+  const match=/^(\d{2}):(\d{2})$/.exec($('#alarmTime').value);
+  const slot=$('#alarmSignal').value;
+  if(!days||!match||slot===''){$('#alarmMessage').textContent='曜日・時刻・保存済み信号を指定してください';return}
+  const b=$('#addAlarm');b.disabled=true;
+  try{
+    await api('/api/alarms/save',{method:'POST',body:form({
+      days,hour:Number(match[1]),minute:Number(match[2]),slot,
+      enabled:$('#alarmEnabled').checked?'1':'0',
+      first_only:$('#alarmFirstOnly').checked?'1':'0'
+    })});
+    $('#alarmMessage').textContent='登録しました。時刻同期後、指定した曜日・時刻に送信します。';
+    await refreshAlarms();
+  }catch(e){$('#alarmMessage').textContent='保存失敗: '+e.message}
+  finally{b.disabled=false}
+};
 $('#wifi').onclick=async()=>{
   const ssid=$('#ssid').value.trim(); if(!ssid){alert('SSIDを入力してください');return}
   $('#wifi').disabled=true;
   try{const d=await api('/api/wifi',{method:'POST',body:form({ssid,password:$('#pass').value})});$('#wifiResult').textContent=d.saved?'保存済み・接続試行中（成功未確認）':'保存失敗'; await refreshStatus()}
   finally{$('#wifi').disabled=false}
 }
-Promise.all([refreshStatus(),refreshSignals()]).catch(e=>{$('#net').textContent='ERROR: '+e.message});
+Promise.all([refreshStatus(),refreshSignals()]).then(()=>refreshAlarms()).catch(e=>{$('#net').textContent='ERROR: '+e.message});
 setInterval(()=>{if(document.visibilityState==='visible')refreshStatus().catch(e=>{$('#net').textContent='接続状態取得失敗: '+e.message})},10000);
+setInterval(()=>{if(document.visibilityState==='visible')refreshAlarms().catch(e=>{$('#alarmClock').textContent='時刻取得失敗: '+e.message})},30000);
 </script>
 </body>
 </html>
