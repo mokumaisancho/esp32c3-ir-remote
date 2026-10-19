@@ -26,10 +26,10 @@ def operand_address(s,get):
  offset,base=s.split("(")
  return (get(base.rstrip(")"))+number(offset))&MASK
 
-def replay(rows,initial,a0=0,streams=None,step_limit=15000):
+def replay(rows,initial,a0=0,streams=None,step_limit=15000,a1=0):
  bypc={int(r["pc"],16):r for r in rows}
  require(len(bypc)==len(rows) and rows,"MISSING_OR_DUPLICATE_PC")
- r={"zero":0,"a0":a0&MASK}
+ r={"zero":0,"a0":a0&MASK,"a1":a1&MASK}
  m=dict(initial)
  streams={k:list(v) for k,v in (streams or {}).items()}
  reads=Counter();writes=[];edges=set()
