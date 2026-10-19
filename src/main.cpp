@@ -378,6 +378,8 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
   rxLastStartError = ESP_OK;
   rxLastResetError = ESP_OK;
   if (!rxChannel || !rxDoneQueue) return false;
+  Serial.printf("IR_RX_BEGIN t=%lu multi=%d\n", static_cast<unsigned long>(start),
+                server.hasArg("multi") && server.arg("multi") == "1" ? 1 : 0);
 
   const rmt_receive_config_t cfg = {
       .signal_range_min_ns = ircfg::RX_GLITCH_FILTER_US * 1000U,
@@ -395,6 +397,10 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
     const uint32_t remaining = ircfg::LEARN_WINDOW_MS - (millis() - start);
     size_t count = 0;
     if (xQueueReceive(rxDoneQueue, &count, pdMS_TO_TICKS(remaining)) != pdTRUE) {
+      Serial.printf("IR_RX_TIMEOUT attempts=%lu waited_ms=%lu symbols=%lu\n",
+                    static_cast<unsigned long>(readAttempts),
+                    static_cast<unsigned long>(millis() - start),
+                    static_cast<unsigned long>(rxLastSymbolCount));
       rxLastResetError = rmt_disable(rxChannel);
       if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
       if (rxLastResetError != ESP_OK) rmtRxReady = false;
@@ -508,7 +514,8 @@ bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses
     return false;
   }
   rmtSetEOT(ircfg::IR_TX_PIN, spaceLevel);
-  const bool accepted = rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 1000);
+  // 120ms is sufficient for one normal IR frame (~65ms); avoid a full-second stall.
+  const bool accepted = rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 200);
   lastTxDurationMs = millis() - txBeginMs;
   Serial.printf("IR_TX_END result=%s attempt=%lu symbols=%u gpio=%d duration_ms=%lu\n",
                 accepted ? "DRIVER_OK" : "FAIL", static_cast<unsigned long>(txAttemptCount),
@@ -518,12 +525,16 @@ bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses
 }
 
 bool transmitSignal(const Signal &signal) {
-  ++txAttemptCount;
   const uint32_t startedMs = millis();
   bool ok = transmitFrame(signal, signal.pulses);
   for (size_t i = 0; ok && i < signal.extraFrames.size(); ++i) {
     if (i >= signal.interFrameGapUs.size()) { ok = false; break; }
-    delay((signal.interFrameGapUs[i] + 500U) / 1000U);
+    const uint32_t gapMs = std::min<uint32_t>((signal.interFrameGapUs[i] + 500U) / 1000U, 150U);
+    Serial.printf("IR_TX_GAP frame=%u original_us=%lu applied_ms=%lu\n",
+                  static_cast<unsigned>(i + 1),
+                  static_cast<unsigned long>(signal.interFrameGapUs[i]),
+                  static_cast<unsigned long>(gapMs));
+    delay(gapMs);
     ok = transmitFrame(signal, signal.extraFrames[i]);
   }
   lastTxDurationMs = millis() - startedMs;
