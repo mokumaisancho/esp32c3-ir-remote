@@ -118,6 +118,7 @@ def build(machine_zip, state):
                     "entry": f["start"],
                     "sha256": f["sha256"],
                     "instruction_metrics": metrics,
+                    "machine_instructions": f["instruction_listing"],
                 }
             require(bool(slices), "NO_VERIFIED_REVISION:" + name)
             totals = Counter()
@@ -141,6 +142,9 @@ def build(machine_zip, state):
             base = {"LINEAR_NO_CONTROL_TRANSFER_EXCEPT_RETURN": 0,
                     "DIRECT_CONTROL": 1, "CONDITIONAL_CONTROL": 2,
                     "NONRETURN_INDIRECT_CONTROL": 3, "TRAP_OR_UNDECODABLE": 4}[category]
+            if base != 0:
+                for revision in slices.values():
+                    revision.pop("machine_instructions")
             items.append({
                 "name": name,
                 "task_id": task_by_name[name]["task_id"],
@@ -208,6 +212,16 @@ def main():
     result = build(args.machine, json.loads(args.state.read_text()))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+    for item in result["items"]:
+        if item["category"] == "LINEAR_NO_CONTROL_TRANSFER_EXCEPT_RETURN":
+            print("ROM_LINEAR_MACHINE", json.dumps({
+                "name": item["name"],
+                "revisions": {
+                    rev: [(r["pc"], r["word"], r["mnemonic"], r["operands"])
+                          for r in v["machine_instructions"]]
+                    for rev, v in item["revision_bodies"].items()
+                },
+            }, sort_keys=True))
     print("ROM_SEMANTIC_FRONTIER", json.dumps({
         "awaiting_bounded_effect": result["awaiting_bounded_effect"],
         "category_counts": result["category_counts"],
