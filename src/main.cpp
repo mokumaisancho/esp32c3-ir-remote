@@ -14,8 +14,11 @@
 #include <freertos/queue.h>
 
 #include <algorithm>
+#include <ctime>
+#include <cstdlib>
 #include <vector>
 
+#include "alarm_policy.h"
 #include "config.h"
 #include "diagnostic_policy.h"
 #include "web_ui.h"
@@ -931,6 +934,233 @@ void handleWifi() {
   sendJson(202, "{\"ok\":true,\"saved\":true,\"connected\":false,\"wifi_phase\":\"CONNECTING\"}");
 }
 
+// Lighting alarms: local wall-clock JST (UTC+9, no DST).
+// Existing /sigNN.bin IR files are not modified by this feature.
+alarm_policy::Rules alarmRules{};
+bool alarmsReady = false;
+bool ntpStarted = false;
+bool ntpWasConnected = false;
+String lastAlarmEvent = "未実行";
+
+constexpr char kAlarmsPath[] = "/alarms.bin";
+constexpr char kAlarmsBackupPath[] = "/alarms.bak";
+constexpr char kAlarmsTempPath[] = "/alarms.tmp";
+
+bool loadAlarmRules() {
+  if (!fsReady) return false;
+  if (!LittleFS.exists(kAlarmsPath) && LittleFS.exists(kAlarmsBackupPath)) {
+    if (!LittleFS.rename(kAlarmsBackupPath, kAlarmsPath)) return false;
+  }
+  if (!LittleFS.exists(kAlarmsPath)) {
+    alarmRules = {};
+    return true; // Fresh installation: no rules yet.
+  }
+  File f = LittleFS.open(kAlarmsPath, "r");
+  if (!f) return false;
+  alarm_policy::Bytes bytes{};
+  const bool sizeOk = f.size() == bytes.size();
+  const bool readOk = sizeOk && f.read(bytes.data(), bytes.size()) == bytes.size();
+  f.close();
+  return readOk && alarm_policy::decode(bytes.data(), bytes.size(), alarmRules);
+}
+
+bool persistAlarmRules() {
+  if (!fsReady || !alarmsReady) return false;
+  const auto bytes = alarm_policy::encode(alarmRules);
+  LittleFS.remove(kAlarmsTempPath);
+  File f = LittleFS.open(kAlarmsTempPath, "w");
+  if (!f) return false;
+  const bool written = f.write(bytes.data(), bytes.size()) == bytes.size();
+  f.flush();
+  f.close();
+  if (!written) { LittleFS.remove(kAlarmsTempPath); return false; }
+  // Preserve the previous valid schedule if a replacement fails.
+  LittleFS.remove(kAlarmsBackupPath);
+  const bool oldExists = LittleFS.exists(kAlarmsPath);
+  if (oldExists && !LittleFS.rename(kAlarmsPath, kAlarmsBackupPath)) {
+    LittleFS.remove(kAlarmsTempPath);
+    return false;
+  }
+  if (!LittleFS.rename(kAlarmsTempPath, kAlarmsPath)) {
+    if (oldExists) LittleFS.rename(kAlarmsBackupPath, kAlarmsPath);
+    LittleFS.remove(kAlarmsTempPath);
+    return false;
+  }
+  if (oldExists) LittleFS.remove(kAlarmsBackupPath);
+  return true;
+}
+
+bool safeUnsigned(const String &value, uint32_t max, uint32_t &out) {
+  if (value.isEmpty() || value.length() > 10) return false;
+  uint32_t candidate = 0;
+  for (size_t i = 0; i < value.length(); ++i) {
+    if (!isDigit(value[i])) return false;
+    const uint32_t d = static_cast<uint32_t>(value[i] - '0');
+    if (candidate > (max - d) / 10U || d > max) return false;
+    candidate = candidate * 10U + d;
+  }
+  out = candidate;
+  return true;
+}
+
+bool alarmClockValid() {
+  return ntpStarted && WiFi.status() == WL_CONNECTED &&
+         time(nullptr) >= static_cast<time_t>(1760000000);
+}
+
+void handleGetAlarms() {
+  const bool clockOk = alarmClockValid();
+  String result = "{\"ok\":true,\"storage_ready\":";
+  result += alarmsReady ? "true" : "false";
+  result += ",\"clock_valid\":";
+  result += clockOk ? "true" : "false";
+  result += ",\"timezone\":\"JST (UTC+09:00)\",\"clock\":\"";
+  if (clockOk) {
+    const time_t now = time(nullptr);
+    struct tm local{};
+    localtime_r(&now, &local);
+    char stamp[32];
+    strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &local);
+    result += stamp;
+  } else {
+    result += "NTP時刻同期待ち";
+  }
+  result += "\",\"last_event\":\"" + jsonEscape(lastAlarmEvent) + "\",\"rules\":[";
+  bool first = true;
+  for (size_t i = 0; i < alarmRules.size(); ++i) {
+    const auto &r = alarmRules[i];
+    if (!r.days) continue;
+    if (!first) result += ",";
+    first = false;
+    result += "{\"id\":" + String(i) +
+              ",\"days\":" + String(r.days) +
+              ",\"hour\":" + String(r.hour) +
+              ",\"minute\":" + String(r.minute) +
+              ",\"slot\":" + String(r.slot) +
+              ",\"enabled\":" + String(r.enabled ? "true" : "false") +
+              ",\"first_only\":" + String(r.firstOnly ? "true" : "false") +
+              "}";
+  }
+  result += "]}";
+  sendJson(200, result);
+}
+
+void handleSaveAlarm() {
+  if (!alarmsReady) {
+    sendJson(503, "{\"ok\":false,\"error\":\"アラーム保存領域を利用できません\"}");
+    return;
+  }
+  uint32_t days=0, hour=0, minute=0, slot=0, enabled=0, firstOnly=0, id=0;
+  if (!safeUnsigned(server.arg("days"), 127, days) || days == 0 ||
+      !safeUnsigned(server.arg("hour"), 23, hour) ||
+      !safeUnsigned(server.arg("minute"), 59, minute) ||
+      !safeUnsigned(server.arg("slot"), ircfg::MAX_SIGNAL_SLOTS - 1, slot) ||
+      !safeUnsigned(server.arg("enabled"), 1, enabled) ||
+      !safeUnsigned(server.arg("first_only"), 1, firstOnly)) {
+    sendJson(400, "{\"ok\":false,\"error\":\"曜日・時刻・信号の設定が不正です\"}");
+    return;
+  }
+  Signal verifySignal;
+  if (!loadSignalFromSlot(slot, verifySignal)) {
+    sendJson(400, "{\"ok\":false,\"error\":\"保存済み赤外線信号が見つかりません\"}");
+    return;
+  }
+  size_t index = alarmRules.size();
+  if (server.hasArg("id")) {
+    if (!safeUnsigned(server.arg("id"), alarmRules.size() - 1, id) ||
+        !alarmRules[id].days) {
+      sendJson(400, "{\"ok\":false,\"error\":\"更新対象IDが不正です\"}");
+      return;
+    }
+    index = id;
+  } else {
+    for (size_t i = 0; i < alarmRules.size(); ++i) {
+      if (!alarmRules[i].days) { index = i; break; }
+    }
+  }
+  if (index >= alarmRules.size()) {
+    sendJson(507, "{\"ok\":false,\"error\":\"アラームは16件までです\"}");
+    return;
+  }
+  const alarm_policy::Rules before = alarmRules;
+  auto &r = alarmRules[index];
+  r.days = days; r.hour = hour; r.minute = minute;
+  r.slot = slot; r.enabled = enabled; r.firstOnly = firstOnly;
+  // Saving a rule during a matching minute must not immediately turn on lights.
+  r.lastMinute = alarmClockValid() ? static_cast<uint32_t>(time(nullptr) / 60) : 0;
+  if (!persistAlarmRules()) {
+    alarmRules = before;
+    sendJson(500, "{\"ok\":false,\"error\":\"アラーム保存に失敗しました\"}");
+    return;
+  }
+  sendJson(200, "{\"ok\":true,\"id\":" + String(index) + "}");
+}
+
+void handleDeleteAlarm() {
+  uint32_t id = 0;
+  if (!alarmsReady || !safeUnsigned(server.arg("id"), alarmRules.size()-1, id) ||
+      !alarmRules[id].days) {
+    sendJson(400, "{\"ok\":false,\"error\":\"削除対象のアラームがありません\"}");
+    return;
+  }
+  const alarm_policy::Rules before = alarmRules;
+  alarmRules[id] = {};
+  if (!persistAlarmRules()) {
+    alarmRules = before;
+    sendJson(500, "{\"ok\":false,\"error\":\"アラーム削除に失敗しました\"}");
+    return;
+  }
+  sendJson(200, "{\"ok\":true}");
+}
+
+void runAlarmClock() {
+  // Clock synchronization runs in the main loop, not in a Wi-Fi callback.
+  // Never block an IR button press with an NTP synchronization wait.
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected && !ntpWasConnected) {
+    configTime(0, 0, "ntp.nict.jp", "pool.ntp.org", "time.google.com");
+    ntpStarted = true;
+    Serial.println("ALARM_NTP_STARTED");
+  }
+  ntpWasConnected = connected;
+  if (!connected || !alarmsReady || !alarmClockValid()) return;
+  static uint32_t lastCheckMs = 0;
+  const uint32_t nowMs = millis();
+  if (nowMs - lastCheckMs < 1000U) return;
+  lastCheckMs = nowMs;
+  const time_t now = time(nullptr);
+  struct tm local{};
+  if (!localtime_r(&now, &local)) return;
+  const uint32_t epochMinute = static_cast<uint32_t>(now / 60);
+  for (size_t i = 0; i < alarmRules.size(); ++i) {
+    auto &r = alarmRules[i];
+    if (!alarm_policy::due(r, local.tm_wday, local.tm_hour, local.tm_min, epochMinute))
+      continue;
+    // Persist deduplication before sending. Do not risk repeated alarms after reboot.
+    const uint32_t previous = r.lastMinute;
+    r.lastMinute = epochMinute;
+    if (!persistAlarmRules()) {
+      r.lastMinute = previous;
+      lastAlarmEvent = "保存エラー：自動送信を中止";
+      Serial.printf("ALARM_SKIP id=%u reason=persist_failed\n", static_cast<unsigned>(i));
+      continue;
+    }
+    Signal stored;
+    if (!loadSignalFromSlot(r.slot, stored)) {
+      lastAlarmEvent = "信号が見つかりません #" + String(r.slot);
+      Serial.printf("ALARM_SKIP id=%u reason=signal_missing\n", static_cast<unsigned>(i));
+      continue;
+    }
+    const bool ok = transmitSignal(stored, r.firstOnly ? 1 : MAX_EXTRA_FRAMES + 1);
+    lastAlarmEvent = String("ルール#") + String(i) + " " + String(ok ? "送信処理OK" : "送信失敗") +
+                     " / 信号#" + String(r.slot) + " / " + String(local.tm_hour) +
+                     ":" + String(local.tm_min);
+    Serial.printf("ALARM_TRIGGER id=%u slot=%u weekday=%d time=%02d:%02d result=%s\n",
+                  static_cast<unsigned>(i), static_cast<unsigned>(r.slot),
+                  local.tm_wday, local.tm_hour, local.tm_min, ok ? "DRIVER_OK" : "FAIL");
+  }
+}
+
 void setupRoutes() {
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Cache-Control", "no-store");
@@ -945,6 +1175,9 @@ void setupRoutes() {
   server.on("/api/send-last", HTTP_POST, handleSendLast);
   server.on("/api/delete", HTTP_POST, handleDelete);
   server.on("/api/wifi", HTTP_POST, handleWifi);
+  server.on("/api/alarms", HTTP_GET, handleGetAlarms);
+  server.on("/api/alarms/save", HTTP_POST, handleSaveAlarm);
+  server.on("/api/alarms/delete", HTTP_POST, handleDeleteAlarm);
   server.onNotFound([]() {
     sendJson(404, "{\"ok\":false,\"error\":\"not found\"}");
   });
@@ -1092,6 +1325,10 @@ void setup() {
   fsReady = LittleFS.begin(false);
   diagMark(fsReady ? "FILESYSTEM_READY" : "FILESYSTEM_FAILED");
   if (!fsReady) Serial.println("LittleFS mount failed; automatic formatting disabled");
+  alarmsReady = loadAlarmRules();
+  Serial.printf("ALARM_STORAGE_READY=%d\n", alarmsReady ? 1 : 0);
+  setenv("TZ", "JST-9", 1);
+  tzset();
 
   setupRmt();
   diagMark("IR_INIT_COMPLETE");
@@ -1126,6 +1363,7 @@ void loop() {
                   WiFi.localIP().toString().c_str());
   }
   server.handleClient();
+  runAlarmClock();
   // WiFiManager polling does not need to run on every HTTP iteration.
   // Keep it responsive while eliminating per-loop portal processing overhead.
   static uint32_t lastNetworkMaintenanceMs = 0;
