@@ -57,11 +57,12 @@ def modeled_names():
     branch_leaf = set(source_literal_local("bounded_isa_effects.py", "NAMES"))
     agc_leaf = set(source_literal_local("agc_rom_effects.py", "NAMES"))
     spi_leaf = set(source_literal_local("spi_slave_rom_effects.py", "NAMES"))
-    leaf = prior_leaf | new_leaf | branch_leaf | agc_leaf | spi_leaf
+    rom2_leaf = set(source_literal_local("rom2_wait_effects.py", "NAMES"))
+    leaf = prior_leaf | new_leaf | branch_leaf | agc_leaf | spi_leaf | rom2_leaf
     exact = set(source_literal("candidate_mechanisms.py", "CASE"))
-    require(len(prior_leaf) == 23 and len(new_leaf) == 2 and len(branch_leaf) == 4 and len(agc_leaf) == 1 and len(spi_leaf) == 1, "LEAF_COUNT_DRIFT")
-    require(len(leaf) == 31 and len(exact) == 19, "OPCODE_EFFECT_COUNT_DRIFT")
-    require(len(leaf | exact) == 38, "UNION_COUNT_DRIFT")
+    require(len(prior_leaf) == 23 and len(new_leaf) == 2 and len(branch_leaf) == 4 and len(agc_leaf) == 1 and len(spi_leaf) == 1 and len(rom2_leaf) == 1, "LEAF_COUNT_DRIFT")
+    require(len(leaf) == 32 and len(exact) == 19, "OPCODE_EFFECT_COUNT_DRIFT")
+    require(len(leaf | exact) == 39, "UNION_COUNT_DRIFT")
     return leaf, exact
 
 
@@ -111,7 +112,7 @@ def build(machine_zip, state):
     modeled = leaf | exact
     require(modeled <= canonical, "EFFECT_NAMES_NOT_CANONICAL")
     remaining = canonical - modeled
-    require(len(remaining) == 50, "PENDING_50_COUNT_DRIFT")
+    require(len(remaining) == 49, "PENDING_49_COUNT_DRIFT")
     task_by_name = {x["name"]: x for x in state["tasks"]}
     items = []
     with zipfile.ZipFile(machine_zip) as z:
@@ -206,6 +207,7 @@ def build(machine_zip, state):
         "bounded_branch_replays": 4,
         "agc_net_effect_replays": 1,
         "spi_net_effect_replays": 1,
+        "rom2_bounded_wait_replays": 1,
         "other_opcode_witnesses": len(modeled - leaf),
         "awaiting_bounded_effect": len(items),
         "silicon_experiments_run": 0,
@@ -218,6 +220,7 @@ def build(machine_zip, state):
             "bounded_branch_script": sha(pathlib.Path(__file__).with_name("bounded_isa_effects.py")),
             "agc_script": sha(pathlib.Path(__file__).with_name("agc_rom_effects.py")),
             "spi_script": sha(pathlib.Path(__file__).with_name("spi_slave_rom_effects.py")),
+            "rom2_script": sha(pathlib.Path(__file__).with_name("rom2_wait_effects.py")),
         },
         "category_counts": category_counts,
         "raw_indirect_occurrences_including_returns": sum(
