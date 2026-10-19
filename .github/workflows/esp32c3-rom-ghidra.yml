@@ -1,0 +1,75 @@
+name: ESP32-C3 ROM 88 candidate Ghidra review
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/esp32c3_rom_public/ghidra_scripts/**'
+      - 'research/esp32c3_rom_public/ghidra_prepare.py'
+      - 'research/esp32c3_rom_public/ghidra_review_results.py'
+      - '.github/workflows/esp32c3-rom-ghidra.yml'
+permissions:
+  contents: read
+jobs:
+  ghidra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Python and independent binutils
+        run: |
+          python -m pip install --disable-pip-version-check pyelftools==0.32 capstone==5.0.6
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq binutils-riscv64-linux-gnu
+      - name: Build all structural ROM evidence with full logs
+        run: |
+          set -o pipefail
+          python research/esp32c3_rom_public/run_all_with_full_logs.py 2>&1 | tee research/esp32c3_rom_public/ghidra_batch.log
+          python research/esp32c3_rom_public/idf_known_inventory.py 2>&1 | tee research/esp32c3_rom_public/ghidra_known.log
+          python research/esp32c3_rom_public/candidate_full_audit.py 2>&1 | tee research/esp32c3_rom_public/ghidra_candidate_bodies.log
+          python research/esp32c3_rom_public/ghidra_prepare.py 2>&1 | tee research/esp32c3_rom_public/ghidra_prepare.log
+        shell: bash
+      - name: Fetch and SHA-pin official Ghidra
+        run: |
+          set -euo pipefail
+          curl -fLSs --retry 2 -o /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip
+          printf '%s  %s\n' ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db /tmp/ghidra.zip | sha256sum -c -
+          mkdir -p /tmp/ghidra-dist
+          unzip -qq /tmp/ghidra.zip -d /tmp/ghidra-dist
+          GHIDRA_HEADLESS="$(find /tmp/ghidra-dist -path '*/support/analyzeHeadless' -type f | head -n 1)"
+          test -n "$GHIDRA_HEADLESS"
+          echo "GHIDRA_HEADLESS=$GHIDRA_HEADLESS" >> "$GITHUB_ENV"
+      - name: Decompile all candidate function entries in three official revisions
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/research/esp32c3_rom_public/output/ghidra"
+          SRC="$GITHUB_WORKSPACE/research/esp32c3_rom_public/ghidra_scripts"
+          for rev in esp32c3_rev0_rom.elf esp32c3_rev101_rom.elf esp32c3_rev3_rom.elf; do
+            echo "=== GHIDRA_BEGIN $rev ==="
+            mkdir -p /tmp/ghidra-projects
+            "$GHIDRA_HEADLESS" /tmp/ghidra-projects "review_${rev//./_}" \
+              -import "$OUT/$rev" \
+              -scriptPath "$SRC" \
+              -postScript CandidateDecompile.java "$OUT/$rev.candidates.tsv" "$OUT/$rev.decompile.tsv" \
+              -analysisTimeoutPerFile 900 -deleteProject 2>&1 | tee "$OUT/$rev.headless.log"
+            test -s "$OUT/$rev.decompile.tsv"
+            echo "=== GHIDRA_END $rev ==="
+          done
+          python research/esp32c3_rom_public/ghidra_review_results.py 2>&1 | tee "$OUT/review_validation.log"
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: esp32c3-rom-88-ghidra-evidence
+          path: |
+            research/esp32c3_rom_public/output/ghidra/
+            research/esp32c3_rom_public/output/candidate_full/candidate_summary.json
+            research/esp32c3_rom_public/output/full_logs/
+            research/esp32c3_rom_public/ghidra_*.log
+          if-no-files-found: warn
