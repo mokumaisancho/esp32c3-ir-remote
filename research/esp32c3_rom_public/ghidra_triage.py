@@ -21,7 +21,7 @@ def main():
  cases=read(EXACT/"mechanism_witnesses.json") if (EXACT/"mechanism_witnesses.json").exists() else {"cases":{}}
  prior=read(O/"register_access"/"published_prior_art_comparison.json")
  published={x["address"].lower() for r in prior["revisions"].values() for x in r["matched_prior_evidence"]}
- reviews=[];total=collections.Counter()
+ reviews=[];total=collections.Counter();function_boundary_disagreements=[]
  for name in names:
   entry={"candidate_name":name,
    "idf_linker_status":summaries[name]["idf_classification"],
@@ -44,12 +44,21 @@ def main():
     raise RuntimeError("GHIDRA_DECOMPILER_NOT_VERIFIED:"+name+":"+rev)
    if int(record["requested_address"],16)!=int(body["start"],16):raise RuntimeError("ENTRY_PC_DIFFERENCE:"+name+":"+rev)
    code_shas.add(body["sha256"])
+   ghidra_body=int(record["ghidra_function_body_address_count"])
+   elf_body=body["bytes"]
+   if ghidra_body!=elf_body:
+    function_boundary_disagreements.append({"candidate_name":name,"revision":rev,
+      "elf_symbol_bytes":elf_body,"ghidra_defined_body_bytes":ghidra_body,
+      "difference":ghidra_body-elf_body,
+      "status":"ELF_SIZE_NOT_FULL_GHIDRA_FUNCTION_BODY"})
    c=record["pseudocode"]
    reg.update("0x"+r.lower() for r in re.findall(r"_DAT_ram_([0-9a-fA-F]{8})",c))
    entry["ghidra_and_machine_witnesses"][rev]={
     "status":"FUNCTION_CODE_AND_PSEUDOCODE_PRESENT",
     "entry":body["start"],"elf_machine_code_sha256":body["sha256"],
-    "function_bytes":body["bytes"],"gnu_machine_words_confirmed":body["gnu_machine_words_checked"],
+    "function_bytes":body["bytes"],"ghidra_defined_body_bytes":ghidra_body,
+    "ELF_vs_Ghidra_function_bytes_equal":elf_body==ghidra_body,
+    "gnu_machine_words_confirmed":body["gnu_machine_words_checked"],
     "ghidra_pseudocode_characters":len(c),
     "conditional_branch_count":body["conditional_branch_count"],
     "indirect_transfer_count":body["indirect_transfer_count"],
@@ -70,20 +79,23 @@ def main():
   if entry["function_algorithm_witness"]:total["candidate_names_instruction_effect_documented"]+=1
   total["candidate_names_reviewed"]+=1
   reviews.append(entry)
+ total["ghidra_elf_body_size_disagreements"]=len(function_boundary_disagreements)
  if total["candidate_names_reviewed"]!=88 or total["revision_bodies_reviewed"]!=222:
   raise RuntimeError("DOSSIER_INCOMPLETE")
  report={"schema":"ESP32C3_ALL_88_GHIDRA_CANDIDATE_EVIDENCE_V1",
   "total":dict(total),"reviewed":reviews,
+  "function_boundary_disagreements":function_boundary_disagreements,
   "method":["Three hash-pinned official ROM ELFs","Independent GNU objdump / Capstone machine-word verification",
    "Ghidra 12.1.4 full-function pseudocode by exact ELF address",
    "Three pinned ESP-IDF linker snapshots + register header names",
    "Independent 2025 register address prior comparison"],
-  "closure":{"static_evidence_review":"PASS",
+  "closure":{"static_evidence_review":"PASS_WITH_FUNCTION_BOUNDARY_EXCEPTIONS",
              "silicon_behaviour":"NOT_VERIFIED",
              "undocumented_novel_api_discovery":"NOT_CERTIFIED",
              "next_stage":"FIRST adjudicate all 88 semantic novelty claims; ONLY THEN scan ROM for other omitted candidates"},
   "cautions":["Exact symbol address does not establish externally callable API",
    "C-like pseudocode does not prove observed hardware behavior",
+   "Nine function body size differences reflect Ghidra code/data boundary decisions, not independently proven executable bytes",
    "Register address matches and symbol names are insufficient novelty proof"]}
  (GH/"triage_88.json").write_text(json.dumps(report,indent=2)+"\n")
  print("GHIDRA_88_TRIAGE "+json.dumps({"totals":dict(total),"status":report["closure"]},sort_keys=True))
