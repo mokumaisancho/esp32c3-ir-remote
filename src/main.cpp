@@ -532,6 +532,9 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
 
 uint32_t lastTxDurationMs = 0;
 uint32_t txAttemptCount = 0;
+uint32_t lastTxFirstFrameMs = 0;
+uint32_t lastTxGapMs = 0;
+uint32_t lastTxFrameCount = 0;
 bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses) {
   const uint32_t txBeginMs = millis();
   ++txAttemptCount;
@@ -600,23 +603,38 @@ bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses
   return accepted;
 }
 
-bool transmitSignal(const Signal &signal) {
+bool transmitSignal(const Signal &signal, size_t maxFrames = MAX_EXTRA_FRAMES + 1) {
   const uint32_t startedMs = millis();
+  lastTxFirstFrameMs = 0;
+  lastTxGapMs = 0;
+  lastTxFrameCount = 0;
+  if (maxFrames == 0) return false;
   bool ok = transmitFrame(signal, signal.pulses);
-  for (size_t i = 0; ok && i < signal.extraFrames.size(); ++i) {
+  if (ok) {
+    lastTxFrameCount = 1;
+    lastTxFirstFrameMs = millis() - startedMs;
+  }
+  const size_t repeatCount = std::min(signal.extraFrames.size(), maxFrames - 1);
+  for (size_t i = 0; ok && i < repeatCount; ++i) {
     if (i >= signal.interFrameGapUs.size()) { ok = false; break; }
     const uint32_t gapMs = std::min<uint32_t>((signal.interFrameGapUs[i] + 500U) / 1000U, 150U);
+    const uint32_t gapStartMs = millis();
+    delay(gapMs);
+    lastTxGapMs += millis() - gapStartMs;
     Serial.printf("IR_TX_GAP frame=%u original_us=%lu applied_ms=%lu\n",
                   static_cast<unsigned>(i + 1),
                   static_cast<unsigned long>(signal.interFrameGapUs[i]),
                   static_cast<unsigned long>(gapMs));
-    delay(gapMs);
     ok = transmitFrame(signal, signal.extraFrames[i]);
+    if (ok) ++lastTxFrameCount;
   }
   lastTxDurationMs = millis() - startedMs;
-  Serial.printf("IR_TX_SEQUENCE result=%s frames=%u duration_ms=%lu\n",
+  Serial.printf("IR_TX_SEQUENCE result=%s frames=%lu available_frames=%u first_frame_ms=%lu wait_ms=%lu duration_ms=%lu\n",
                 ok ? "DRIVER_OK" : "FAIL",
+                static_cast<unsigned long>(lastTxFrameCount),
                 static_cast<unsigned>(signal.extraFrames.size() + 1),
+                static_cast<unsigned long>(lastTxFirstFrameMs),
+                static_cast<unsigned long>(lastTxGapMs),
                 static_cast<unsigned long>(lastTxDurationMs));
   return ok;
 }
@@ -792,10 +810,34 @@ bool parseSlot(int &slot) {
   return slot >= 0 && slot < static_cast<int>(ircfg::MAX_SIGNAL_SLOTS);
 }
 
+String transmissionResult(uint32_t loadMs, uint32_t totalMs) {
+  return String("{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false,\"tx_duration_ms\":") +
+         String(lastTxDurationMs) + ",\"tx_first_frame_ms\":" + String(lastTxFirstFrameMs) +
+         ",\"tx_gap_wait_ms\":" + String(lastTxGapMs) +
+         ",\"tx_frames_sent\":" + String(lastTxFrameCount) +
+         ",\"load_ms\":" + String(loadMs) +
+         ",\"handler_ms\":" + String(totalMs) +
+         ",\"tx_attempt\":" + String(txAttemptCount) + "}";
+}
+
+size_t requestedFrames() {
+  if (!server.hasArg("max_frames") || server.arg("max_frames") == "0") {
+    return MAX_EXTRA_FRAMES + 1;
+  }
+  if (server.arg("max_frames") == "1") return 1;
+  return 0; // Invalid options must not be silently accepted.
+}
+
 void handleSendSaved() {
+  const uint32_t requestMs = millis();
   int slot = -1;
   if (!parseSlot(slot)) {
     sendJson(400, "{\"ok\":false,\"error\":\"idが不正です\"}");
+    return;
+  }
+  const size_t maxFrames = requestedFrames();
+  if (maxFrames == 0) {
+    sendJson(400, "{\"ok\":false,\"error\":\"max_framesが不正です\"}");
     return;
   }
   Signal signal;
@@ -803,23 +845,30 @@ void handleSendSaved() {
     sendJson(404, "{\"ok\":false,\"error\":\"信号が見つかりません\"}");
     return;
   }
-  if (!transmitSignal(signal)) {
+  const uint32_t loadMs = millis() - requestMs;
+  if (!transmitSignal(signal, maxFrames)) {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, String("{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false,\"tx_duration_ms\":") + String(lastTxDurationMs) + ",\"tx_attempt\":" + String(txAttemptCount) + "}");
+  sendJson(200, transmissionResult(loadMs, millis() - requestMs));
 }
 
 void handleSendLast() {
+  const uint32_t requestMs = millis();
   if (!hasLastSignal) {
     sendJson(409, "{\"ok\":false,\"error\":\"送信できる直近信号がありません\"}");
     return;
   }
-  if (!transmitSignal(lastSignal)) {
+  const size_t maxFrames = requestedFrames();
+  if (maxFrames == 0) {
+    sendJson(400, "{\"ok\":false,\"error\":\"max_framesが不正です\"}");
+    return;
+  }
+  if (!transmitSignal(lastSignal, maxFrames)) {
     sendJson(500, "{\"ok\":false,\"error\":\"IR送信に失敗しました\"}");
     return;
   }
-  sendJson(200, "{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false}");
+  sendJson(200, transmissionResult(0, millis() - requestMs));
 }
 
 void handleDelete() {
