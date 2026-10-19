@@ -463,10 +463,14 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
 
 bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
   const uint32_t started = millis();
+  const bool wantMulti = server.hasArg("multi") && server.arg("multi") == "1";
   libraryLastRawLength = 0;
   libraryLastOverflow = false;
-  if (!rxChannel) return false;
-  // RMT and GPIO ISR backend cannot observe GPIO5 simultaneously.
+  rxLastStartError = ESP_OK;
+  rxLastResetError = ESP_OK;
+  rxLastSymbolCount = 0;
+  if (!rxChannel) { rxLastStartError = ESP_ERR_INVALID_STATE; return false; }
+  // Never activate GPIO-interrupt IRrecv while RMT owns the same input.
   const esp_err_t pauseResult = rmt_disable(rxChannel);
   if (pauseResult != ESP_OK) {
     rxLastResetError = pauseResult;
@@ -476,28 +480,41 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
   comparisonReceiverActive = true;
   decode_results result;
   bool found = false;
-  while (millis() - started < ircfg::LEARN_WINDOW_MS) {
+  uint32_t multiDeadline = 0;
+  while (millis() - started < ircfg::LEARN_WINDOW_MS ||
+         (found && wantMulti && static_cast<int32_t>(multiDeadline - millis()) > 0)) {
+    if (found && (!wantMulti || signal.extraFrames.size() >= MAX_EXTRA_FRAMES ||
+                  static_cast<int32_t>(multiDeadline - millis()) <= 0)) break;
     if (!comparisonReceiver.decode(&result)) { delay(1); continue; }
     libraryLastRawLength = result.rawlen;
     libraryLastOverflow = result.overflow;
+    const uint32_t gapUs = result.rawlen ?
+        static_cast<uint32_t>(result.rawbuf[0]) * kRawTick : 0;
     Signal frame;
     frame.carrierHz = ircfg::IR_CARRIER_HZ;
     frame.dutyPermille = static_cast<uint16_t>(ircfg::IR_DUTY * 1000.0f);
-    // rawbuf[0] is the leading gap; subsequent entries alternate mark/space.
+    // rawbuf[0] is the gap before the frame; rawbuf[1] begins the IR mark.
     for (uint16_t i = 1; i < result.rawlen; ++i) {
-      uint32_t duration = static_cast<uint32_t>(result.rawbuf[i]) * kRawTick;
-      if (duration == 0) continue;
-      appendPulse(frame.pulses, (i % 2) == 1, duration);
+      const uint32_t duration = static_cast<uint32_t>(result.rawbuf[i]) * kRawTick;
+      if (duration != 0) appendPulse(frame.pulses, (i % 2) == 1, duration);
     }
-    Serial.printf("IR_LIBRARY_FRAME rawlen=%u overflow=%d pulses=%u repeat=%d\n",
+    Serial.printf("IR_LIBRARY_FRAME rawlen=%u overflow=%d pulses=%u repeat=%d gap_us=%lu\n",
                   static_cast<unsigned>(result.rawlen), result.overflow ? 1 : 0,
-                  static_cast<unsigned>(frame.pulses.size()), result.repeat ? 1 : 0);
+                  static_cast<unsigned>(frame.pulses.size()), result.repeat ? 1 : 0,
+                  static_cast<unsigned long>(gapUs));
     comparisonReceiver.resume();
-    if (!result.overflow && frame.pulses.size() >= 2 &&
-        frame.pulses.size() <= ircfg::MAX_PULSES) {
+    if (result.overflow || frame.pulses.size() < 2 ||
+        frame.pulses.size() > ircfg::MAX_PULSES) continue;
+    if (!found) {
+      // An NEC short repeat alone cannot operate the lamp. Wait for a full first frame.
+      if (frame.pulses.size() < 6) continue;
       signal = std::move(frame);
       found = true;
-      break;
+      if (!wantMulti) break;
+      multiDeadline = millis() + 1200U;
+    } else {
+      signal.interFrameGapUs.push_back(gapUs);
+      signal.extraFrames.push_back(std::move(frame.pulses));
     }
   }
   comparisonReceiver.disableIRIn();
@@ -505,8 +522,9 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
   rxLastResetError = rmt_enable(rxChannel);
   if (rxLastResetError != ESP_OK) rmtRxReady = false;
   elapsedMs = millis() - started;
-  Serial.printf("IR_LIBRARY_END found=%d rawlen=%lu overflow=%d elapsed_ms=%lu reset_err=%d\n",
-                found ? 1 : 0, static_cast<unsigned long>(libraryLastRawLength),
+  Serial.printf("IR_LIBRARY_END found=%d frames=%u rawlen=%lu overflow=%d elapsed_ms=%lu reset_err=%d\n",
+                found ? 1 : 0, found ? static_cast<unsigned>(signal.extraFrames.size() + 1) : 0U,
+                static_cast<unsigned long>(libraryLastRawLength),
                 libraryLastOverflow ? 1 : 0, static_cast<unsigned long>(elapsedMs),
                 static_cast<int>(rxLastResetError));
   return found && rxLastResetError == ESP_OK;
