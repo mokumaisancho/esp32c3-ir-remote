@@ -7,6 +7,8 @@
 #include <WiFiManager.h>
 #include <esp32-hal-rmt.h>
 #include <driver/rmt_rx.h>
+#include <IRrecv.h>
+#include <IRremoteESP8266.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -92,6 +94,11 @@ bool rmtRxReady = false;
 bool rmtTxReady = false;
 rmt_channel_handle_t rxChannel = nullptr;
 QueueHandle_t rxDoneQueue = nullptr;
+// Activated only during the explicit library test; never shares GPIO5 with active RMT.
+IRrecv comparisonReceiver(ircfg::IR_RX_PIN, 512, 25, false);
+bool comparisonReceiverActive = false;
+uint32_t libraryLastRawLength = 0;
+bool libraryLastOverflow = false;
 esp_err_t rxInitError = ESP_ERR_INVALID_STATE;
 esp_err_t rxLastStartError = ESP_OK;
 esp_err_t rxLastResetError = ESP_OK;
@@ -454,6 +461,57 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
   return false;
 }
 
+bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
+  const uint32_t started = millis();
+  libraryLastRawLength = 0;
+  libraryLastOverflow = false;
+  if (!rxChannel) return false;
+  // RMT and GPIO ISR backend cannot observe GPIO5 simultaneously.
+  const esp_err_t pauseResult = rmt_disable(rxChannel);
+  if (pauseResult != ESP_OK) {
+    rxLastResetError = pauseResult;
+    return false;
+  }
+  comparisonReceiver.enableIRIn();
+  comparisonReceiverActive = true;
+  decode_results result;
+  bool found = false;
+  while (millis() - started < ircfg::LEARN_WINDOW_MS) {
+    if (!comparisonReceiver.decode(&result)) { delay(1); continue; }
+    libraryLastRawLength = result.rawlen;
+    libraryLastOverflow = result.overflow;
+    Signal frame;
+    frame.carrierHz = ircfg::IR_CARRIER_HZ;
+    frame.dutyPermille = static_cast<uint16_t>(ircfg::IR_DUTY * 1000.0f);
+    // rawbuf[0] is the leading gap; subsequent entries alternate mark/space.
+    for (uint16_t i = 1; i < result.rawlen; ++i) {
+      uint32_t duration = static_cast<uint32_t>(result.rawbuf[i]) * kRawTick;
+      if (duration == 0) continue;
+      appendPulse(frame.pulses, (i % 2) == 1, duration);
+    }
+    Serial.printf("IR_LIBRARY_FRAME rawlen=%u overflow=%d pulses=%u repeat=%d\n",
+                  static_cast<unsigned>(result.rawlen), result.overflow ? 1 : 0,
+                  static_cast<unsigned>(frame.pulses.size()), result.repeat ? 1 : 0);
+    comparisonReceiver.resume();
+    if (!result.overflow && frame.pulses.size() >= 2 &&
+        frame.pulses.size() <= ircfg::MAX_PULSES) {
+      signal = std::move(frame);
+      found = true;
+      break;
+    }
+  }
+  comparisonReceiver.disableIRIn();
+  comparisonReceiverActive = false;
+  rxLastResetError = rmt_enable(rxChannel);
+  if (rxLastResetError != ESP_OK) rmtRxReady = false;
+  elapsedMs = millis() - started;
+  Serial.printf("IR_LIBRARY_END found=%d rawlen=%lu overflow=%d elapsed_ms=%lu reset_err=%d\n",
+                found ? 1 : 0, static_cast<unsigned long>(libraryLastRawLength),
+                libraryLastOverflow ? 1 : 0, static_cast<unsigned long>(elapsedMs),
+                static_cast<int>(rxLastResetError));
+  return found && rxLastResetError == ESP_OK;
+}
+
 uint32_t lastTxDurationMs = 0;
 uint32_t txAttemptCount = 0;
 bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses) {
@@ -608,7 +666,10 @@ void handleLearn() {
   uint32_t elapsedMs = 0;
   uint32_t readAttempts = 0;
   uint32_t earlyFailures = 0;
-  if (!learnSignal(captured, elapsedMs, readAttempts, earlyFailures)) {
+  const bool libraryMode = server.hasArg("backend") && server.arg("backend") == "library";
+  const bool received = libraryMode ? learnWithLibrary(captured, elapsedMs) :
+      learnSignal(captured, elapsedMs, readAttempts, earlyFailures);
+  if (!received) {
     const bool startFailed = rxLastStartError != ESP_OK;
     const bool resetFailed = rxLastResetError != ESP_OK;
     const char *reason = irpolicy::rxFailureReason(startFailed, resetFailed,
@@ -619,7 +680,10 @@ void handleLearn() {
     json += ",\"reset_esp_err\":" + String(static_cast<int>(rxLastResetError));
     json += ",\"symbol_count\":" + String(rxLastSymbolCount);
     json += ",\"read_attempts\":" + String(readAttempts);
-    json += ",\"early_failures\":" + String(earlyFailures) + "}";
+    json += ",\"early_failures\":" + String(earlyFailures);
+    json += ",\"backend\":\"" + String(libraryMode ? "library" : "rmt") + "\"";
+    json += ",\"raw_length\":" + String(libraryMode ? libraryLastRawLength : rxLastSymbolCount);
+    json += ",\"overflow\":" + String(libraryMode && libraryLastOverflow ? "true" : "false") + "}";
     sendJson(startFailed || resetFailed ? 503 : 408, json);
     return;
   }
@@ -639,6 +703,7 @@ void handleLearn() {
 
   String json = "{";
   json += "\"ok\":true,";
+  json += "\"backend\":\"" + String(libraryMode ? "library" : "rmt") + "\",";
   json += "\"stored\":" + String(stored ? "true" : "false") + ",";
   json += "\"slot\":" + String(stored ? slot : -1) + ",";
   json += "\"name\":\"" + jsonEscape(stored ? autoName : String("")) + "\",";
