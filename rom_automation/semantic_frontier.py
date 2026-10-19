@@ -17,7 +17,11 @@ from decision_gate import REVS, MACHINE_SHA, require, sha
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "research" / "esp32c3_rom_public"
-BRANCH = {"beq", "bne", "blt", "bge", "bltu", "bgeu", "c.beqz", "c.bnez"}
+# Alias mnemonics emitted by Capstone in verified ROM instruction listings.
+# The pinned historical candidate ZIP counted only the legacy base list.
+LEGACY_BRANCH = {"beq", "bne", "blt", "bge", "bltu", "bgeu", "c.beqz", "c.bnez"}
+BRANCH_ALIASES = {"beqz", "bnez", "bltz", "bgez", "bgtz", "blez", "bgt", "ble", "bgtu", "bleu"}
+BRANCH = LEGACY_BRANCH | BRANCH_ALIASES
 INDIRECT = {"jalr", "c.jalr", "c.jr", "jr"}
 DIRECT = {"jal", "j", "c.j", "c.jal"}
 READ = {"lw", "lh", "lhu", "lb", "lbu", "c.lw", "c.lwsp"}
@@ -75,6 +79,8 @@ def analyze_rows(rows):
         counts["instructions"] += 1
         if op in BRANCH:
             counts["conditional_branches"] += 1
+            if op in BRANCH_ALIASES:
+                counts["branch_aliases_missed_by_legacy_audit"] += 1
         if op in READ:
             counts["memory_loads"] += 1
         if op in WRITE:
@@ -122,7 +128,13 @@ def build(machine_zip, state):
                 metrics = analyze_rows(f["instruction_listing"])
                 metrics["gnu_unchecked_zero_traps"] = len(f.get("zero_trap_encoding_rows_unchecked_by_gnu", []))
                 require(metrics["instructions"] == f["instruction_count"], "INSTRUCTION_COUNT:" + name)
-                require(metrics.get("conditional_branches", 0) == f["conditional_branch_count"], "BRANCH_COUNT:" + name)
+                expected_new = metrics.get("conditional_branches", 0)
+                old_count = expected_new - metrics.get("branch_aliases_missed_by_legacy_audit", 0)
+                # Historical machine archive is hash-pinned and immutable. It carries
+                # undercounted conditional_branch_count. Accept exactly old or corrected
+                # count, but always report the corrected count and the legacy delta.
+                require(f["conditional_branch_count"] in (old_count, expected_new), "BRANCH_COUNT:" + name)
+                metrics["upstream_branch_count_legacy"] = int(f["conditional_branch_count"] == old_count and old_count != expected_new)
                 require(
                     metrics.get("nonreturn_indirect_transfers", 0)
                     + metrics.get("returns", 0) == f["indirect_transfer_count"],
@@ -208,11 +220,24 @@ def build(machine_zip, state):
             x["aggregate_machine_metrics"].get("nonreturn_indirect_transfers", 0)
             for x in items
         ),
+        "branch_aliases_missed_in_historical_machine_audit": sum(
+            x["aggregate_machine_metrics"].get("branch_aliases_missed_by_legacy_audit", 0)
+            for x in items
+        ),
+        "names_affected_by_branch_aliases": sum(
+            x["aggregate_machine_metrics"].get("branch_aliases_missed_by_legacy_audit", 0) > 0
+            for x in items
+        ),
+        "historical_upstream_branch_counters_stale": sum(
+            x["aggregate_machine_metrics"].get("upstream_branch_count_legacy", 0)
+            for x in items
+        ),
         "next_batch": [x["name"] for x in items[:8]],
         "items": items,
         "limitations": [
             "Return opcode is not evidence of an indirect hardware callback.",
             "Counts are machine-code structure, not ISA semantic certification.",
+            "Historical pinned machine archive omits Capstone branch aliases; corrected by independent full-instruction traversal.",
             "Memory load/store counts do not distinguish RAM, stack, or MMIO.",
             "No device execution, novelty assertion or review closure is performed.",
             "Only original 88 candidates are enumerated.",
@@ -244,6 +269,7 @@ def main():
         "category_counts": result["category_counts"],
         "next_batch": result["next_batch"],
         "nonreturn_indirect_occurrences": result["nonreturn_indirect_occurrences"],
+        "branch_aliases_corrected": result["branch_aliases_missed_in_historical_machine_audit"],
     }, sort_keys=True))
 
 
