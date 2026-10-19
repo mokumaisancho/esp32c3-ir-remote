@@ -139,7 +139,7 @@ def evaluate(machine,ghidra):
  for pc in ("0x4003e4f2","0x4003e4f6"):
   require((pc,True) in coverage and (pc,False) in coverage,"ROM2_BRANCH_SIDE_MISSING:"+pc)
  require(mutation_tests(rows)==2,"ROM2_BINARY_MUTATIONS_NOT_CAUGHT")
- try:execute_bytes(rows,[0x80000000]*3500)
+ try:execute_bytes(rows,[0x80000000]*5000)
  except RuntimeError as err:
   require("ROM2_BOUNDED_STEP_LIMIT" in str(err),"ROM2_UNBOUNDED_WRONG_FAILURE")
  else:raise RuntimeError("ROM2_INFINITE_BUSY_INCORRECTLY_TERMINATED")
