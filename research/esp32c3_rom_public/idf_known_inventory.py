@@ -119,6 +119,7 @@ def main():
  if len(baseline)!=864:raise RuntimeError("PINNED_BASELINE_INCOMPLETE")
  ld_byname=collections.defaultdict(list)
  for r in ldrows:ld_byname[r["symbol"]].append(r)
+ linker_unique_count=len(ld_byname)
  declarations={r["symbol"] for r in decl}
  # Macro expression evaluation is bounded and only makes conservative, exact numerical matches.
  macro_map=collections.defaultdict(list)
@@ -189,8 +190,9 @@ def main():
      "found_in_primary_ld":bool(ds),"any_matching_primary_address":row["address"].lower() in values})
  candidate_examples=[
    {"name":x["name"],"classification":x["classification"],
-    "source_files":sorted({d["snapshot"]+":"+d["path"] for d in ld_byname[x["name"]]})[:7]}
+    "source_files":sorted({d["snapshot"]+":"+d["path"] for d in ld_byname.get(x["name"],[])})[:7]}
    for x in crows]
+ if len(ld_byname)!=linker_unique_count:raise RuntimeError("LINKER_INVENTORY_MUTATED_DURING_RECONCILIATION")
  report={"schema":"ROM_ESP_IDF_KNOWN_INVENTORY_V1","original_issue_id":"ESP32C3-ROM-001",
   "idf_commits":IDF_REFS,"rom_sha256":ROM_SHA,
   "source_files":len(manifest),"idf_linker_assignments":len(ldrows),
