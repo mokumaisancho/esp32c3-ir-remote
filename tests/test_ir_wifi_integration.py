@@ -92,6 +92,16 @@ class WifiProvisioningContracts(unittest.TestCase):
         self.assertIn("!ircfg::TX_ACTIVE_HIGH", setup)
         self.assertIn("rmtWrite(ircfg::IR_TX_PIN", tx)
 
+    def test_multiframe_replay_is_bounded_and_instrumented(self):
+        tx = extract_body_function(SRC, "bool transmitSignal(")
+        frame = extract_body_function(SRC, "bool transmitFrame(")
+        learn = extract_body_function(SRC, "bool learnSignal(")
+        self.assertIn("150U", tx)
+        self.assertIn("IR_TX_GAP", tx)
+        self.assertIn("symbolCount, 200)", frame)
+        self.assertIn("IR_RX_BEGIN", learn)
+        self.assertIn("IR_RX_TIMEOUT", learn)
+
     def test_ui_polls_actual_status(self):
         self.assertIn("refreshStatus().catch(", UI)
         self.assertIn("},10000);", UI)
