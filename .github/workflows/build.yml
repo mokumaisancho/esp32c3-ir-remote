@@ -15,6 +15,11 @@ jobs:
           python-version: "3.12"
       - name: Check Mac diagnostic Python syntax
         run: python -m py_compile scripts/diagnose_wifi_usb.py scripts/wifi_trace_runner.py
+      - name: Check Mac flash script syntax (zsh)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq zsh
+          zsh -n scripts/flash_mac.command
       - name: Check source-to-test impact contracts
         run: python scripts/check_impact.py
       - name: Test Wi-Fi and 5-second IR capture code (real function + mocked HAL)
