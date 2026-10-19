@@ -42,6 +42,9 @@ jobs:
       - name: Reconcile all 46 linker-unmatched names with dated prior ROM catalogs
         run: python research/esp32c3_rom_public/prior_catalog_name_audit.py 2>&1 | tee research/esp32c3_rom_public/prior_catalog_name_audit.log
         shell: bash
+      - name: Verify deterministic ISA effects of 17 leaf functions
+        run: python research/esp32c3_rom_public/leaf_isa_effect_differential.py 2>&1 | tee research/esp32c3_rom_public/leaf_isa_effect_differential.log
+        shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -57,4 +60,5 @@ jobs:
             research/esp32c3_rom_public/candidate_mechanisms.log
             research/esp32c3_rom_public/eco_disabled_entry.log
             research/esp32c3_rom_public/prior_catalog_name_audit.log
+            research/esp32c3_rom_public/leaf_isa_effect_differential.log
           if-no-files-found: warn
