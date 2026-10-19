@@ -3,6 +3,7 @@
 set -euo pipefail
 
 REPO="mokumaisancho/esp32c3-ir-remote"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RUN_ID="${IR_RUN_ID:?IR_RUN_ID is required}"
 EXPECTED_SHA="${IR_SOURCE_SHA:?IR_SOURCE_SHA is required}"
 PORT="" # Determined after ESP32-C3 identification; never assume tty suffix
@@ -50,6 +51,11 @@ sed 's@  artifact/@  @' SHA256SUMS.txt | shasum -a 256 -c - ||
 
 [[ "$(cat SOURCE_SHA.txt)" == "$EXPECTED_SHA" ]] || fail "Source SHA mismatch; do not flash stale firmware"
 echo "VERIFIED_SOURCE_SHA=$EXPECTED_SHA"
+
+# Enforce the same real-partition capacity check as CI, before even probing USB.
+python3 "$SCRIPT_DIR/check_firmware_layout.py" firmware.bin partitions.bin ||
+  fail "FIRMWARE_CAPACITY_FAIL: image exceeds bootable app partition or safety margin"
+echo "FLASH_CAPACITY_PREFLIGHT_PASS"
 
 # Reuse an installed esptool. Never pip-install during flash: low-disk-safe.
 typeset -a TOOL
@@ -176,6 +182,16 @@ chmod 600 "$BACKUP"
 shasum -a 256 "$BACKUP" > "$BACKUP.sha256"
 chmod 600 "$BACKUP.sha256"
 echo "BACKUP=$BACKUP"
+
+# Do not overwrite the on-device partition map: it defines the existing LittleFS region.
+python3 - "$BACKUP" "$PWD/partitions.bin" <<'PY_PART'
+import pathlib, sys
+backup = pathlib.Path(sys.argv[1]).read_bytes()
+partitions = pathlib.Path(sys.argv[2]).read_bytes()
+if backup[0x8000:0x8000+len(partitions)] != partitions:
+    raise SystemExit("BLOCKED: on-device partition table differs; flash and LittleFS left unchanged")
+print("ON_DEVICE_PARTITION_LAYOUT_UNCHANGED_PASS")
+PY_PART
 
 echo "[4/5] Programming verified firmware at CI-confirmed offsets"
 "${TOOL[@]}" --chip esp32c3 --port "$PORT" "$WRITE_FLASH" \
