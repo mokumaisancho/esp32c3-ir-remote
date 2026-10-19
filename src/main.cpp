@@ -44,6 +44,12 @@ WebServer server(8080);
 WiFiManager wifiManager;
 Signal lastSignal;
 bool hasLastSignal = false;
+alarm_policy::Rules alarmRules{};
+bool alarmsReady = false;
+bool ntpStarted = false;
+bool ntpWasConnected = false;
+String lastAlarmEvent = "未実行";
+
 bool stationMode = false;
 bool setupApReady = false;
 bool fsReady = false;
@@ -880,6 +886,12 @@ void handleDelete() {
     sendJson(400, "{\"ok\":false,\"error\":\"idが不正です\"}");
     return;
   }
+  for (const auto &rule : alarmRules) {
+    if (rule.days && rule.slot == static_cast<uint8_t>(slot)) {
+      sendJson(409, "{\"ok\":false,\"error\":\"照明アラームが参照中です。先にアラームを削除してください\"}");
+      return;
+    }
+  }
   if (!LittleFS.exists(signalPath(slot))) {
     sendJson(404, "{\"ok\":false,\"error\":\"信号が見つかりません\"}");
     return;
@@ -936,11 +948,6 @@ void handleWifi() {
 
 // Lighting alarms: local wall-clock JST (UTC+9, no DST).
 // Existing /sigNN.bin IR files are not modified by this feature.
-alarm_policy::Rules alarmRules{};
-bool alarmsReady = false;
-bool ntpStarted = false;
-bool ntpWasConnected = false;
-String lastAlarmEvent = "未実行";
 
 constexpr char kAlarmsPath[] = "/alarms.bin";
 constexpr char kAlarmsBackupPath[] = "/alarms.bak";
@@ -1118,7 +1125,7 @@ void runAlarmClock() {
   // Never block an IR button press with an NTP synchronization wait.
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected && !ntpWasConnected) {
-    configTime(0, 0, "ntp.nict.jp", "pool.ntp.org", "time.google.com");
+    configTzTime("JST-9", "ntp.nict.jp", "pool.ntp.org", "time.google.com");
     ntpStarted = true;
     Serial.println("ALARM_NTP_STARTED");
   }
