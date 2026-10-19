@@ -1,0 +1,100 @@
+name: ROM evidence-driven 88-to-discovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/*.py'
+      - 'rom_automation/reviewed_semantics.json'
+      - '.github/workflows/rom-evidence-autopilot.yml'
+  workflow_run:
+    workflows: ['ESP32-C3 ROM 88 candidate Ghidra review']
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: rom-evidence-autopilot-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  review-original-88:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    outputs:
+      discover: ${{ steps.gate.outputs.discover }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32
+      - name: Download immutable archived machine and Ghidra evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rom_evidence" rom_automation/output
+          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180348551/zip \
+            -o "$RUNNER_TEMP/rom_evidence/ghidra.zip"
+          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180128997/zip \
+            -o "$RUNNER_TEMP/rom_evidence/machine.zip"
+          printf '%s  %s\n' 4a6dc279579db43844de466d0a9ff5b57dba54528f87e8c2cb4ef28387db5ea0 "$RUNNER_TEMP/rom_evidence/ghidra.zip" | sha256sum -c -
+          printf '%s  %s\n' cc08989ed0967d091b9d63eae9e714a661d03604fc54c6c57778b034ee264896 "$RUNNER_TEMP/rom_evidence/machine.zip" | sha256sum -c -
+          sha256sum "$RUNNER_TEMP/rom_evidence/"*.zip | tee rom_automation/output/source_hashes.log
+      - name: Test fail-closed gates against real 88 candidate evidence
+        env:
+          ROM_GHIDRA_ZIP: ${{ runner.temp }}/rom_evidence/ghidra.zip
+          ROM_MACHINE_ZIP: ${{ runner.temp }}/rom_evidence/machine.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_*.py' -v 2>&1 | tee rom_automation/output/negative_controls.log
+      - name: Reconcile all 88, persist JSON state and derive discovery trigger
+        id: gate
+        run: |
+          set -euo pipefail
+          python rom_automation/decision_gate.py \
+            --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" \
+            --machine "$RUNNER_TEMP/rom_evidence/machine.zip" \
+            --review rom_automation/reviewed_semantics.json \
+            --out rom_automation/output 2>&1 | tee rom_automation/output/decision.log
+          cat rom_automation/output/gate.env >> "$GITHUB_OUTPUT"
+          cat rom_automation/output/gate.env >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rom-autopilot-88-state-full-logs
+          path: rom_automation/output/
+          retention-days: 90
+          if-no-files-found: error
+  discover-other-rom-functions:
+    needs: review-original-88
+    if: needs.review-original-88.outputs.discover == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32
+      - uses: actions/download-artifact@v4
+        with:
+          name: rom-autopilot-88-state-full-logs
+          path: rom_automation/output/
+      - name: Only after independent approval scan the rest of official ROM
+        run: |
+          set -euo pipefail
+          python rom_automation/after_88_discovery.py \
+            --state rom_automation/output/state.json \
+            --out rom_automation/output/discovery \
+            2>&1 | tee rom_automation/output/discovery.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rom-autopilot-new-functions-and-logs
+          path: rom_automation/output/
+          retention-days: 90
+          if-no-files-found: error
