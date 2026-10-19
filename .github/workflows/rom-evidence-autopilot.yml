@@ -29,123 +29,46 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --disable-pip-version-check pyelftools==0.32
-      - name: Download immutable archived machine and Ghidra evidence
+      - name: Restore hashed vendor ELF and Ghidra reports
         env:
           GH_TOKEN: ${{ github.token }}
-          UPSTREAM_GHIDRA_RUN: ${{ github.event.workflow_run.id }}
+          UPSTREAM_RUN: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/rom_evidence" rom_automation/output
           GHIDRA_ID=12180348551
           GHIDRA_DIGEST=4a6dc279579db43844de466d0a9ff5b57dba54528f87e8c2cb4ef28387db5ea0
-          if [ -n "$UPSTREAM_GHIDRA_RUN" ]; then
-            curl -fsSL --retry 2 -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/runs/$UPSTREAM_GHIDRA_RUN/artifacts" \
-              -o "$RUNNER_TEMP/rom_evidence/upstream_meta.json"
-            GHIDRA_ID=$(jq -r '.artifacts[] | select(.name=="esp32c3-rom-88-ghidra-evidence") | .id' "$RUNNER_TEMP/rom_evidence/upstream_meta.json" | head -n1)
-            GHIDRA_DIGEST=$(jq -r '.artifacts[] | select(.name=="esp32c3-rom-88-ghidra-evidence") | .digest | sub("^sha256:";"")' "$RUNNER_TEMP/rom_evidence/upstream_meta.json" | head -n1)
+          if [ -n "$UPSTREAM_RUN" ]; then
+            curl -fsSL --retry 2 -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/runs/$UPSTREAM_RUN/artifacts" -o "$RUNNER_TEMP/rom_evidence/source.json"
+            GHIDRA_ID=$(jq -r '.artifacts[] | select(.name=="esp32c3-rom-88-ghidra-evidence") | .id' "$RUNNER_TEMP/rom_evidence/source.json" | head -n 1)
+            GHIDRA_DIGEST=$(jq -r '.artifacts[] | select(.name=="esp32c3-rom-88-ghidra-evidence") | .digest | sub("^sha256:";"")' "$RUNNER_TEMP/rom_evidence/source.json" | head -n 1)
             test -n "$GHIDRA_ID"
-            echo "$GHIDRA_DIGEST" | grep -Eq '^[a-f0-9]{64}
-          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180128997/zip \
-            -o "$RUNNER_TEMP/rom_evidence/machine.zip"
-          printf '%s  %s\n' cc08989ed0967d091b9d63eae9e714a661d03604fc54c6c57778b034ee264896 "$RUNNER_TEMP/rom_evidence/machine.zip" | sha256sum -c -
-          sha256sum "$RUNNER_TEMP/rom_evidence/"*.zip | tee rom_automation/output/source_hashes.log
-      - name: Test fail-closed gates against real 88 candidate evidence
-        env:
-          ROM_GHIDRA_ZIP: ${{ runner.temp }}/rom_evidence/ghidra.zip
-          ROM_MACHINE_ZIP: ${{ runner.temp }}/rom_evidence/machine.zip
-        run: |
-          set -euo pipefail
-          python -m unittest discover -s rom_automation -p 'test_*.py' -v 2>&1 | tee rom_automation/output/negative_controls.log
-      - name: Reconcile all 88, persist JSON state and derive discovery trigger
-        id: gate
-        run: |
-          set -euo pipefail
-          python rom_automation/decision_gate.py \
-            --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" \
-            --machine "$RUNNER_TEMP/rom_evidence/machine.zip" \
-            --review rom_automation/reviewed_semantics.json \
-            --ghidra-sha "$(cat rom_automation/output/ghidra_expected_sha.txt)" \
-            --out rom_automation/output 2>&1 | tee rom_automation/output/decision.log
-          cat rom_automation/output/gate.env >> "$GITHUB_OUTPUT"
-          cat rom_automation/output/gate.env >> "$GITHUB_STEP_SUMMARY"
-      - name: Produce the next eight complete ISA and Ghidra evidence packets
-        run: |
-          set -euo pipefail
-          python rom_automation/next_candidate_dossiers.py \
-            --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" \
-            --machine "$RUNNER_TEMP/rom_evidence/machine.zip" \
-            --state rom_automation/output/state.json \
-            --out rom_automation/output/next_batch \
-            2>&1 | tee rom_automation/output/next_batch.log
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rom-autopilot-88-state-full-logs
-          path: rom_automation/output/
-          retention-days: 90
-          if-no-files-found: error
-  discover-other-rom-functions:
-    needs: review-original-88
-    if: needs.review-original-88.outputs.discover == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m pip install --disable-pip-version-check pyelftools==0.32
-      - uses: actions/download-artifact@v4
-        with:
-          name: rom-autopilot-88-state-full-logs
-          path: rom_automation/output/
-      - name: Only after independent approval scan the rest of official ROM
-        run: |
-          set -euo pipefail
-          python rom_automation/after_88_discovery.py \
-            --state rom_automation/output/state.json \
-            --out rom_automation/output/discovery \
-            2>&1 | tee rom_automation/output/discovery.log
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rom-autopilot-new-functions-and-logs
-          path: rom_automation/output/
-          retention-days: 90
-          if-no-files-found: error
-
+            echo "$GHIDRA_DIGEST" | grep -Eq '^[a-f0-9]{64}$'
           fi
-          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/$GHIDRA_ID/zip" \
-            -o "$RUNNER_TEMP/rom_evidence/ghidra.zip"
+          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/$GHIDRA_ID/zip" -o "$RUNNER_TEMP/rom_evidence/ghidra.zip"
           printf '%s  %s\n' "$GHIDRA_DIGEST" "$RUNNER_TEMP/rom_evidence/ghidra.zip" | sha256sum -c -
           echo "$GHIDRA_DIGEST" > rom_automation/output/ghidra_expected_sha.txt
-          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180128997/zip \
-            -o "$RUNNER_TEMP/rom_evidence/machine.zip"
-          printf '%s  %s\n' 4a6dc279579db43844de466d0a9ff5b57dba54528f87e8c2cb4ef28387db5ea0 "$RUNNER_TEMP/rom_evidence/ghidra.zip" | sha256sum -c -
+          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180128997/zip" -o "$RUNNER_TEMP/rom_evidence/machine.zip"
           printf '%s  %s\n' cc08989ed0967d091b9d63eae9e714a661d03604fc54c6c57778b034ee264896 "$RUNNER_TEMP/rom_evidence/machine.zip" | sha256sum -c -
           sha256sum "$RUNNER_TEMP/rom_evidence/"*.zip | tee rom_automation/output/source_hashes.log
-      - name: Test fail-closed gates against real 88 candidate evidence
+      - name: Test actual 88 cases and false-positive guards
         env:
           ROM_GHIDRA_ZIP: ${{ runner.temp }}/rom_evidence/ghidra.zip
           ROM_MACHINE_ZIP: ${{ runner.temp }}/rom_evidence/machine.zip
         run: |
           set -euo pipefail
           python -m unittest discover -s rom_automation -p 'test_*.py' -v 2>&1 | tee rom_automation/output/negative_controls.log
-      - name: Reconcile all 88, persist JSON state and derive discovery trigger
+      - name: Reconcile candidate evidence and compute independent-gated trigger
         id: gate
         run: |
           set -euo pipefail
-          python rom_automation/decision_gate.py \
-            --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" \
-            --machine "$RUNNER_TEMP/rom_evidence/machine.zip" \
-            --review rom_automation/reviewed_semantics.json \
-            --out rom_automation/output 2>&1 | tee rom_automation/output/decision.log
+          python rom_automation/decision_gate.py --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --review rom_automation/reviewed_semantics.json --ghidra-sha "$(cat rom_automation/output/ghidra_expected_sha.txt)" --out rom_automation/output 2>&1 | tee rom_automation/output/decision.log
           cat rom_automation/output/gate.env >> "$GITHUB_OUTPUT"
           cat rom_automation/output/gate.env >> "$GITHUB_STEP_SUMMARY"
+      - name: Generate next eight exact machine/Decompiler review packets
+        run: |
+          set -euo pipefail
+          python rom_automation/next_candidate_dossiers.py --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/next_batch 2>&1 | tee rom_automation/output/next_batch.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -168,13 +91,10 @@ jobs:
         with:
           name: rom-autopilot-88-state-full-logs
           path: rom_automation/output/
-      - name: Only after independent approval scan the rest of official ROM
+      - name: Enumerate other official ELF functions only after verified closure
         run: |
           set -euo pipefail
-          python rom_automation/after_88_discovery.py \
-            --state rom_automation/output/state.json \
-            --out rom_automation/output/discovery \
-            2>&1 | tee rom_automation/output/discovery.log
+          python rom_automation/after_88_discovery.py --state rom_automation/output/state.json --out rom_automation/output/discovery 2>&1 | tee rom_automation/output/discovery.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
