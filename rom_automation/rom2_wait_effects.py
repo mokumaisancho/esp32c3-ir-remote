@@ -109,7 +109,7 @@ def mutation_tests(rows):
   return seq
  detected=0
  for op in ("addi","j"):
-  changed=altered(rows,op,1)
+  changed=altered(rows,op,(0x10 if op=="addi" else 1))
   try:compare(changed,[0x80000000,0])
   except RuntimeError as ex:
    require("TAIL_DELAY_ARGUMENT_NOT_50" in str(ex) or
