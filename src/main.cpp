@@ -680,6 +680,7 @@ void handleSignals() {
     json += "\"id\":" + String(i) + ",";
     json += "\"name\":\"" + jsonEscape(signal.name) + "\",";
     json += "\"pulses\":" + String(signal.pulses.size()) + ",";
+    json += "\"frames\":" + String(signal.extraFrames.size() + 1) + ",";
     json += "\"duration_us\":" + String(signalDurationUs(signal));
     json += "}";
   }
