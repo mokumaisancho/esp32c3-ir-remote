@@ -21,7 +21,7 @@
 #include "alarm_policy.h"
 #include "config.h"
 #include "diagnostic_policy.h"
-#include "web_ui.h"
+#include "web_ui_gzip.h"
 
 namespace {
 
@@ -1171,7 +1171,9 @@ void runAlarmClock() {
 void setupRoutes() {
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Cache-Control", "no-store");
-    server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html; charset=utf-8",
+                  reinterpret_cast<PGM_P>(INDEX_HTML_GZ), INDEX_HTML_GZ_LEN);
   });
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/diagnostics", HTTP_GET, handleDiagnostics);
