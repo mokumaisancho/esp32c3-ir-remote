@@ -333,7 +333,7 @@ class LightingAlarmContracts(unittest.TestCase):
         for term in ('照明アラーム', 'alarmTime', 'alarmWeekdays',
                      'alarmSignal', 'alarmFirstOnly', 'alarmEnabled',
                      'addAlarm', 'refreshAlarms()', 'id="alarmList"',
-                     'dayText', 'NTP時刻'):
+                     'dayText', 'NTPの時刻'):
             self.assertIn(term, UI)
         self.assertIn("'/api/alarms/save'", UI)
         self.assertIn("'/api/alarms/delete'", UI)
