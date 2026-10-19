@@ -450,13 +450,13 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
 
 uint32_t lastTxDurationMs = 0;
 uint32_t txAttemptCount = 0;
-bool transmitSignal(const Signal &signal) {
+bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses) {
   const uint32_t txBeginMs = millis();
   ++txAttemptCount;
   Serial.printf("IR_TX_START t=%lu attempt=%lu pulses=%u ready=%d carrier=%lu\n",
-                static_cast<unsigned long>(millis()), static_cast<unsigned long>(txAttemptCount), static_cast<unsigned>(signal.pulses.size()),
+                static_cast<unsigned long>(millis()), static_cast<unsigned long>(txAttemptCount), static_cast<unsigned>(framePulses.size()),
                 rmtTxReady ? 1 : 0, static_cast<unsigned long>(signal.carrierHz));
-  if (!rmtTxReady || signal.pulses.empty()) {
+  if (!rmtTxReady || framePulses.empty()) {
     Serial.println("IR_TX_END result=FAIL reason=not_ready_or_empty");
     return false;
   }
@@ -466,12 +466,12 @@ bool transmitSignal(const Signal &signal) {
     uint8_t level;
   };
   std::vector<Segment> segments;
-  segments.reserve(signal.pulses.size());
+  segments.reserve(framePulses.size());
 
   const uint8_t markLevel = ircfg::TX_ACTIVE_HIGH ? 1 : 0;
   const uint8_t spaceLevel = markLevel ? 0 : 1;
 
-  for (const int32_t pulse : signal.pulses) {
+  for (const int32_t pulse : framePulses) {
     const bool mark = pulse > 0;
     uint32_t remaining = static_cast<uint32_t>(
         pulse < 0 ? -static_cast<int64_t>(pulse) : pulse);
@@ -515,6 +515,23 @@ bool transmitSignal(const Signal &signal) {
                 static_cast<unsigned>(symbolCount), ircfg::IR_TX_PIN,
                 static_cast<unsigned long>(lastTxDurationMs));
   return accepted;
+}
+
+bool transmitSignal(const Signal &signal) {
+  ++txAttemptCount;
+  const uint32_t startedMs = millis();
+  bool ok = transmitFrame(signal, signal.pulses);
+  for (size_t i = 0; ok && i < signal.extraFrames.size(); ++i) {
+    if (i >= signal.interFrameGapUs.size()) { ok = false; break; }
+    delay((signal.interFrameGapUs[i] + 500U) / 1000U);
+    ok = transmitFrame(signal, signal.extraFrames[i]);
+  }
+  lastTxDurationMs = millis() - startedMs;
+  Serial.printf("IR_TX_SEQUENCE result=%s frames=%u duration_ms=%lu\n",
+                ok ? "DRIVER_OK" : "FAIL",
+                static_cast<unsigned>(signal.extraFrames.size() + 1),
+                static_cast<unsigned long>(lastTxDurationMs));
+  return ok;
 }
 
 String rawJson(const Signal &signal) {
