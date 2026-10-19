@@ -22,10 +22,14 @@ namespace {
 
 constexpr uint32_t SIGNAL_MAGIC = 0x31524945; // "EIR1"
 constexpr uint16_t SIGNAL_VERSION = 1;
+constexpr uint16_t SIGNAL_MULTI_VERSION = 2;
+constexpr size_t MAX_EXTRA_FRAMES = 4;
 
 struct Signal {
   String name;
   std::vector<int32_t> pulses; // +mark / -space, microseconds
+  std::vector<std::vector<int32_t>> extraFrames;
+  std::vector<uint32_t> interFrameGapUs;
   uint32_t carrierHz = ircfg::IR_CARRIER_HZ;
   uint16_t dutyPermille = 300;
 };
@@ -166,7 +170,7 @@ bool saveSignalToSlot(size_t slot, const Signal &signal) {
   if (!file) return false;
 
   const uint32_t magic = SIGNAL_MAGIC;
-  const uint16_t version = SIGNAL_VERSION;
+  const uint16_t version = signal.extraFrames.empty() ? SIGNAL_VERSION : SIGNAL_MULTI_VERSION;
   const uint16_t nameLen = static_cast<uint16_t>(signal.name.length());
   const uint16_t pulseCount = static_cast<uint16_t>(signal.pulses.size());
   const uint32_t carrier = signal.carrierHz;
@@ -182,6 +186,20 @@ bool saveSignalToSlot(size_t slot, const Signal &signal) {
       writeExact(file, signal.name.c_str(), nameLen) &&
       writeExact(file, signal.pulses.data(), pulseCount * sizeof(int32_t));
 
+  if (ok && version == SIGNAL_MULTI_VERSION) {
+    const uint8_t extraCount = static_cast<uint8_t>(signal.extraFrames.size());
+    ok = extraCount <= MAX_EXTRA_FRAMES &&
+         signal.interFrameGapUs.size() == extraCount &&
+         writeExact(file, &extraCount, sizeof(extraCount));
+    for (size_t i = 0; ok && i < extraCount; ++i) {
+      const auto &frame = signal.extraFrames[i];
+      const uint16_t n = static_cast<uint16_t>(frame.size());
+      ok = n >= 2 && n <= ircfg::MAX_PULSES &&
+           writeExact(file, &signal.interFrameGapUs[i], sizeof(uint32_t)) &&
+           writeExact(file, &n, sizeof(n)) &&
+           writeExact(file, frame.data(), n * sizeof(int32_t));
+    }
+  }
   file.flush();
   file.close();
 
@@ -231,7 +249,7 @@ bool loadSignalFromSlot(size_t slot, Signal &signal) {
       readExact(file, &carrier, sizeof(carrier)) &&
       readExact(file, &duty, sizeof(duty));
 
-  if (!ok || magic != SIGNAL_MAGIC || version != SIGNAL_VERSION ||
+  if (!ok || magic != SIGNAL_MAGIC || (version != SIGNAL_VERSION && version != SIGNAL_MULTI_VERSION) ||
       nameLen == 0 || nameLen > ircfg::MAX_NAME_BYTES ||
       pulseCount == 0 || pulseCount > ircfg::MAX_PULSES ||
       carrier < 30000 || carrier > 60000 || duty < 100 || duty > 500) {
@@ -255,10 +273,29 @@ bool loadSignalFromSlot(size_t slot, Signal &signal) {
     file.close();
     return false;
   }
+  std::vector<std::vector<int32_t>> extraFrames;
+  std::vector<uint32_t> gaps;
+  if (version == SIGNAL_MULTI_VERSION) {
+    uint8_t nFrames = 0;
+    ok = readExact(file, &nFrames, sizeof(nFrames)) && nFrames <= MAX_EXTRA_FRAMES;
+    for (uint8_t i = 0; ok && i < nFrames; ++i) {
+      uint32_t gap = 0;
+      uint16_t n = 0;
+      ok = readExact(file, &gap, sizeof(gap)) && readExact(file, &n, sizeof(n)) &&
+           n >= 2 && n <= ircfg::MAX_PULSES && gap <= 5000000U;
+      if (!ok) break;
+      std::vector<int32_t> frame(n);
+      ok = readExact(file, frame.data(), n * sizeof(int32_t));
+      if (ok) { gaps.push_back(gap); extraFrames.push_back(std::move(frame)); }
+    }
+  }
   file.close();
+  if (!ok) return false;
 
   signal.name = name;
   signal.pulses = std::move(pulses);
+  signal.extraFrames = std::move(extraFrames);
+  signal.interFrameGapUs = std::move(gaps);
   signal.carrierHz = carrier;
   signal.dutyPermille = duty;
   return true;
