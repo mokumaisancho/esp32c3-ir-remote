@@ -75,23 +75,15 @@ class WifiProvisioningContracts(unittest.TestCase):
             self.assertIn(state, status)
         self.assertIn("WiFi.localIP() != IPAddress(0, 0, 0, 0)", status)
 
-    def test_persistent_signal_selection_and_delete_confirmation(self):
+    def test_persistent_compact_two_column_signals_with_individual_delete(self):
         self.assertIn('LittleFS.begin(false)', SRC)
         self.assertIn('LittleFS.rename(tempPath, finalPath)', SRC)
         self.assertIn('loadSignalFromSlot(i, signal)', extract_body_function(SRC, "void handleSignals()"))
-        self.assertIn('id="deleteSelected"', UI)
-        self.assertIn("const selectedIds=new Set()", UI)
-        self.assertIn("choose.type='checkbox'", UI)
-        self.assertIn("if(!confirm(ids.length+", UI)
-        self.assertIn("for(const id of ids)", UI)
-        self.assertIn("selectedIds.delete(id)", UI)
-
-    def test_tx_carrier_polarity_is_not_reversed(self):
-        tx = extract_body_function(SRC, "bool transmitSignal(")
-        setup = extract_body_function(SRC, "void setupRmt()")
-        self.assertIn("!ircfg::TX_ACTIVE_HIGH", tx)
-        self.assertIn("!ircfg::TX_ACTIVE_HIGH", setup)
-        self.assertIn("rmtWrite(ircfg::IR_TX_PIN", tx)
+        self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))', UI)
+        self.assertIn('el.append(name,send,del,meta)', UI)
+        self.assertIn("del.onclick=async()=>", UI)
+        self.assertNotIn('id="deleteSelected"', UI)
+        self.assertNotIn('selectedIds', UI)
 
     def test_ui_polls_actual_status(self):
         self.assertIn("refreshStatus().catch(", UI)
