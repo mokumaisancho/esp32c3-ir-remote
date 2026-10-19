@@ -30,6 +30,13 @@ class SemanticFrontierTests(unittest.TestCase):
         self.assertEqual(c["nonreturn_indirect_transfers"], 1)
         self.assertEqual(c["conditional_branches"],1)
 
+    def test_branch_alias_control_fixture(self):
+        aliases = ["beqz", "bnez", "bltz", "bgez", "bgtz", "blez", "bgt", "ble", "bgtu", "bleu"]
+        rows = [{"mnemonic": op, "operands": "a0, 0x8"} for op in aliases]
+        counts = analyze_rows(rows)
+        self.assertEqual(counts["conditional_branches"], len(aliases))
+        self.assertEqual(counts["branch_aliases_missed_by_legacy_audit"], len(aliases))
+
     def test_static_effect_union_source_not_invented(self):
         leaf, exact = modeled_names()
         self.assertEqual((len(leaf),len(exact),len(leaf|exact)), (25,19,32))
@@ -38,6 +45,10 @@ class SemanticFrontierTests(unittest.TestCase):
         state = evaluate(G, M, REVIEW)
         result = build(M, state)
         self.assertEqual(result["awaiting_bounded_effect"], 56)
+        self.assertEqual(result["branch_aliases_missed_in_historical_machine_audit"], 185)
+        self.assertEqual(result["names_affected_by_branch_aliases"], 20)
+        self.assertEqual(result["category_counts"].get("CONDITIONAL_CONTROL"), 21)
+        self.assertEqual(result["category_counts"].get("DIRECT_CONTROL", 0), 0)
         self.assertEqual(len(result["items"]), 56)
         self.assertEqual(len(set(x["name"] for x in result["items"])),56)
         self.assertEqual(result["silicon_experiments_run"],0)
