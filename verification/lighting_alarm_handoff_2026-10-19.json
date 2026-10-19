@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "task_id": "IR-C3-LIGHTING-ALARM-20261019",
+  "updated_on": "2026-10-19",
+  "status": "SOFTWARE_BUILT__DEVICE_E2E_PENDING",
+  "original_goal": "ESP32-C3 locally stores captured IR signals and reliably replays them on user-selected weekdays and JST times over Wi-Fi/NTP, preserving pre-existing IR remote functionality and stored signals.",
+  "source": {
+    "shared_conversation": "https://chatgpt.com/share/6ad615af-1b34-83ec-8f68-046a38f30a7c",
+    "repository": "mokumaisancho/esp32c3-ir-remote",
+    "feature_branch": "fix/rmt-idf-error-diagnostics",
+    "known_good_firmware_source_sha": "32fdff4dbce564066cb5fc8e477d347896fa73bf"
+  },
+  "device": {
+    "chip": "ESP32-C3",
+    "flash_bytes": 4194304,
+    "rx_gpio": 5,
+    "tx_gpio": 7,
+    "home_network_e2e_prior": "CONNECTED and HTTP 200 from http://esp32-ir.local:8080/api/diagnostics; supplied prior conversation log only",
+    "current_flash_of_alarm_firmware": "NOT_VERIFIED"
+  },
+  "mvp": {
+    "acceptance_criteria": [
+      {
+        "id": "AC-01",
+        "requirement": "Weekly day/time/saved-IR-command CRUD via local UI",
+        "state": "CODE_PRESENT; CI_PASS; DEVICE_UNTESTED"
+      },
+      {
+        "id": "AC-02",
+        "requirement": "NTP -> JST localtime weekday matching; no schedule fire without connected Wi-Fi or valid time",
+        "state": "CODE_PRESENT; CI_PASS; DEVICE_UNTESTED"
+      },
+      {
+        "id": "AC-03",
+        "requirement": "Up to 16 schedules persisted in LittleFS with checksum validation",
+        "state": "NATIVE_TEST_PASS; DEVICE_UNTESTED"
+      },
+      {
+        "id": "AC-04",
+        "requirement": "Per-epoch-minute duplicate prevention across reboot; send only after prior state committed",
+        "state": "NATIVE_TEST_PASS; DEVICE_UNTESTED"
+      },
+      {
+        "id": "AC-05",
+        "requirement": "CI firmware image fits actual OTA app partition and keeps >=16KiB margin",
+        "state": "PASS"
+      },
+      {
+        "id": "AC-06",
+        "requirement": "Backup full flash, perform chip+partition guarded application flash and verify readback on real ESP32-C3",
+        "state": "NOT_EXECUTED_FOR_THIS_FIRMWARE"
+      },
+      {
+        "id": "AC-07",
+        "requirement": "Observe scheduled transmit on physical lighting target at configured minute",
+        "state": "BLOCKED_BY_AC-06"
+      }
+    ],
+    "ci": {
+      "run_id": 39257345431,
+      "run_url": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39257345431",
+      "run_conclusion": "SUCCESS",
+      "firmware_size_bytes": 1260672,
+      "ota_partition_bytes": 1310720,
+      "margin_bytes": 50048,
+      "minimum_margin_bytes": 16384,
+      "alarm_policy_native": "PASS",
+      "integration_unittest": "PASS",
+      "artifact_id": 12189015600,
+      "artifact_sha256": "79e815bdb38f603954cb3b48d38589addf902a6fef353cd588a1d209c0673ffc",
+      "firmware_bin_sha256": "9a2ca9722ad7bc1fed91c0e211b18032c3ed3dd6e026b8e4d3b11c67ae577b7f"
+    },
+    "artifact_independent_check": {
+      "status": "PASS",
+      "manifest_entries_verified": 7,
+      "manifest_entries_total": 7,
+      "image_layout_verified": true,
+      "source_sha_verified": true,
+      "source": "Downloaded actual CI artifact; locally verified all 7 hashes and OTA_0 partition from partitions.bin"
+    },
+    "dependency_order": [
+      "P0 firmware build and safety gate COMPLETE",
+      "P0 Mac firmware transfer + flash/readback PENDING",
+      "P0 connected Wi-Fi + NTP status + schedule CRUD + timed physical IR execution PENDING",
+      "P1 dim-button sequence capture/replay verification PENDING",
+      "P1 warm-tone latency instrumented verification PENDING",
+      "P2 Wi-Fi/reboot/clock-adjust failure injection PENDING"
+    ]
+  },
+  "current_delivery": {
+    "desktop_commander_status": "OFFLINE as checked 2026-10-19; not capable of direct Mac flash",
+    "workaround": "Existing scripts/flash_mac.command now accepts IR_FIRMWARE_ZIP local archive without gh/gh-auth; pre-existing GitHub route retained.",
+    "offline_zip_code_commit": "961bfce97dd5b6368847f90b11b878f6c4243ad8",
+    "zsh_syntax_ci_gate_commit": "98335b8ba8120741fc9b6347a4b2797112b0592e",
+    "syntax_ci_validation": "PENDING at time of this record",
+    "caution": "Never claim CI build proves physical IR acceptance; readback and device behavior have separate gates. Original offline firmware artifact has source SHA 32fdff4, do not substitute later SHA implicitly."
+  },
+  "non_mvp_backlog": [
+    {
+      "id": "IR-DIM",
+      "priority": "P1",
+      "finding": "Dim command did not work; warmed-color command worked. Compare first vs repeated frames and captured RAW, without breaking full-on/off."
+    },
+    {
+      "id": "IR-LATENCY",
+      "priority": "P1",
+      "finding": "User previously reported warm-color transmission subjectively slow (~3s), later improved. Current integrated firmware has unverified physical latency."
+    },
+    {
+      "id": "IR-DIAG",
+      "priority": "P1",
+      "finding": "Track IR driver result vs target response, HTTP latency, and NTP-sync evidence separately."
+    }
+  ],
+  "verification_principles": [
+    "Do not fabricate test outcomes",
+    "Do not conflate API success with target light activation",
+    "Do not erase or autoformat LittleFS",
+    "Preserve learned-signal binary compatibility",
+    "No automatic catch-up for missed weekday schedules",
+    "Minimize repeated downloads; reuse existing Mac flash script",
+    "Run a single consolidated Mac flash+diagnostic path once reachable"
+  ]
+}
