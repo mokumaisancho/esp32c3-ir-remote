@@ -21,12 +21,12 @@ button.secondary{background:#fff;color:#171717} button.danger{background:#fff;co
 button:disabled{opacity:.45;cursor:default} input{background:#fff;width:100%}
 #learnStatus{font-weight:650}
 #signals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.signal{display:flex;align-items:center;gap:6px;min-width:0;border:1px solid #e6e6e6;border-radius:8px;padding:7px}
+.signal{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0;border:1px solid #e6e6e6;border-radius:8px;padding:7px}
 .signal .signal-name{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 .signal .signal-meta{font-size:.72rem;color:#666;white-space:nowrap}
 .signal button{padding:6px 8px;font-size:.78rem;flex-shrink:0}
 @media(max-width:690px){#signals{grid-template-columns:1fr}}
-@media(min-width:691px) and (max-width:860px){.signal{flex-wrap:wrap}.signal .signal-meta{width:100%}}
+
 .badge{display:inline-block;padding:3px 8px;border:1px solid #ddd;border-radius:999px;font-size:.8rem;margin-right:6px}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all}
 </style>
@@ -114,7 +114,7 @@ async function refreshSignals(){
     const send=document.createElement('button'); send.textContent='送信'; send.onclick=async()=>{send.disabled=true;setTxStatus('送信要求: '+s.name);try{const t=performance.now();const result=await api('/api/send',{method:'POST',body:form({id:s.id})});setTxStatus('RMT '+(result.result||'OK')+' / ESP処理 '+result.tx_duration_ms+'ms / HTTP往復 '+Math.round(performance.now()-t)+'ms / 試行#'+result.tx_attempt+' / 機器の受信は未確認: '+s.name)}catch(e){setTxStatus('送信失敗: '+e.message)}finally{send.disabled=false}};
     const del=document.createElement('button'); del.textContent='削除'; del.className='danger';
     del.onclick=async()=>{if(!confirm('「'+s.name+'」を削除しますか？'))return;del.disabled=true;try{await api('/api/delete',{method:'POST',body:form({id:s.id})});await refreshSignals()}catch(e){alert('削除失敗: '+e.message);del.disabled=false}};
-    const meta=document.createElement('span');meta.className='signal-meta';meta.textContent=s.pulses+' pulses · '+s.duration_us+' µs';meta.title=meta.textContent;
+    const meta=document.createElement('span');meta.className='signal-meta';meta.textContent=s.pulses+' pulses · '+s.duration_us+' µs'+(s.frames>1?' · '+s.frames+'F':'');meta.title=meta.textContent;
     el.append(name,send,del,meta);list.append(el);
   });
 }
