@@ -265,7 +265,7 @@ int main(){
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
             execute = subprocess.run([str(binary)], text=True, capture_output=True, timeout=15)
             self.assertEqual(execute.returncode, 0, execute.stdout + execute.stderr)
-            self.assertIn("DIRECT_IDF_RECEIVE_5_SCENARIOS_PASS", execute.stdout)
+            self.assertIn("DIRECT_IDF_RECEIVE_6_SCENARIOS_PASS", execute.stdout)
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_exact_web_ui_javascript_syntax(self):
