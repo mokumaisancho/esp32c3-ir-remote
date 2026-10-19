@@ -139,7 +139,7 @@
       "bytes": 500,
       "instructions": 164,
       "observed_algorithm": [
-        "Index argument a0 is checked against 0..55",
+        "Index value is returned in a0 by an indirect callback loaded from (*(0x3fcdff80)+0xb8). The incoming a0 input is saved in s4; do NOT describe the index as the incoming a0 argument. RV32 rev3 evidence 0x40006bfa-0x40006c18; Ghidra corroborates.",
         "Allocation bitmap register selected by index: 0..31 => 0x600312c4, 32..47 => 0x600312c8, >=48 => 0x60031300",
         "Already-allocated bitmap bits take error/logging path",
         "Entry table index <=47 uses calculated address 0x60031204 + 4*index; >=48 uses 0x60032424 + 4*index (requires external hardware base validation)",
@@ -166,6 +166,7 @@
       "bytes": 460,
       "instructions": 147,
       "observed_algorithm": [
+        "Index value is obtained by an indirect callback at (*(0x3fcdff80)+0xb8); rev3 RV32 instructions 0x40006dee-0x40006e02. It is not inferred from an incoming index argument.",
         "Checks allocated bitmap corresponding to 0..55 index",
         "Reads entry word from slot-address table",
         "Clears associated bitmap bit",
@@ -194,5 +195,17 @@
     "Independently verify these implementation instructions using GNU objdump or Ghidra, not just public JAL stubs",
     "ECv4 runtime has not made ROM decisions; no successful integration evidence"
   ],
-  "note": "This report is an explicitly interpretive analysis supported by raw machine code, not a generated test verdict."
+  "note": "This report is an explicitly interpretive analysis supported by raw machine code, not a generated test verdict.",
+  "quality_correction": {
+    "issue": "EARLIER_INDEX_ARGUMENT_MISATTRIBUTION",
+    "verified_with": [
+      "rev3 raw Capstone+GNU code at 0x40006bfa-0x40006c18 and 0x40006dee-0x40006e02",
+      "Ghidra 12.1.4 full-function decompiler output"
+    ],
+    "workflow_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39238141467",
+    "limitations": [
+      "Indirect callback identity still unresolved",
+      "Observed code is not proof of normal runtime invocation"
+    ]
+  }
 }
