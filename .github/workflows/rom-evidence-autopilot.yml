@@ -85,6 +85,10 @@ jobs:
         run: |
           set -euo pipefail
           python rom_automation/agc_rom_effects.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --out rom_automation/output/agc_rom_effects.json 2>&1 | tee rom_automation/output/agc_rom_effects.log
+      - name: Reconstruct byte-decoded local control flow for original 88 functions
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_candidate_cfg.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --out rom_automation/output/rom_candidate_cfg.json 2>&1 | tee rom_automation/output/rom_candidate_cfg.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
