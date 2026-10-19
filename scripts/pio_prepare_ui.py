@@ -4,6 +4,8 @@ import pathlib
 import re
 
 Import("env")  # noqa: F821 - injected by PlatformIO
+# LTO objects require the GCC linker driver to enable its LTO plugin.
+env.AppendUnique(LINKFLAGS=["-flto", "-fuse-linker-plugin"])
 root = pathlib.Path(env["PROJECT_DIR"])
 source = (root / "src/web_ui.h").read_text(encoding="utf-8")
 match = re.search(r'R"HTML\((.*?)\)HTML";', source, re.DOTALL)
