@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -28,8 +29,21 @@ jobs:
         shell: bash
       - run: python research/esp32c3_rom_public/novelty_falsification.py 2>&1 | tee research/esp32c3_rom_public/novelty_falsification.log
         shell: bash
-      - name: Integrate pinned ESP-IDF linker and register knowledge
-        run: python research/esp32c3_rom_public/idf_known_inventory.py 2>&1 | tee research/esp32c3_rom_public/idf_known_inventory.log
+      - name: Restore immutable source-verified ESP-IDF snapshot (avoid GitHub API 403)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12184400814/zip" \
+            -o "$RUNNER_TEMP/pinned_idf_source_evidence.zip"
+          echo '93c198f277bb73a71326cd18f518d1496118877c227a3ef15963556d9b70dc11  '"$RUNNER_TEMP/pinned_idf_source_evidence.zip" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/restored"
+          unzip -q "$RUNNER_TEMP/pinned_idf_source_evidence.zip" -d "$RUNNER_TEMP/restored"
+          test -s "$RUNNER_TEMP/restored/output/idf_known/summary.json"
+          mkdir -p research/esp32c3_rom_public/output/idf_known
+          cp -a "$RUNNER_TEMP/restored/output/idf_known/." research/esp32c3_rom_public/output/idf_known/
+          python research/esp32c3_rom_public/idf_known_snapshot_validate.py | tee research/esp32c3_rom_public/idf_known_inventory.log
         shell: bash
       - name: Analyze all 88 ROM candidate bodies
         run: python research/esp32c3_rom_public/candidate_full_audit.py 2>&1 | tee research/esp32c3_rom_public/candidate_full_audit.log
@@ -42,7 +56,7 @@ jobs:
       - name: Reconcile all 46 linker-unmatched names with dated prior ROM catalogs
         run: python research/esp32c3_rom_public/prior_catalog_name_audit.py 2>&1 | tee research/esp32c3_rom_public/prior_catalog_name_audit.log
         shell: bash
-      - name: Verify deterministic ISA effects of 17 leaf functions
+      - name: Verify deterministic ISA effects of 18 leaf functions
         run: python research/esp32c3_rom_public/leaf_isa_effect_differential.py 2>&1 | tee research/esp32c3_rom_public/leaf_isa_effect_differential.log
         shell: bash
       - uses: actions/upload-artifact@v4
