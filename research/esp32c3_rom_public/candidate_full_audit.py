@@ -47,10 +47,11 @@ def scan(elf,name,byname,at,native):
  sec=matching[0];blob=sec.data()[a-int(sec["sh_addr"]):a-int(sec["sh_addr"])+n]
  dec=Cs(CS_ARCH_RISCV,CS_MODE_RISCV32|CS_MODE_RISCVC)
  dec.skipdata=True
- lines=[];branches=[];direct=[];indirect=[];bad=[];native_equal=0;zero_unimp=[]
+ lines=[];branches=[];direct=[];indirect=[];bad=[];native_equal=0;zero_unimp=[];all_zero_unimp=[]
  for ins in dec.disasm(blob,a):
   raw=bytes(ins.bytes).hex()
   loc={"pc":hex(ins.address),"word":raw,"mnemonic":ins.mnemonic,"operands":ins.op_str}
+  if ins.mnemonic=="c.unimp" and raw=="0000":all_zero_unimp.append(loc)
   if ins.mnemonic==".byte":bad.append(loc)
   else:
    compared=native.get(ins.address)
@@ -74,6 +75,7 @@ def scan(elf,name,byname,at,native):
    "conditional_branch_count":len(branches),"direct_transfer_count":len(direct),
    "indirect_transfer_count":len(indirect),"direct_transfers":direct,
    "conditional_branches":branches,"indirect_transfers":indirect,
+   "zero_trap_encoding_rows_all":all_zero_unimp,
    "zero_trap_encoding_rows_unchecked_by_gnu":zero_unimp,"mismatches":bad,"instruction_listing":lines}
 def main():
  db=json.loads((BASE/"output"/"internal_function_candidates.json").read_text())
@@ -119,8 +121,9 @@ def main():
   stats["candidate_names"]+=1;stats["present_function_bodies"]+=len(present)
   stats["validated_function_bodies"]+=len(full)
   stats["gnu_verified_instruction_words"]+=sum(x["gnu_machine_words_checked"] for x in full)
-  stats["unimp_zero_encoding_occurrences"]+=sum(len(x["zero_trap_encoding_rows_unchecked_by_gnu"]) for x in full)
-  stats["function_bodies_with_zero_trap_encodings"]+=sum(bool(x["zero_trap_encoding_rows_unchecked_by_gnu"]) for x in full)
+  stats["unimp_zero_encoding_occurrences"]+=sum(len(x["zero_trap_encoding_rows_all"]) for x in full)
+  stats["gnu_disassembler_omitted_zero_encodings"]+=sum(len(x["zero_trap_encoding_rows_unchecked_by_gnu"]) for x in full)
+  stats["function_bodies_with_zero_trap_encodings"]+=sum(bool(x["zero_trap_encoding_rows_all"]) for x in full)
   stats["ambiguous_mmio_csr_owner_hints"]+=sum(x["ambiguous_owner_hit_count"] for x in present)
   if len(full)!=len(present):stats["candidates_with_unverified_bodies"]+=1
   if any(x["direct_public_root_witness"] for x in present):stats["candidates_direct_root_reachable"]+=1
@@ -137,7 +140,7 @@ def main():
    "mmio_hits":sum(x["mmio_raw_hit_count"] for x in present),
    "csr_hits":sum(x["csr_raw_hit_count"] for x in present),
    "owner_ambiguity":sum(x["ambiguous_owner_hit_count"] for x in present),
-   "zero_trap_encoding_count":sum(len(x["zero_trap_encoding_rows_unchecked_by_gnu"]) for x in full),
+   "zero_trap_encoding_count":sum(len(x["zero_trap_encoding_rows_all"]) for x in full),
    "direct_public_path":any(x["direct_public_root_witness"] for x in present),
    "different_machine_code_by_revision":len(code_sha)>1 and len(set(code_sha))>1})
  (OUT/"candidate_summary.json").write_text(json.dumps({"schema":"ROM_88_CANDIDATE_FUNCTION_BODY_AUDIT_V1",
