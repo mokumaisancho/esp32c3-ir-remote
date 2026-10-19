@@ -27,10 +27,10 @@ LATEST_HEADER_DIRS=(
  "components/soc/esp32c3/include/soc",
 )
 AGENT={"User-Agent":"esp32c3-rom-evidence-integrator/1","Accept":"application/vnd.github+json"}
-def download(url,timeout=90):
+def download(url,timeout=90,max_bytes=8*1024*1024):
  with urllib.request.urlopen(urllib.request.Request(url,headers=AGENT),timeout=timeout) as r:
-  b=r.read(8*1024*1024+1)
- if len(b)>8*1024*1024:raise RuntimeError("SOURCE_FILE_TOO_LARGE:"+url)
+  b=r.read(max_bytes+1)
+ if len(b)>max_bytes:raise RuntimeError("SOURCE_FILE_TOO_LARGE:"+url)
  return b
 def listing(snapshot,directory):
  sha=IDF_REFS[snapshot]
@@ -140,7 +140,7 @@ def main():
    register_rows.append({**m,"address":hex(resolved[name])})
  reg_by_addr=collections.defaultdict(list)
  for m in register_rows:reg_by_addr[m["address"]].append(m["name"])
- archive=download(ROM_URL,timeout=120)
+ archive=download(ROM_URL,timeout=120,max_bytes=128*1024*1024)
  if hashlib.sha256(archive).hexdigest()!=ROM_SHA:raise RuntimeError("ROM_ARCHIVE_SHA_MISMATCH")
  elfrows=[]
  with tarfile.open(fileobj=io.BytesIO(archive),mode="r:gz") as t:
