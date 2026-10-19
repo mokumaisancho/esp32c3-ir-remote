@@ -303,5 +303,42 @@ int main(){
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
+class LightingAlarmContracts(unittest.TestCase):
+    def test_ntp_is_jst_and_no_automatic_execution_without_wifi(self):
+        alarm = extract_body_function(SRC, "void runAlarmClock()")
+        self.assertIn('configTzTime("JST-9"', alarm)
+        self.assertIn('WiFi.status() == WL_CONNECTED', alarm)
+        self.assertIn('if (!connected || !alarmsReady || !alarmClockValid()) return;', alarm)
+        self.assertIn("alarm_policy::due(", alarm)
+        self.assertIn("r.lastMinute = epochMinute", alarm)
+        self.assertIn("persistAlarmRules()", alarm)
+        self.assertLess(alarm.index("persistAlarmRules()"), alarm.index("transmitSignal(stored,"))
+        self.assertIn("r.firstOnly ? 1 : MAX_EXTRA_FRAMES + 1", alarm)
+        self.assertIn('setenv("TZ", "JST-9", 1)', SRC)
+
+    def test_weekly_alarm_api_validates_saved_ir_and_never_formats_fs(self):
+        register = extract_body_function(SRC, "void setupRoutes()")
+        self.assertIn('"/api/alarms"', register)
+        self.assertIn('"/api/alarms/save"', register)
+        self.assertIn('"/api/alarms/delete"', register)
+        save = extract_body_function(SRC, "void handleSaveAlarm()")
+        self.assertIn("loadSignalFromSlot(slot, verifySignal)", save)
+        self.assertIn("persistAlarmRules()", save)
+        self.assertIn("alarmClockValid()", save)
+        self.assertIn("LittleFS.begin(false)", SRC)
+        delete = extract_body_function(SRC, "void handleDelete()")
+        self.assertIn("照明アラームが参照中です", delete)
+
+    def test_ui_offers_weekdays_clock_signal_and_rule_management(self):
+        for term in ('照明アラーム', 'alarmTime', 'alarmWeekdays',
+                     'alarmSignal', 'alarmFirstOnly', 'alarmEnabled',
+                     'addAlarm', 'refreshAlarms()', 'id="alarmList"',
+                     'dayText', 'NTP時刻'):
+            self.assertIn(term, UI)
+        self.assertIn("'/api/alarms/save'", UI)
+        self.assertIn("'/api/alarms/delete'", UI)
+        self.assertIn("document.querySelectorAll('#alarmWeekdays input:checked')", UI)
+
+
 if __name__ == "__main__":
     unittest.main()
