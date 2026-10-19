@@ -154,6 +154,7 @@ class CaptureBehavior(unittest.TestCase):
 #include <cstdint>
 #include <cstddef>
 #include <vector>
+#include <string>
 #include <utility>
 #include <cassert>
 #include <iostream>
@@ -164,7 +165,7 @@ struct Signal {
 };
 struct FakeServer {
   bool hasArg(const char*) const { return false; }
-  const char* arg(const char*) const { return "0"; }
+  std::string arg(const char*) const { return "0"; }
 } server;
 struct FakeSerial {
   template <typename... A> void printf(const char*, A...) const {}
