@@ -28,6 +28,9 @@ jobs:
         shell: bash
       - run: python research/esp32c3_rom_public/novelty_falsification.py 2>&1 | tee research/esp32c3_rom_public/novelty_falsification.log
         shell: bash
+      - name: Integrate pinned ESP-IDF linker and register knowledge
+        run: python research/esp32c3_rom_public/idf_known_inventory.py 2>&1 | tee research/esp32c3_rom_public/idf_known_inventory.log
+        shell: bash
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -38,4 +41,5 @@ jobs:
             research/esp32c3_rom_public/ac05_source_audit.log
             research/esp32c3_rom_public/ac05_prior_art_countercheck.log
             research/esp32c3_rom_public/novelty_falsification.log
+            research/esp32c3_rom_public/idf_known_inventory.log
           if-no-files-found: warn
