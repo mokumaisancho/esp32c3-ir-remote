@@ -86,7 +86,7 @@ class WifiProvisioningContracts(unittest.TestCase):
         self.assertNotIn('selectedIds', UI)
 
     def test_tx_carrier_polarity_is_not_reversed(self):
-        tx = extract_body_function(SRC, "bool transmitSignal(")
+        tx = extract_body_function(SRC, "bool transmitFrame(")
         setup = extract_body_function(SRC, "void setupRmt()")
         self.assertIn("!ircfg::TX_ACTIVE_HIGH", tx)
         self.assertIn("!ircfg::TX_ACTIVE_HIGH", setup)
@@ -157,7 +157,22 @@ class CaptureBehavior(unittest.TestCase):
 #include <utility>
 #include <cassert>
 #include <iostream>
-struct Signal { std::vector<int32_t> pulses; };
+struct Signal {
+  std::vector<int32_t> pulses;
+  std::vector<std::vector<int32_t>> extraFrames;
+  std::vector<uint32_t> interFrameGapUs;
+};
+struct FakeServer {
+  bool hasArg(const char*) const { return false; }
+  const char* arg(const char*) const { return "0"; }
+} server;
+struct FakeSerial {
+  template <typename... A> void printf(const char*, A...) const {}
+} Serial;
+constexpr size_t MAX_EXTRA_FRAMES = 4;
+uint32_t signalDurationUs(const Signal &s) {
+  uint32_t n=0;for(int32_t p:s.pulses)n+=p<0?-p:p;return n;
+}
 struct rmt_data_t { uint8_t level0; uint16_t duration0; uint8_t level1; uint16_t duration1; };
 struct rmt_receive_config_t { uint32_t signal_range_min_ns; uint32_t signal_range_max_ns; };
 using rmt_channel_handle_t = void*;
