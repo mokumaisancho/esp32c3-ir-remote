@@ -56,9 +56,14 @@ def replay(rows,initial,a0=0,streams=None,step_limit=15000,a1=0):
    addr=operand_address(p[1],get)
    put(p[0],streams[addr].pop(0) if streams.get(addr) else m.get(addr,0))
    reads[addr]+=1
-  elif op in ("sw","c.sw","c.swsp"):
+  elif op in ("sw","c.sw","c.swsp","sb"):
    addr=operand_address(p[1],get);val=get(p[0])
-   m[addr]=val;writes.append((addr,val))
+   if op=="sb":
+    aligned=addr&~3;shift=(addr&3)*8
+    m[aligned]=((m.get(aligned,0)&~(0xff<<shift))|((val&0xff)<<shift))&MASK
+    writes.append((addr,val&0xff))
+   else:
+    m[addr]=val;writes.append((addr,val))
   elif op in ("bne","beq","bltz","bgez","blez","bgtz","c.beqz","c.bnez"):
    if op in ("bne","beq"):
     x,y,jump=p;t=(get(x)!=get(y)) if op=="bne" else (get(x)==get(y))
