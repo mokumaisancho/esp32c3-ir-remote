@@ -9,6 +9,240 @@ ROOT=pathlib.Path(__file__).resolve().parent;OUT=ROOT/"output"
 REVS=("esp32c3_rev0_rom.elf","esp32c3_rev101_rom.elf","esp32c3_rev3_rom.elf")
 # Each sequence is an exact decoded ISA witness, not a guessed signature.
 CASE={
+"hal_enable_mac": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "andi",
+   "sw",
+   "sw",
+   "lui",
+   "sw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60034",
+   "a4, -0x400(a5)",
+   "a4, a4, -0xf1",
+   "a4, -0x400(a5)",
+   "a0, -0x3cc(a5)",
+   "a5, 0x60033",
+   "a1, 0x88(a5)",
+   "ra"
+  ],
+  "static_effect": "mem32[0x60033c00] &= ~0xf0; mem32[0x60033c34]=a0; mem32[0x60033088]=a1",
+  "external_prior": "Known vendor ROM ELF function; 0x60033088 address described in 2025 Wi-Fi study"
+ },
+ "hal_disable_mac": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "ori",
+   "sw",
+   "lw",
+   "sw",
+   "sw",
+   "sw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60034",
+   "a4, -0x400(a5)",
+   "a4, a4, 0xf0",
+   "a4, -0x400(a5)",
+   "a0, -0x3cc(a5)",
+   "zero, -0x3cc(a5)",
+   "zero, -0x3c8(a5)",
+   "zero, -0x3dc(a5)",
+   "ra"
+  ],
+  "static_effect": "mem32[0x60033c00] |= 0xf0; return old mem32[0x60033c34]; write 0 to 0x60033c34,0x60033c38,0x60033c24",
+  "external_prior": "Static vendor ROM implementation; verify actual MAC behavior on silicon"
+ },
+ "hal_clear_rx_beacon_pti": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "ori",
+   "sw",
+   "c.jr"
+  ],
+  "operands": [
+   "a4, 0x60035",
+   "a5, 0x88(a4)",
+   "a5, a5, 1",
+   "a5, 0x88(a4)",
+   "ra"
+  ],
+  "static_effect": "mem32[0x60035088] |= 1",
+  "external_prior": "Register address label not independently certified"
+ },
+ "hal_disable_sta_beacon_filter": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "lui",
+   "c.andi",
+   "sw",
+   "lw",
+   "c.lui",
+   "c.addi",
+   "c.and",
+   "sw",
+   "c.jr"
+  ],
+  "operands": [
+   "a4, 0x60033",
+   "a5, 0xa0(a4)",
+   "a3, 0x60034",
+   "a5, -8",
+   "a5, 0xa0(a4)",
+   "a5, -0x3cc(a3)",
+   "a4, 0xffff8",
+   "a4, -1",
+   "a5, a4",
+   "a5, -0x3cc(a3)",
+   "ra"
+  ],
+  "static_effect": "mem32[0x600330a0] &= ~7; mem32[0x60033c34] &= ~0x8000",
+  "external_prior": "Name from vendor ELF; exact register bit effect inferred from ISA"
+ },
+ "hal_enable_sta_beacon_filter": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "c.lui",
+   "c.addi",
+   "c.and",
+   "sw",
+   "lw",
+   "c.lui",
+   "lui",
+   "c.or",
+   "sw",
+   "lw",
+   "ori",
+   "sw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60034",
+   "a4, -0x3cc(a5)",
+   "a3, 0xffff8",
+   "a3, -1",
+   "a4, a3",
+   "a4, -0x3cc(a5)",
+   "a4, -0x3cc(a5)",
+   "a2, 8",
+   "a3, 0x60033",
+   "a4, a2",
+   "a4, -0x3cc(a5)",
+   "a5, 0xa0(a3)",
+   "a5, a5, 7",
+   "a5, 0xa0(a3)",
+   "ra"
+  ],
+  "static_effect": "TWO ordered writes: clear bit15 at 0x60033c34 THEN set bit15 at same MMIO; mem32[0x600330a0] |= 7",
+  "external_prior": "Ghidra pseudo C collapses intermediate MMIO store; original ISA has two stores. Potential edge side-effect is UNVERIFIED"
+ },
+ "hal_mac_rx_get_last_dscr": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "lui",
+   "lw",
+   "lui",
+   "c.and",
+   "c.or",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60033",
+   "a0, 0x90(a5)",
+   "a5, 0x60034",
+   "a5, -0x39c(a5)",
+   "a4, 0xfff00",
+   "a5, a4",
+   "a0, a5",
+   "ra"
+  ],
+  "static_effect": "return mem32[0x60033090] | (mem32[0x60033c64] & 0xfff00000)",
+  "external_prior": "Internal vendor ELF names; descriptor address meaning not independently certified"
+ },
+ "hal_mac_rx_read_rxdscrlast": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60033",
+   "a0, 0x90(a5)",
+   "ra"
+  ],
+  "static_effect": "return mem32[0x60033090]",
+  "external_prior": "Internal vendor ELF name; hardware semantics unverified"
+ },
+ "hal_mac_rx_read_rxdscrnext": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60033",
+   "a0, 0x8c(a5)",
+   "ra"
+  ],
+  "static_effect": "return mem32[0x6003308c]",
+  "external_prior": "Internal vendor ELF name; hardware semantics unverified"
+ },
+ "hal_pwr_interrupt_clr_event": {
+  "mnemonics": [
+   "lui",
+   "sw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60035",
+   "a0, 0x11c(a5)",
+   "ra"
+  ],
+  "static_effect": "mem32[0x6003511c] = a0",
+  "external_prior": "Internal vendor ELF name, not a certified interrupt peripheral label"
+ },
+ "hal_pwr_interrupt_get_event": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60035",
+   "a0, 0x118(a5)",
+   "ra"
+  ],
+  "static_effect": "return mem32[0x60035118]",
+  "external_prior": "Internal vendor ELF name, not a certified interrupt peripheral label"
+ },
+ "spi_slave_rom_check_conn": {
+  "mnemonics": [
+   "lui",
+   "lw",
+   "addi",
+   "seqz",
+   "c.jr"
+  ],
+  "operands": [
+   "a5, 0x60024",
+   "a0, 0xa4(a5)",
+   "a0, a0, -0xa5",
+   "a0, a0",
+   "ra"
+  ],
+  "static_effect": "return mem32[0x600240a4] == 0xa5",
+  "external_prior": "ROM SPI2 peripheral base is officially known, but register 0xa4 magic handshake function not independently documented"
+ },
  "hal_mac_rx_enable":{
   "mnemonics":["lui","lw","lui","c.or","sw","c.jr"],
   "operands":["a4, 0x60033","a5, 0x84(a4)","a3, 0x80000","a5, a3","a5, 0x84(a4)","ra"],
