@@ -69,14 +69,18 @@ jobs:
         run: |
           set -euo pipefail
           python rom_automation/next_candidate_dossiers.py --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/next_batch 2>&1 | tee rom_automation/output/next_batch.log
-      - name: Analyze remaining 56 semantic gaps (returns != indirect calls)
+      - name: Analyze remaining 52 semantic gaps (returns != indirect calls)
         run: |
           set -euo pipefail
-          python rom_automation/semantic_frontier.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/semantic_frontier_56.json 2>&1 | tee rom_automation/output/semantic_frontier.log
+          python rom_automation/semantic_frontier.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --state rom_automation/output/state.json --out rom_automation/output/semantic_frontier_52.json 2>&1 | tee rom_automation/output/semantic_frontier.log
       - name: Verify two additional original ROM effects
         run: |
           set -euo pipefail
           python rom_automation/two_linear_effects.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --out rom_automation/output/two_linear_effects.json 2>&1 | tee rom_automation/output/two_linear_effects.log
+      - name: Verify four additional branch-and-MMIO bounded ISA effects
+        run: |
+          set -euo pipefail
+          python rom_automation/bounded_isa_effects.py --machine "$RUNNER_TEMP/rom_evidence/machine.zip" --ghidra "$RUNNER_TEMP/rom_evidence/ghidra.zip" --out rom_automation/output/bounded_isa_effects.json 2>&1 | tee rom_automation/output/bounded_isa_effects.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
