@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-10-21",
+  "task": "Complete ESP32-C3 action-event logging to Pi -> private GitHub Issue #19 -> ChatGPT",
+  "status": "PI_PHYSICAL_DEPLOYMENT_NOT_YET_RUN",
+  "software_evidence": {
+    "git_revision": "ad6dc93bc87e1b3a8a9c286a6225d2e6ec8c2021",
+    "ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39512146995",
+    "ci_result": "SUCCESS",
+    "cloud_protocol": "ESP32_ALARM_EVENT_V1",
+    "pi_udp_receiver": "pi_event_logger/receiver.py",
+    "pi_github_uplink": "pi_event_logger/cloud_uplink.py",
+    "event_driven_no_idle_polling": true
+  },
+  "private_inbox": {
+    "url": "https://github.com/mokumaisancho/pi5-infrastructure-control/issues/19",
+    "private_repo": true,
+    "chatgpt_connector_write_read_synthetic_comment_id": 6303040555,
+    "synthetic_probe_result": "PASS",
+    "real_pi_probe_result": "NOT_RUN"
+  },
+  "deployment_preflight": {
+    "mac_to_pi_ssh": "StrictHostKeyChecking=yes, BatchMode=yes, known Pi 192.168.2.131",
+    "power": "read-only fresh 15min journal, get_throttled current flags and four PMIC voltage samples; fail closed",
+    "private_issue_access": "Pi GH credential GET and synthetic POST tested before service change; fail closed",
+    "pinned_source": "exact Git commit, only receiver.py and cloud_uplink.py",
+    "file_handling": "new isolated per-user source directory and new service; no existing service overwrite",
+    "systemd": "new esp32-ir-alarm-events.service running User=pi with systemd sandbox",
+    "real_esp_flash": "not performed",
+    "manual_action": "Run locally generated SETUP_PI_ALARM_LOGGER.command on Mac with existing authorized SSH identity"
+  },
+  "artifact_sha256": "076e4e14ecedb82037142f5cd840e3964269af41e807614b06ac26db34e9c04d",
+  "blocked_on": [
+    "Pi SSH remains outside current Mac Issue Worker allowlist",
+    "Mac user must run one-shot setup or safe worker upgrade",
+    "ESP firmware must be upgraded for before/after action UDP records"
+  ],
+  "acceptance": [
+    {
+      "id": "G1",
+      "name": "GPT can access private issue",
+      "status": "PASS_REAL"
+    },
+    {
+      "id": "G2",
+      "name": "GitHub Actions builds ESP and tests event-driven Pi uploader",
+      "status": "PASS_REAL_CI"
+    },
+    {
+      "id": "G3",
+      "name": "Pi 5 reports stable voltage and authenticated SSH",
+      "status": "UNVERIFIED"
+    },
+    {
+      "id": "G4",
+      "name": "Pi 5 POSTs synthetic cloud connectivity evidence",
+      "status": "UNVERIFIED"
+    },
+    {
+      "id": "G5",
+      "name": "Pi 5 receives actual ESP pre/post alarm events and uploads them",
+      "status": "UNVERIFIED"
+    }
+  ]
+}
