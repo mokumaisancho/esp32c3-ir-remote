@@ -11,11 +11,15 @@ on:
       - 'rom_automation/rom_p0a_indirect_roots.py'
       - 'rom_automation/rom_p0a_entry_trampoline.py'
       - 'rom_automation/rom_p0a_trap_vector_roots.py'
+      - 'rom_automation/rom_p0a_vector_slots.py'
+      - 'rom_automation/test_rom_p0a_vector_slots.py'
       - 'rom_automation/test_rom_p0a_trap_vector_roots.py'
       - 'rom_automation/test_rom_p0a_entry_trampoline.py'
       - 'rom_automation/test_rom_p0a_indirect_roots.py'
       - 'rom_automation/rom_p0b_vendor_exact.py'
       - 'rom_automation/rom_p0b_trm_windows.py'
+      - 'rom_automation/rom_p0b_prior_art_2025.py'
+      - 'rom_automation/test_rom_p0b_prior_art_2025.py'
       - 'rom_automation/test_rom_p0b_trm_windows.py'
       - 'rom_automation/test_rom_p0b_vendor_exact.py'
       - 'rom_automation/rom_mmio_revision_diff.py'
@@ -174,6 +178,30 @@ jobs:
             --entry rom_automation/output/new_function_hunt/P0A_official_ROM_entry_jump_chains.json \
             --out rom_automation/output/new_function_hunt/P0A_trap_vector_mtvec_mtvt_roots.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0A_trap_vector_analysis.log
+      - name: Validate machine-branch vectored slot targets and rejection controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0a_vector_slots.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0A_vector_slots_tests.log
+      - name: Trace all 32 exact mtvec vector-table entries to target code or unknown
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0a_vector_slots.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --trap rom_automation/output/new_function_hunt/P0A_trap_vector_mtvec_mtvt_roots.json \
+            --out rom_automation/output/new_function_hunt/P0A_exact_32_vector_dispatch.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0A_exact_vector_dispatch.log
+      - name: Negative controls for 2025 ESP32-C3 WiFi reverse engineering MMIO prior art
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0b_prior_art_2025.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0B_prior_art_2025_tests.log
+      - name: Exclude previously published WiFi peripheral addresses from 14 TRM Reserved novelty shortlist
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0b_prior_art_2025.py \
+            --trm rom_automation/output/new_function_hunt/P0B_TRM14_public_reserved_intervals.json \
+            --out rom_automation/output/new_function_hunt/P0B_2025_peer_reviewed_prior_art.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0B_2025_prior_art.log
       - name: Validate ROM pointer-table scanning false-positive controls
         run: |
           set -euo pipefail
