@@ -41,6 +41,8 @@ def inspect_mnemonics(mnemonics,bytes_ok=True):
   "unsupported_rv32imc_or_traps":len(invalid),
   "complete_byte_coverage":bytes_ok,
   "direct_local_effect_candidate":simple,
+  "trivial_stub_candidate":(bool(ops) and bytes_ok and len(ops)<=2 and loads==0
+    and stores==0 and csrs==0 and calls==0 and rets>0),
   "read_only_silicon_proven":False,"novelty_proven":False}
 
 def revision_symbols(elf):
@@ -103,16 +105,20 @@ def analyze(census,rom):
   simple=complete and all(x["direct_local_effect_candidate"] for x in stats)
   instr=sum(x["machine_instructions"] for x in stats)
   words=bool(any(w in name.lower() for w in FEATURE_WORDS))
-  # This ranks research cost, not confidence in undocumented functionality.
+  is_stub=complete and all(x["trivial_stub_candidate"] for x in stats)
+  total_loads=sum(x["loads"] for x in stats)
+  # A two-instruction constant-zero stub is not a new sensor/PHY capability.
   priority=(
     100*int(simple)
     +20*int(words)
-    +min(20,sum(x["loads"] for x in stats))
+    +25*min(4,total_loads)
     +20*int(complete)
     -min(40,instr//10)
     -40*int(any(x["stores"] or x["csr_updates"] for x in stats))
     -20*int(any(x["calls_or_indirect_jumps"] for x in stats))
+    -200*int(is_stub)
    )
+  record["trivial_stub_candidate"]=is_stub
   record["prior_art_status"]="NOT_FOUND_IN_ONLY_3_SELECTED_CATALOGS"
   record["priority_score"]=priority
   record["machine_effect_status"]="UNREVIEWED_STATIC_OPCODE_TRIAGE"
@@ -130,6 +136,12 @@ def analyze(census,rom):
   "original_issue_id":"ESP32C3-ROM-001","source_rom_sha256":ROM_SHA,
   "catalog_unmatched_total":177,"compiler_local_symbols_excluded":25,
   "actual_functions_screened":len(records),
+  "trivial_stubs_downgraded":sum(x["trivial_stub_candidate"] for x in records.values()),
+  "meaningful_direct_local_effect_candidates":sum(
+   not x["trivial_stub_candidate"] and all(
+    v["metrics"]["direct_local_effect_candidate"]
+    for group in x["revisions"].values() for v in group)
+   for x in records.values()),
   "top_twelve_for_static_inspection":[{k:x[k] for k in
     ("name","priority_score","revisions","hypothesis","refutation")} for x in ordered[:12]],
   "all_152_ranked":ordered,
@@ -152,6 +164,8 @@ def main():
  a.out.write_text(json.dumps(r,indent=2,sort_keys=True)+"\n")
  print("ROM_NEW_FUNCTION_TRIAGE",json.dumps({
   "screened":r["actual_functions_screened"],
+  "trivial_stubs_downgraded":r["trivial_stubs_downgraded"],
+  "nontrivial_direct_local_effect_candidates":r["meaningful_direct_local_effect_candidates"],
   "top_names":[x["name"] for x in r["top_twelve_for_static_inspection"]],
   "direct_local_effect_candidate_count":sum(
    all(b["metrics"]["direct_local_effect_candidate"]
