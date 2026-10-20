@@ -8,6 +8,8 @@ on:
       - 'rom_automation/new_function_triage.py'
       - 'rom_automation/rom_fast_graph.py'
       - 'rom_automation/rom_pointer_tables.py'
+      - 'rom_automation/rom_strict_indirect.py'
+      - 'rom_automation/test_rom_strict_indirect.py'
       - 'rom_automation/test_rom_pointer_tables.py'
       - 'rom_automation/test_rom_fast_graph.py'
       - 'rom_automation/test_new_function_triage.py'
@@ -81,6 +83,18 @@ jobs:
             --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
             --out rom_automation/output/new_function_hunt/all_rom_function_pointer_refs.json \
             2>&1 | tee rom_automation/output/new_function_hunt/pointer_refs.log
+      - name: Test raw RISC-V indirect decoding with malicious and false-positive controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_strict_indirect.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/indirect_tests.log
+      - name: Recover provable AUIPC LUI materialized indirect callee candidates
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_strict_indirect.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --out rom_automation/output/new_function_hunt/strict_indirect_edges.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/indirect_edges.log
       - name: Screen all 152 previously uncatalogued named ELF functions by exact opcode side effects
         run: |
           set -euo pipefail
