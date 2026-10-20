@@ -13,6 +13,8 @@ on:
       - 'rom_automation/rom_p0a_trap_vector_roots.py'
       - 'rom_automation/rom_p0a_vector_slots.py'
       - 'rom_automation/rom_p0a_strict_indirect_gap.py'
+      - 'rom_automation/rom_p0a_cfg_defuse.py'
+      - 'rom_automation/test_rom_p0a_cfg_defuse.py'
       - 'rom_automation/test_rom_p0a_strict_indirect_gap.py'
       - 'rom_automation/test_rom_p0a_vector_slots.py'
       - 'rom_automation/test_rom_p0a_trap_vector_roots.py'
@@ -266,6 +268,18 @@ jobs:
             --prior rom_automation/output/new_function_hunt/P0B_2025_peer_reviewed_prior_art.json \
             --out rom_automation/output/new_function_hunt/P0B_11_crosschip_immutably_pinned_comparison.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0B_crosschip_prior.log
+      - name: Test CFG local-register defuse mutations across nonadjacent instructions and control joins
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0a_cfg_defuse.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0A_CFG_defuse_tests.log
+      - name: Evaluate nonadjacent JALR register provenance from real official ROM machine bytes
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0a_cfg_defuse.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --out rom_automation/output/new_function_hunt/P0A_CFG_local_register_provenance.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0A_CFG_defuse.log
       - name: Verify literal-reference scanner controls
         run: |
           set -euo pipefail
