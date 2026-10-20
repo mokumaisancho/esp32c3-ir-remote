@@ -33,11 +33,11 @@ jobs:
           curl -fL --retry 3 --connect-timeout 30 \
             'https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz' \
             -o "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz"
-          printf '%s  %s\\n' caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46 "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" | sha256sum -c
+          printf '%s  %s\n' caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46 "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" | sha256sum -c
           curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" \
             'https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180128997/zip' \
             -o "$RUNNER_TEMP/rom_discovery/original-88.zip"
-          printf '%s  %s\\n' cc08989ed0967d091b9d63eae9e714a661d03604fc54c6c57778b034ee264896 "$RUNNER_TEMP/rom_discovery/original-88.zip" | sha256sum -c
+          printf '%s  %s\n' cc08989ed0967d091b9d63eae9e714a661d03604fc54c6c57778b034ee264896 "$RUNNER_TEMP/rom_discovery/original-88.zip" | sha256sum -c
           sha256sum "$RUNNER_TEMP/rom_discovery/"* | tee rom_automation/output/new_function_hunt/input_sha256.log
       - name: Run isolated negative controls
         run: |
