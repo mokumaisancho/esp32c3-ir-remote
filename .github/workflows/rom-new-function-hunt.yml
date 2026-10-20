@@ -23,6 +23,8 @@ on:
       - 'rom_automation/test_rom_p0a_entry_trampoline.py'
       - 'rom_automation/test_rom_p0a_indirect_roots.py'
       - 'rom_automation/rom_p0b_vendor_exact.py'
+      - 'rom_automation/rom_p0b_exact_two_context.py'
+      - 'rom_automation/test_rom_p0b_exact_two_context.py'
       - 'rom_automation/rom_p0b_trm_windows.py'
       - 'rom_automation/rom_p0b_prior_art_2025.py'
       - 'rom_automation/rom_p0b_crosschip_prior.py'
@@ -162,6 +164,19 @@ jobs:
             --p0b rom_automation/output/new_function_hunt/P0B_MMIO_revision_delta.json \
             --out rom_automation/output/new_function_hunt/P0B_vendor_all13_exact_registers.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0B_vendor_exact.log
+      - name: Verify two remaining MMIO callsite source bytes and mutation controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0b_exact_two_context.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0B_exact_two_context_tests.log
+      - name: Inspect exact two unanswered RF and WiFi ROM machine instruction windows
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0b_exact_two_context.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --vendor rom_automation/output/new_function_hunt/P0B_vendor_all13_exact_registers.json \
+            --out rom_automation/output/new_function_hunt/P0B_exact_two_context.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0B_exact_two_context.log
       - name: Validate public ESP32-C3 TRM v1.4 exact reserved boundary and known peripheral counterexamples
         run: |
           set -euo pipefail
