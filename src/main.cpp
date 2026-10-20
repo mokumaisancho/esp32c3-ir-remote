@@ -589,6 +589,11 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
 }
 
 uint32_t lastTxDurationMs = 0;
+uint32_t lastTxPreSerialMs = 0;
+uint32_t lastTxCarrierMs = 0;
+uint32_t lastTxWriteMs = 0;
+uint32_t lastTxPostSerialMs = 0;
+uint32_t lastTxIntendedWaveformUs = 0;
 uint32_t txAttemptCount = 0;
 uint32_t lastTxFirstFrameMs = 0;
 uint32_t lastTxGapMs = 0;
@@ -596,9 +601,15 @@ uint32_t lastTxFrameCount = 0;
 bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses) {
   const uint32_t txBeginMs = millis();
   ++txAttemptCount;
+  // HWCDC writes can block ~2s per backpressured chunk when Mac's serial
+  // monitor is closed. Keep the log, but measure its time separately.
+  const uint32_t preSerialMs = millis();
   Serial.printf("IR_TX_START t=%lu attempt=%lu pulses=%u ready=%d carrier=%lu\n",
                 static_cast<unsigned long>(millis()), static_cast<unsigned long>(txAttemptCount), static_cast<unsigned>(framePulses.size()),
                 rmtTxReady ? 1 : 0, static_cast<unsigned long>(signal.carrierHz));
+  lastTxPreSerialMs = millis() - preSerialMs;
+  lastTxCarrierMs = lastTxWriteMs = lastTxPostSerialMs = 0;
+  lastTxIntendedWaveformUs = 0;
   if (!rmtTxReady || framePulses.empty()) {
     Serial.println("IR_TX_END result=FAIL reason=not_ready_or_empty");
     return false;
@@ -614,7 +625,9 @@ bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses
   const uint8_t markLevel = ircfg::TX_ACTIVE_HIGH ? 1 : 0;
   const uint8_t spaceLevel = markLevel ? 0 : 1;
 
+  uint64_t intendedDurationUs = 0;
   for (const int32_t pulse : framePulses) {
+    intendedDurationUs += static_cast<uint64_t>(pulse < 0 ? -static_cast<int64_t>(pulse) : pulse);
     const bool mark = pulse > 0;
     uint32_t remaining = static_cast<uint32_t>(
         pulse < 0 ? -static_cast<int64_t>(pulse) : pulse);
@@ -642,22 +655,31 @@ bool transmitFrame(const Signal &signal, const std::vector<int32_t> &framePulses
     }
   }
 
-  if (!rmtSetCarrier(
-          ircfg::IR_TX_PIN,
-          true,
-          !ircfg::TX_ACTIVE_HIGH, // HAL maps this flag to polarity_active_low
-          signal.carrierHz,
-          signal.dutyPermille / 1000.0f)) {
-    return false;
-  }
-  rmtSetEOT(ircfg::IR_TX_PIN, spaceLevel);
-  // 120ms is sufficient for one normal IR frame (~65ms); avoid a full-second stall.
+  lastTxIntendedWaveformUs = static_cast<uint32_t>(std::min<uint64_t>(intendedDurationUs, UINT32_MAX));
+  const uint32_t carrierStartMs = millis();
+  const bool carrierOk = rmtSetCarrier(
+      ircfg::IR_TX_PIN,
+      true,
+      !ircfg::TX_ACTIVE_HIGH, // HAL maps this flag to polarity_active_low
+      signal.carrierHz,
+      signal.dutyPermille / 1000.0f);
+  lastTxCarrierMs = millis() - carrierStartMs;
+  if (!carrierOk) return false;
+  if (!rmtSetEOT(ircfg::IR_TX_PIN, spaceLevel)) return false;
+  const uint32_t writeStartMs = millis();
+  // The HAL's blocking completion timeout is 200ms. A 4s "DRIVER_OK"
+  // measurement therefore points outside the RMT write in the normal case.
   const bool accepted = rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 200);
+  lastTxWriteMs = millis() - writeStartMs;
   lastTxDurationMs = millis() - txBeginMs;
-  Serial.printf("IR_TX_END result=%s attempt=%lu symbols=%u gpio=%d duration_ms=%lu\n",
+  const uint32_t postSerialStartMs = millis();
+  Serial.printf("IR_TX_END result=%s attempt=%lu symbols=%u gpio=%d duration_ms=%lu write_ms=%lu log_ms=%lu\n",
                 accepted ? "DRIVER_OK" : "FAIL", static_cast<unsigned long>(txAttemptCount),
                 static_cast<unsigned>(symbolCount), ircfg::IR_TX_PIN,
-                static_cast<unsigned long>(lastTxDurationMs));
+                static_cast<unsigned long>(lastTxDurationMs),
+                static_cast<unsigned long>(lastTxWriteMs),
+                static_cast<unsigned long>(lastTxPreSerialMs));
+  lastTxPostSerialMs = millis() - postSerialStartMs;
   return accepted;
 }
 
@@ -935,6 +957,11 @@ String transmissionResult(uint32_t loadMs, uint32_t totalMs) {
   return String("{\"ok\":true,\"result\":\"DRIVER_OK\",\"verified_by_receiver\":false,\"tx_duration_ms\":") +
          String(lastTxDurationMs) + ",\"tx_first_frame_ms\":" + String(lastTxFirstFrameMs) +
          ",\"tx_gap_wait_ms\":" + String(lastTxGapMs) +
+         ",\"tx_pre_serial_ms\":" + String(lastTxPreSerialMs) +
+         ",\"tx_carrier_config_ms\":" + String(lastTxCarrierMs) +
+         ",\"tx_rmt_write_ms\":" + String(lastTxWriteMs) +
+         ",\"tx_post_serial_ms\":" + String(lastTxPostSerialMs) +
+         ",\"tx_intended_waveform_us\":" + String(lastTxIntendedWaveformUs) +
          ",\"tx_frames_sent\":" + String(lastTxFrameCount) +
          ",\"load_ms\":" + String(loadMs) +
          ",\"handler_ms\":" + String(totalMs) +
@@ -1441,6 +1468,12 @@ void setupRmt() {
 
 void setup() {
   Serial.begin(115200);
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT && defined(CONFIG_IDF_TARGET_ESP32C3)
+  // Arduino-ESP32 HWCDC's default 100ms*20 retry can stall logging
+  // for ~2s after the host closes its serial monitor. 1ms bounds this
+  // without using zero (which has had version-dependent write bugs).
+  Serial.setTxTimeoutMs(1);
+#endif
   delay(150);
   diagMark("SETUP_ENTERED");
 
