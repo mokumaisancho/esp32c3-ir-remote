@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "ALARM-20261021-0528",
+  "subject": "Wednesday 2026-10-21 05:28 recurring all-on alarm did not visibly affect lamp",
+  "firmware_in_use_assumed": "80a2a45b2e1805ff43d109704457799dc2a610be",
+  "event_source": "Read-only context of user's already-open ESP32-C3 IR Remote browser tab, acquired while user requested trace; timestamp is displayed device local clock",
+  "observable_browser_snapshot": {
+    "device_local_clock": "2026-10-21 05:31:25",
+    "timezone": "JST (UTC+09:00)",
+    "clock_status": "時刻取得済み",
+    "storage_status": "正常",
+    "sta_ip": "192.168.2.141",
+    "last_event": "ルール#1 送信処理OK / 信号#1 / 5:28",
+    "rule_ui": "#1 月・火・水・木・金・土・日 05:28 / 全灯 (#1) / 全フレーム",
+    "stored_signal": "#1 全灯 · 67 pulses · 64706 µs"
+  },
+  "source_findings": {
+    "src/main.cpp:1169-1215": "runAlarmClock only sets lastAlarmEvent after valid WiFi+NTP+schedule due, prior persistent dedup, signal read, then transmitSignal; on success sets 送信処理OK",
+    "src/main.cpp:1403-1434": "loop continuously handles clients and checks alarm each iteration; no explicit sleep logic",
+    "src/main.cpp:1059-1062": "alarmClockValid requires NTP started, WiFi connected, plausible system time",
+    "src/main.cpp:1064-1099": "GET /api/alarms reports RAM last_event; does not return historical flash log",
+    "src/main.cpp:1193-1208": "persist lastMinute before TX to dedupe; failed transmission can still suppress retry during same minute",
+    "src/main.cpp:995-1020": "alarm rules persisted in LittleFS; event trace not persisted"
+  },
+  "conclusions": [
+    {
+      "claim": "The 05:28 scheduler fired and software TX function reported success",
+      "status": "CONFIRMED_FROM_BROWSER_APP_STATE"
+    },
+    {
+      "claim": "No explicit MCU sleep call in firmware",
+      "status": "CONFIRMED_BY_STATIC_CODE"
+    },
+    {
+      "claim": "ESP was power-cycled or sleeping during trigger minute",
+      "status": "NOT_SUPPORTED; schedule executed"
+    },
+    {
+      "claim": "Physical IR output matched stored waveform and lamp received command",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "claim": "Cause of lamp not visually changing",
+      "status": "UNKNOWN; TX path or receiver/visibility behavior remains"
+    }
+  ],
+  "possible_next_steps": [
+    "Manually send saved slot1 once when lamp is off using POST /api/send id=1&max_frames=1; distinguish scheduler failure from TX failure",
+    "Analyze USB CDC serial backpressure separately from optical TX; 4.065s software driver latency previously observed in old version",
+    "For durable 05:28 RCA, add persistent bounded alarm event logging with time, uptime, boot reason, NTP validity, WiFi status, id/slot, driver response; do not infer from missing serial logs",
+    "Independent ESP32-C3 IR receiver verify output waveform from GPIO7 emitter"
+  ],
+  "status": "SCHEDULER_FIRED_DRIVER_OK__PHYSICAL_LIGHT_RESULT_UNVERIFIED",
+  "caveat": "Browser snapshot reflects app DOM read at device displayed time 05:31:25; not a direct raw serial trace."
+}
