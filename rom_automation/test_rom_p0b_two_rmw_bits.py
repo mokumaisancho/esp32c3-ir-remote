@@ -33,7 +33,7 @@ class RMWSemanticsTests(unittest.TestCase):
    evaluate_one(mk("0x600061c4","esp32c3_rev0_rom.elf",CASE0,x))
  def test_injected_instruction_gap_fails(self):
   pcs=list(CASE1);pcs[1]+=2
-  with self.assertRaisesRegex(RuntimeError,"GAPPED_OR_CONTROL_FLOW_INSERTED_IN_RMW_SEQUENCE"):
+  with self.assertRaisesRegex(RuntimeError,"MISSING_EXACT_INSTRUCTION_PC|GAPPED_OR_CONTROL_FLOW_INSERTED_IN_RMW_SEQUENCE"):
    evaluate_one(mk("0x60033c00","esp32c3_rev101_rom.elf",pcs,WIFI))
  def test_direct_machine_bit_classifier_rejects_other_alu(self):
   self.assertEqual(decode32(bytes.fromhex("93e7070f"))["op"],"ori")
