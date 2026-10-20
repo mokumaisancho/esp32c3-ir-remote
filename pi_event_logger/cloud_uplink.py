@@ -169,22 +169,35 @@ def flush_once(directory, token, *, poster=github_comment, limit=MAX_BATCH):
             "private_repo": f"{OWNER}/{REPO}", "issue": ISSUE_NUMBER}
 
 
-def run_forever(directory, token, stop=None, idle_seconds=5):
+def run_forever(directory, token, stop=None, wake=None, retry_seconds=60):
+    """Event-driven: idle Pi does not scan storage or contact cloud periodically.
+
+    On startup, flush any old durable backlog. Afterwards, a freshly fsynced
+    UDP alarm event wakes this worker. Only a failed cloud attempt retries on
+    the bounded timer. The caller wakes this thread again before shutdown.
+    """
     import threading
     stop = stop if stop is not None else threading.Event()
+    wake = wake if wake is not None else threading.Event()
     while not stop.is_set():
+        wake.clear()
         try:
             status = flush_once(directory, token)
-            # Log counts only, never cloud credentials or event payloads.
             if status["posted"]:
                 print(json.dumps({"cloud": "DELIVERED", "count": status["posted"],
                                   "issue": ISSUE_NUMBER}), flush=True)
+            if status["posted"] >= MAX_BATCH:
+                # Bounded batches; don't strand remaining queued events.
+                continue
+            timeout = None  # No polling or network usage when idle.
         except (OSError, ValueError, RuntimeError, URLError, HTTPError) as exc:
             code = getattr(exc, "code", None)
             print(json.dumps({"cloud": "RETRY_PENDING",
                               "error_kind": type(exc).__name__,
                               "http_status": code}), flush=True)
-        stop.wait(idle_seconds)
+            timeout = retry_seconds
+        if not stop.is_set():
+            wake.wait(timeout=timeout)
 
 
 def main():
