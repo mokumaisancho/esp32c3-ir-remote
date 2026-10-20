@@ -17,7 +17,8 @@ class CrossChipPriorTests(unittest.TestCase):
   sources={
    "S3_PHY_LIBRARY_MAP":("Register: 0x60033094","http://s3","abc"),
    "FLINTOS_RADIO_PLAN":("Register: 0x60033090, 0x600330a0","http://plan","def"),
-   "THIRD_PARTY_C3_RADIO_CAPTURE":("observed 0x600330a0","http://capture","ghi")}
+   "THIRD_PARTY_C3_RADIO_CAPTURE":("observed 0x600330a0","http://capture","ghi"),
+   "BLE_C3_EMULATOR_ORACLE":("Live 0x60031100","http://ble","jkl")}
   r=inspect(d,sources)
   self.assertEqual(r["examined_remaining"],11)
   self.assertTrue(r["rows"][0]["source_hits"])
