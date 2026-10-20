@@ -111,9 +111,40 @@
       "status": "NOT_IMPLEMENTED"
     }
   ],
-  "result": "SOFTWARE_POC_PASS__LIVE_PI_AND_ESP32_NOT_TESTED",
+  "result": "MAC_ISSUE_TRANSPORT_RECONFIRMED__PI_PROBE_DENIED_BY_INSTALLED_WORKER__PI_NOT_CONNECTED",
   "evidence_urls": [
     "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39502056920",
     "https://github.com/mokumaisancho/esp32c3-ir-remote/tree/fix/rmt-idf-error-diagnostics/pi_event_logger"
-  ]
+  ],
+  "current_session_connection_probes": {
+    "at": "2026-10-21 07:23 JST",
+    "tested_path": "ChatGPT GitHub connector -> Issue #11 -> Mac LaunchAgent Issue Worker -> local gateway",
+    "mac_ping": {
+      "request_comment": 6302797436,
+      "result_comment": 6302800335,
+      "status": "PASS_REAL_MAC"
+    },
+    "pi_probe": {
+      "request_comment": 6302828771,
+      "result_comment": 6302832832,
+      "status": "ACTION_NOT_ALLOWED",
+      "reason": "Installed Issue Worker lacks PI_PROBE action despite Local Gateway capabilities listing pi_probe"
+    },
+    "mac_checkout_status": {
+      "request_comment": 6302898181,
+      "result_comment": 6302899230,
+      "status": "CLEAN_DETACHED_HEAD"
+    },
+    "fixed_file_stat": {
+      "request_comment": 6302960862,
+      "result_comment": 6302961703,
+      "status": "ACTION_NOT_ALLOWED"
+    },
+    "candidate_source_updates": "https://github.com/mokumaisancho/GPT-Development-Suite/tree/feature/dc-p0-gateway-cas-search-20261018",
+    "candidate_source_commit": "aa5f6696772920f7f2582e50fe82624007a32c1a",
+    "candidate_deployed": false,
+    "deployment_blocker": "Existing worker in detached HEAD, update path sync_pinned requires named managed branch; global BOOTSTRAP_RUN has reset --hard, do not use unsafe self-update path.",
+    "pi_ssh_authenticated": false,
+    "pi_live_device_connected": false
+  }
 }
