@@ -43,7 +43,7 @@ class StaticSRAMWriterTests(unittest.TestCase):
   effect=real_store(z)
   self.assertEqual((effect["base_reg"],effect["value_reg"],effect["offset"]), (2,11,124))
  def test_non_store_c_extension_does_not_match(self):
-  for raw in (0x0001,0x8082,0xc002):
+  for raw in (0x0001,0x8082,0xa002):
    z=types.SimpleNamespace(bytes=raw.to_bytes(2,"little"),size=2,address=0,mnemonic="random")
    self.assertIsNone(real_store(z))
  def test_strict_store_opcodes_only(self):
