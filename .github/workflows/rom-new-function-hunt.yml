@@ -14,6 +14,8 @@ on:
       - 'rom_automation/rom_p0a_vector_slots.py'
       - 'rom_automation/rom_p0a_strict_indirect_gap.py'
       - 'rom_automation/rom_p0a_cfg_defuse.py'
+      - 'rom_automation/rom_rvc_register_effects.py'
+      - 'rom_automation/test_rom_rvc_register_effects.py'
       - 'rom_automation/test_rom_p0a_cfg_defuse.py'
       - 'rom_automation/test_rom_p0a_strict_indirect_gap.py'
       - 'rom_automation/test_rom_p0a_vector_slots.py'
@@ -268,6 +270,10 @@ jobs:
             --prior rom_automation/output/new_function_hunt/P0B_2025_peer_reviewed_prior_art.json \
             --out rom_automation/output/new_function_hunt/P0B_11_crosschip_immutably_pinned_comparison.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0B_crosschip_prior.log
+      - name: Test independently decoded RV32C register effects against Capstone and counterexamples
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_rvc_register_effects.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0A_RVC_register_effects_tests.log
       - name: Test CFG local-register defuse mutations across nonadjacent instructions and control joins
         run: |
           set -euo pipefail
