@@ -12,7 +12,7 @@
 
 namespace pi_alarm_telemetry {
 constexpr uint16_t PORT = 5514;
-constexpr IPAddress PI_HOST(192, 168, 2, 131);
+const IPAddress PI_HOST(192, 168, 2, 131);
 inline uint32_t bootId() {
   static const uint32_t id = esp_random();
   return id;
