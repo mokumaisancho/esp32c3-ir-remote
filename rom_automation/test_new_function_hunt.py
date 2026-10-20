@@ -1,6 +1,6 @@
 """ROM-001: exact independent-fail-closed tests for exploratory ROM census."""
 import pathlib, tempfile, unittest
-from new_function_hunt import merged,clipped_coverage,name_inventory,evaluate
+from new_function_hunt import merged,clipped_coverage,name_inventory,evaluate,is_compiler_local_name
 from decision_gate import REVS
 from rom_opcode import jal,compressed_jump
 
@@ -23,6 +23,11 @@ class ExploratoryDiscoveryTests(unittest.TestCase):
   self.assertEqual(merged([(2,5),(5,10),(1,3)]),[(1,10)])
   with self.assertRaisesRegex(RuntimeError,"INVALID_ELF_FUNCTION_RANGE"):
    merged([(7,7)])
+ def test_known_gcc_local_symbols_not_features(self):
+  self.assertTrue(is_compiler_local_name("check_condCOUNTER.3042"))
+  self.assertTrue(is_compiler_local_name("check_condCOUNTER.5151"))
+  self.assertFalse(is_compiler_local_name("rom2_phy_get_tsens_value"))
+  self.assertFalse(is_compiler_local_name("check_condCOUNTER_extra"))
  def test_raw_jal_not_name_based(self):
   self.assertEqual(jal(bytes.fromhex("ef000000"),0x40000000),0x40000000)
   self.assertIsNone(jal(bytes.fromhex("00000000"),0x40000000))
