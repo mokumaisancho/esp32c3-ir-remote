@@ -58,7 +58,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 </div>
 <p id="learnStatus">未受信</p>
 <div id="lastMeta" class="muted"></div>
-<pre id="raw"></pre>
+<div class="muted">先頭フレームのRAWプレビュー</div><pre id="raw"></pre>
 <div class="row">
 <div class="grow">
 <input id="name" list="profileNames" maxlength="48" placeholder="識別名（例：全灯）">
@@ -125,7 +125,7 @@ async function api(path,opt={}){
   const r=await fetch(path,opt);
   const t=await r.text();
   let d; try{d=JSON.parse(t)}catch{d={ok:false,error:t}}
-  if(!r.ok) throw new Error((d.error||d.message||t||r.status)+(typeof d.elapsed_ms==='number'?'（実測 '+d.elapsed_ms+'ms）':''));
+  if(!r.ok) throw new Error((d.reason==='capture_limit'?'受信容量を超えたため保存していません':(d.error||d.message||t||r.status))+(typeof d.elapsed_ms==='number'?'（実測 '+d.elapsed_ms+'ms）':''));
   return d;
 }
 function form(obj){const p=new URLSearchParams();Object.entries(obj).forEach(([k,v])=>p.set(k,v));return p}
@@ -179,7 +179,7 @@ $('#learn').onclick=async()=>{
     // must not prevent a saved capture from being transmitted.
     $('#save').disabled=false;
     $('#sendLast').disabled=false;
-    $('#lastMeta').textContent=(d.backend||'rmt')+' · '+d.pulses+' pulses · '+(d.frames||1)+' frames · '+d.duration_us+' µs · '+d.elapsed_ms+'ms経過';
+    $('#lastMeta').textContent=(d.backend||'rmt')+' · '+d.pulses+' pulses · '+(d.frames||1)+' frames · '+d.duration_us+' µs · '+d.elapsed_ms+'ms経過 / 記録 '+d.capture_bytes+'/'+d.capture_budget_bytes+' bytes';
     $('#raw').textContent=Array.isArray(d.raw)?d.raw.join(', '):String(d.raw||'');
     if(d.stored) await refreshSignals();
   }catch(e){$('#learnStatus').textContent='受信なし / '+e.message}
