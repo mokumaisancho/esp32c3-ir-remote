@@ -154,6 +154,14 @@ def prior_register_class(seq,index,reg,max_lookback=24):
   examined+=1
  return "NOT_IN_BOUNDED_STRAIGHT_LINE",None
 
+def official_c3_memory_region(addr):
+ """Espressif ESP32-C3 TRM v1.4, Figure 3.2-1. Map only documented ranges."""
+ if 0x3fc80000<=addr<=0x3fcdffff:return "INTERNAL_SRAM"
+ if 0x40000000<=addr<=0x4005ffff:return "INTERNAL_ROM"
+ if 0x60000000<=addr<=0x600d0fff:return "PERIPHERAL"
+ if 0x3c000000<=addr<=0x3c7fffff:return "EXTERNAL_DATA_WINDOW"
+ return "OUTSIDE_CLASSIFIED_RANGES"
+
 def trace_load_base(seq,index,reg,elf,entry_to_key,call_imm=0):
  """Bounded two-level def-use: JALR source <- LW <- PC-relative base.
 
@@ -199,6 +207,7 @@ def trace_load_base(seq,index,reg,elf,entry_to_key,call_imm=0):
  value=((instr.address if u&0x7f==0x17 else 0)+high+offset)&MASK
  info["load_base_provenance"]="STATIC_COMPUTED_BASE_REGION_NOT_YET_CONFIRMED"
  info["candidate_readonly_slot"]=hex(value)
+ info["official_memory_region"]=official_c3_memory_region(value)
  literal=readonly_literal(elf,value)
  if literal is None:return info
  dest=(literal+call_imm)&MASK&~1
