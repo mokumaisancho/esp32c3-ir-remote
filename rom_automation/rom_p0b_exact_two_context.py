@@ -19,6 +19,12 @@ CASES=[
 def check_machine(actual,expected):
  require(bytes(actual)==bytes.fromhex(expected),"PINNED_ROM_MACHINE_BYTE_MISMATCH")
 
+def derive_lui_pc(access_pc,source_bytes,pattern):
+ require(pattern in ("LUI_ACCESS","LUI_ADDI_ACCESS"),"SOURCE_INSTRUCTION_PATTERN")
+ byte_len=len(bytes.fromhex(source_bytes))
+ require(byte_len==(8 if pattern=="LUI_ACCESS" else 12),"SOURCE_PATTERN_BYTE_COUNT_MISMATCH")
+ return int(access_pc,16)+4-byte_len
+
 def audit(blob,rev,case,vendor,graph):
  from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
  rows=[row for row in vendor["all_13_function_differences"] if row["function"]==case["function"]]
@@ -38,7 +44,8 @@ def audit(blob,rev,case,vendor,graph):
    int(x["sh_addr"])<=start<end<=int(x["sh_addr"])+int(x["sh_size"])),None)
  require(sec is not None,"FUNCTION_NOT_IN_EXEC_SECTION")
  base=int(sec["sh_addr"]);data=sec.data()
- source=int(site["lui_pc"],16)
+ source=derive_lui_pc(site["access_pc"],site["raw_machine_bytes"],site["pattern"])
+ require(start<=source<=access and access+4<=end,"SOURCE_SIGNATURE_OUTSIDE_ELF_FUNCTION")
  sample=data[source-base:source-base+len(site["raw_machine_bytes"])//2]
  check_machine(sample,site["raw_machine_bytes"])
  dec=Cs(CS_ARCH_RISCV,CS_MODE_RISCV32|CS_MODE_RISCVC);dec.skipdata=True
@@ -54,7 +61,7 @@ def audit(blob,rev,case,vendor,graph):
      for x in seq[max(0,i-12):min(len(seq),i+20)]]
  return {"revision":rev,"function":case["function"],"function_entry":hex(start),
    "function_end_exclusive":hex(end),"address":case["address"],
-   "machine_source_lui_pc":site["lui_pc"],"machine_access_pc":site["access_pc"],
+   "machine_source_lui_pc":hex(source),"machine_access_pc":site["access_pc"],
    "matched_source_bytes":site["raw_machine_bytes"],
    "access_opcode":seq[i].mnemonic,"destination_register_index":rd,
    "nearby_machine_instruction_window":window,
