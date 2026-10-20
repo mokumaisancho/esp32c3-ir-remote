@@ -43,7 +43,7 @@ class ROMIndirectEncodingTests(unittest.TestCase):
        enc(jalr(1,6),0x4000000c)]
   for ins,name in zip(seq,("auipc","addi","lw","jalr")):ins.mnemonic=name
   got=trace_load_base(seq,3,6,elf,{dest:["id"]},0)
-  self.assertEqual(got["load_base_provenance"],"STATIC_PC_REL_OR_ABSOLUTE_ROM_BASE")
+  self.assertEqual(got["load_base_provenance"],"STATIC_COMPUTED_BASE_REGION_NOT_YET_CONFIRMED")
   self.assertEqual(got["machine_proven_candidate"]["resolved_callee"],hex(dest))
   self.assertFalse(got["machine_proven_candidate"]["dynamic_execution_proven"])
  def test_writable_pointer_literal_never_certified(self):
