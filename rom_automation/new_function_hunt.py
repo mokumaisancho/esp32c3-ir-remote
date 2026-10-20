@@ -7,7 +7,6 @@ ranges. Neither is proof of previously unknown executable behavior. This
 script never changes the independent-semantic approval gate.
 """
 import argparse,bisect,collections,hashlib,io,json,pathlib,re,sys,tarfile,zipfile
-from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
 from elftools.elf.elffile import ELFFile
 from decision_gate import REVS,MACHINE_SHA,ROM_SHA,require,sha
 
@@ -63,6 +62,7 @@ def clipped_coverage(exec_ranges,func_ranges):
  return merged(intersections)
 
 def decode_elf(blob,rev,original,catalogs,max_witness=8):
+ from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
  elf=ELFFile(io.BytesIO(blob))
  require(elf["e_machine"]=="EM_RISCV" and elf.elfclass==32,"NOT_RV32_ELF")
  require(elf.little_endian,"NOT_LITTLE_ENDIAN_ROM")
