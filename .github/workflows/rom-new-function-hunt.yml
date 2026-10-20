@@ -13,6 +13,8 @@ on:
       - 'rom_automation/test_rom_p0a_entry_trampoline.py'
       - 'rom_automation/test_rom_p0a_indirect_roots.py'
       - 'rom_automation/rom_p0b_vendor_exact.py'
+      - 'rom_automation/rom_p0b_trm_windows.py'
+      - 'rom_automation/test_rom_p0b_trm_windows.py'
       - 'rom_automation/test_rom_p0b_vendor_exact.py'
       - 'rom_automation/rom_mmio_revision_diff.py'
       - 'rom_automation/test_rom_mmio_revision_diff.py'
@@ -146,6 +148,17 @@ jobs:
             --p0b rom_automation/output/new_function_hunt/P0B_MMIO_revision_delta.json \
             --out rom_automation/output/new_function_hunt/P0B_vendor_all13_exact_registers.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0B_vendor_exact.log
+      - name: Validate public ESP32-C3 TRM v1.4 exact reserved boundary and known peripheral counterexamples
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0b_trm_windows.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0B_TRM14_tests.log
+      - name: Crosscheck all 14 unmatched ROM register accesses against official TRM table 3.3-3
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0b_trm_windows.py \
+            --vendor rom_automation/output/new_function_hunt/P0B_vendor_all13_exact_registers.json \
+            --out rom_automation/output/new_function_hunt/P0B_TRM14_public_reserved_intervals.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0B_TRM14.log
       - name: Validate ROM pointer-table scanning false-positive controls
         run: |
           set -euo pipefail
