@@ -111,6 +111,49 @@ def candidate_call(seq,idx,elf,entry_to_key):
     "dynamic_execution_proven":False,"novel_feature_proven":False}
  return None
 
+def probable_last_writer(ins):
+ """Syntactic nearest writer only, not a whole-program register dataflow proof."""
+ w=word(ins)
+ if w is not None:
+  opcode=w&0x7f
+  if opcode in (0x03,0x13,0x17,0x37,0x33,0x67,0x6f,0x73,0x1b,0x2f):
+   dest=(w>>7)&31
+   if dest:
+    group=("MEMORY_LOAD" if opcode==0x03 else
+           "PC_REL_MATERIALIZATION" if opcode in (0x17,0x37) else
+           "ALU_COMPUTATION" if opcode in (0x13,0x33,0x1b) else
+           "CONTROL_OR_CSR")
+    return dest,group
+  return None
+ raw=bytes(ins.bytes)
+ if len(raw)!=2:return None
+ w=int.from_bytes(raw,"little")
+ name=ins.mnemonic
+ if name in ("c.lw","c.flw"):
+  return 8+((w>>2)&7),"COMPRESSED_MEMORY_LOAD"
+ if name in ("c.lwsp",):
+  return (w>>7)&31,"COMPRESSED_MEMORY_LOAD"
+ if name in ("c.mv","c.add","c.li","c.lui","c.addi","c.addi16sp",
+             "c.addi4spn","c.slli","c.srli","c.srai","c.andi","c.sub",
+             "c.xor","c.or","c.and","c.slli"):
+  return (w>>7)&31,"COMPRESSED_ALU_OR_MOVE"
+ return None
+
+def prior_register_class(seq,index,reg,max_lookback=24):
+ """Bounded within a straight-line block; conservative unknown on branch."""
+ control={"beq","bne","blt","bge","bltu","bgeu","bgez","bltz",
+  "beqz","bnez","blez","bgtz","c.beqz","c.bnez","c.j","j",
+  "c.jal","jal","jalr","c.jalr","jr","c.jr","ret","ecall","ebreak"}
+ examined=0
+ for pos in range(index-1,max(-1,index-max_lookback-1),-1):
+  q=seq[pos]
+  if q.mnemonic in control:return "CONTROL_FLOW_BARRIER",None
+  writer=probable_last_writer(q)
+  if writer and writer[0]==reg:
+   return writer[1],{"source_pc":hex(q.address),"source_bytes":bytes(q.bytes).hex(),"mnemonic":q.mnemonic}
+  examined+=1
+ return "NOT_IN_BOUNDED_STRAIGHT_LINE",None
+
 def inspect_revision(blob,revision,graph):
  from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
  elf=ELFFile(io.BytesIO(blob))
@@ -119,7 +162,7 @@ def inspect_revision(blob,revision,graph):
  for key,item in funcs.items():targets[int(item["entry"],16)].append(key)
  decoder=Cs(CS_ARCH_RISCV,CS_MODE_RISCV32|CS_MODE_RISCVC)
  decoder.skipdata=True
- hits=[];counts=collections.Counter();unknown_samples=[]
+ hits=[];counts=collections.Counter();unknown_samples=[];source_classes=collections.Counter();source_samples=collections.defaultdict(list)
  for s in elf.iter_sections():
   if s["sh_type"]!="SHT_PROGBITS" or not int(s["sh_flags"])&4:continue
   base=int(s["sh_addr"]);ins=list(decoder.disasm(s.data(),base))
@@ -143,17 +186,25 @@ def inspect_revision(blob,revision,graph):
      inferred["revision"]=revision
      hits.append(inferred);counts["machine_bytes_resolved_function_entry"]+=1
      counts[inferred["kind"]]+=1
-    elif len(unknown_samples)<25:
-     unknown_samples.append({"caller_function_id":key,"call_pc":hex(x.address),
+    else:
+     category,last=prior_register_class(seq,i,c["rs1"])
+     source_classes[category]+=1
+     observed={"caller_function_id":key,"call_pc":hex(x.address),
        "machine_bytes":bytes(x.bytes).hex(),"rs1":c["rs1"],
-       "rd":c["rd"],"reason":"NO_VERIFIABLE_READONLY_OR_CONSTANT_PATTERN"})
+       "rd":c["rd"],"nearest_register_source":category,"source_instruction":last,
+       "limitation":"Candidate syntactic register provenance only, no dynamic call target"}
+     if len(source_samples[category])<8:source_samples[category].append(observed)
+     if len(unknown_samples)<25:unknown_samples.append(observed)
  return {"revision":revision,"elf_sha256":hashlib.sha256(blob).hexdigest(),
   "function_bodies_indexed":len(funcs),"counts":dict(counts),
   "resolved_strict_machine_byte_edges":hits,
   "unresolved_examples":unknown_samples,
+  "unresolved_register_source_classes":dict(source_classes),
+  "unresolved_source_examples_per_class":dict(source_samples),
   "dynamic_execution_proven":False,
   "supported_patterns":["AUIPC_ADDI_JALR","LUI_ADDI_JALR","AUIPC_LW_JALR","AUIPC_ADDI_LW_JALR"],
   "limitations":["Only contiguous in-function code, no dynamic indexing/relocations or mutable tables.",
+    "Bounded register source classes denote nearest syntactic writer, not independently solved dataflow.",
     "An ELF STT_FUNC target with exact bytes is a structural possibility, not executed call.",
     "No physical tests; no ECV4 runtime or semantic novelty approval."]}
 def evaluate(rom,graph):
