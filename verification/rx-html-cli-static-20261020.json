@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-10-20",
+  "issue": "RX_ZERO_HTML_VS_COMMAND_STATIC_REVIEW",
+  "sources": [
+    {
+      "path": "src/web_ui.h",
+      "ref": "32fdff4dbce564066cb5fc8e477d347896fa73bf",
+      "finding": "Old HTML defaults to backend=rmt and multi=0 because checkbox unchecked."
+    },
+    {
+      "path": "src/web_ui.h",
+      "ref": "80a2a45b2e1805ff43d109704457799dc2a610be",
+      "finding": "Current deployed HTML defaults backend=rmt and always sends multi=1."
+    },
+    {
+      "path": "src/main.cpp",
+      "ref": "80a2a45b2e1805ff43d109704457799dc2a610be",
+      "finding": "backend=library invokes learnWithLibrary; backend=rmt invokes learnSignal; multi=0 skips multi-frame extension when valid first frame received."
+    },
+    {
+      "source": "Google Drive IR_RX_MATRIX_80a2a45_v2.command",
+      "finding": "Batch uses payload={'multi':'1','backend': backend} for both rmt and library; prompts Enter before initiating HTTP request; timeout 14s."
+    }
+  ],
+  "confirmed_static_findings": [
+    "Old default HTML test is not equivalent to new matrix batch because RMT single-frame multi=0 versus matrix multi=1.",
+    "Current deployed HTML rmt/multi=1 and batch rmt/multi=1 do use same server endpoint, form parameters and backend. Source alone cannot explain differing real-world outcomes under otherwise identical conditions.",
+    "Client timeout 14s exceeds nominal server 5s learning window; actual HTTP 408 is explicitly sent by firmware upon !received, not urllib socket timeout.",
+    "Backend=library requires disabling ESP-IDF RMT and enabling IRremoteESP8266 interrupt-based receiver, an additional difference from old HTML rmt default.",
+    "Adding GPIO pin probe and reflashing is diagnostic instrumentation, not proven necessary fix for failure of batch."
+  ],
+  "indeterminate": [
+    "Whether old HTML success refers to first-frame reception or successful lamp color change.",
+    "Real physical GPIO5 edges, libraryLastRawLength, rxLastSymbolCount for failed tests without the detailed device error JSON.",
+    "Whether request trigger-to-button timing differs enough to affect captures.",
+    "True cause of all reported zero-capture outcomes."
+  ],
+  "corrective_actions": [
+    "Do not attribute failure to GPIO5 hardware from HTTP 408 alone.",
+    "Do not flash diagnostic firmware before establishing parity of known working old HTML request.",
+    "Reproduce old HTML baseline with backend=rmt,multi=0; compare against deployed UI backend=rmt,multi=1; inspect exact 408 response body and avoid extra backend unless needed.",
+    "Add static UI-versus-CLI API contract regression to prevent drift."
+  ],
+  "status": "STATIC_DIFFERENCE_FOUND_CAUSE_NOT_YET_PROVEN"
+}
