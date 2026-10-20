@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "issue": "RX-ZERO-20261020",
+  "original_problem": "OD ELIC NRL-351N-JP warm/dim and even positive-control buttons cannot be captured; earlier IRremoteESP8266 observations HTTP 408",
+  "user_observations": [
+    "Original ODELIC remote operates the lamp normally",
+    "Firmware image 80a2a45 readback SHA256 verified, HTTP status functional",
+    "Warm and dim learn via IRremoteESP8266 yielded HTTP 408",
+    "Later user reported zero acquisitions with RX matrix; latest JSON not available in this turn"
+  ],
+  "root_cause_classification": "UNKNOWN_PENDING_GPIO_PHYSICAL_EVIDENCE",
+  "disproven_inferences": [
+    "No claim that 38kHz is wrong",
+    "No claim that GPIO5 receiver hardware is defective",
+    "Do not treat injected mock signals as physical receive success"
+  ],
+  "code_findings": [
+    "RMT and library both return 408 without independent GPIO pin transition telemetry",
+    "RMT full buffer causes discard, and previously replayed first frame only in UI preview",
+    "Host mock only validates algorithm transitions, not sensor, waveform or electrical reception"
+  ],
+  "remediation": [
+    "Add protocol-independent 5s GPIO5 transition measurement",
+    "Report positive and negative observed levels, edge counts, sample gaps, classifications",
+    "Expose RMT receive completion and rejection counters on failed learn",
+    "Enable one-click Web UI probe; do not write LittleFS, send IR, change RMT channel or flash"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "A",
+      "condition": "Native unit test confirms GPIO counters for changing and stuck input sequences",
+      "status": "TEST_IMPLEMENTED_CI_PENDING"
+    },
+    {
+      "id": "B",
+      "condition": "ESP32-C3 firmware builds and binary fits partition",
+      "status": "CI_PENDING"
+    },
+    {
+      "id": "C",
+      "condition": "Mac physical GPIO probe observes actual remote button edges",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "id": "D",
+      "condition": "RMT succeeds on known original button after causal code repair",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "id": "E",
+      "condition": "Warm/dim replay changes light color/brightness",
+      "status": "NOT_VERIFIED"
+    }
+  ],
+  "status": "INVESTIGATING",
+  "date_local": "2026-10-20"
+}
