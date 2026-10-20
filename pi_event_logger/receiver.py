@@ -33,7 +33,7 @@ def validate(raw):
                 "slot", "result", "tx_ms", "frames"):
         if type(data[key]) is not int:
             raise ValueError("non_integer_" + key)
-    if data["v"] != 1 or data["event"] not in EVENTS:
+    if data["v"] != 1 or type(data["event"]) is not str or data["event"] not in EVENTS:
         raise ValueError("version_or_event")
     if not (0 <= data["boot"] <= 0xFFFFFFFF and
             1 <= data["seq"] <= 0xFFFFFFFF and
@@ -63,6 +63,9 @@ def persist(directory, payload, source_ip, now=None):
     flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
+    # Cap each UTC-day file even if a trusted-LAN sender misbehaves.
+    if fname.exists() and fname.stat().st_size + len(line) > 4 * 1024 * 1024:
+        raise ValueError("daily_log_cap")
     fd = os.open(fname, flags, 0o600)
     try:
         os.write(fd, line)
