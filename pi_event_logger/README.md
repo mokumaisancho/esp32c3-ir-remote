@@ -6,6 +6,32 @@ This repository contains a Pi safety stop for persistent undervoltage in the
 home infrastructure records. Do not modify Pi services until that stop is
 reviewed and the electrical cause is resolved.
 
+## Private, GPT-readable cloud log
+
+Target: [Pi infrastructure private Issue #19](https://github.com/mokumaisancho/pi5-infrastructure-control/issues/19). The GitHub connector has successfully written and read back synthetic test comment `6303040555`. This proves GPT can retrieve private cloud events, **not** that the Pi hardware has delivered an event.
+
+**Transport:** ESP32-C3 emits bounded pre/post UDP events to Pi `192.168.2.131:5514` → Pi validates and fsync-appends local JSONL → Pi's own background thread posts sanitized event data via outbound HTTPS to the PRIVATE GitHub issue → GPT reads private issue comments. No Mac, GAS, inbound SSH, router forwarding, or credentials on the ESP32. Raw IR pulses, IP addresses and Wi-Fi secrets are omitted from cloud comments.
+
+### Pi start (only after Pi undervoltage/power-safety gate is cleared)
+
+Run from a Pi checkout of this firmware repository as an unprivileged user:
+
+```sh
+# Set ESP32_ALARM_GITHUB_TOKEN via the Pi's existing private secret manager:
+# fine-grained GitHub PAT scoped ONLY to private repo pi5-infrastructure-control;
+# permission Issues read/write. Never commit or paste a token into ChatGPT.
+python3 -u pi_event_logger/receiver.py \
+  --bind 192.168.2.131 --allow 192.168.2.141 \
+  --port 5514 --cloud \
+  --dir "$HOME/.local/share/esp32-alarm-events"
+```
+
+If the dedicated token is absent, an existing authenticated `gh auth token` can be reused. If no token is available, `--cloud` stops rather than silently claiming delivery. ESP32 firmware retains no cloud secret.
+
+The `ESP32_ALARM_EVENT_V1` comment contains a stable SHA-256 event ID, Pi receiver UTC, boot and sequence, alarm rule, saved signal slot, driver result, elapsed TX time and frames sent. GPT can retrieve and deduplicate by `event_id`. The local JSONL survives temporary Internet failures and is retried on Pi restart; a lost HTTP ACK can produce a duplicate cloud comment. **An ESP32 UDP datagram lost before Pi receives it cannot be recovered**, because the firmware has no ACK/retry queue.
+
+The cloud uploader does not imply physical LED light output, and real Pi-to-GitHub transport still requires Pi-side deployment. CI tests run real localhost UDP and local fsync, plus mock HTTPS POST and crash/retry conditions. Avoid labeling those CI tests a Pi hardware pass.
+
 ## Transport and scope
 
 - ESP32-C3 STA `192.168.2.141` → Pi wired LAN `192.168.2.131:5514/udp`.
@@ -15,7 +41,7 @@ reviewed and the electrical cause is resolved.
 - `alarm_after_tx` reports driver result, frame count and time after send.
 - `alarm_persist_failed` and `alarm_signal_missing` log action skips.
 - Pi appends validated events to mode-0600 JSONL and calls `fsync()`.
-  Log data never travels to an external cloud in this MVP.
+  With --cloud, sanitized event metadata is delivered to private GitHub over Pi-side HTTPS.
 - Receiver binds only the Pi's wired LAN IP, permits only the ESP STA IP and
   rejects non-schema packets. **An IP allowlist is not authentication.**
   This MVP must stay on a trusted private LAN; never forward UDP 5514.
