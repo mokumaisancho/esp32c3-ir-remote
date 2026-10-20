@@ -28,6 +28,24 @@ class StaticSRAMWriterTests(unittest.TestCase):
   s.insert(2,ins(0x00000063,0x40000008,"beq"))
   s[3].address=0x4000000c
   self.assertIsNone(detect_store(s,3,{0x3fcdfbe4}))
+ def test_compressed_sw_genuine_bits(self):
+  # C.SW x10, 12(x9): imm[5:3]=001, imm[2]=1
+  raw=(6<<13)|(1<<10)|(1<<7)|(1<<6)|(2<<2)
+  z=types.SimpleNamespace(bytes=raw.to_bytes(2,"little"),size=2,address=0x40000000,mnemonic="c.sw")
+  effect=real_store(z)
+  self.assertEqual((effect["base_reg"],effect["value_reg"],effect["offset"],effect["width_bytes"]), (9,10,12,4))
+  changed=types.SimpleNamespace(bytes=(raw^(1<<6)).to_bytes(2,"little"),size=2,address=0x40000000,mnemonic="c.sw")
+  self.assertEqual(real_store(changed)["offset"],8)
+ def test_compressed_swsp_genuine_bits(self):
+  # C.SWSP x11, 124(sp): imm bits 2..5=1111, bits 6..7=01
+  raw=(6<<13)|(15<<9)|(1<<7)|(11<<2)|2
+  z=types.SimpleNamespace(bytes=raw.to_bytes(2,"little"),size=2,address=0x40000000,mnemonic="c.swsp")
+  effect=real_store(z)
+  self.assertEqual((effect["base_reg"],effect["value_reg"],effect["offset"]), (2,11,124))
+ def test_non_store_c_extension_does_not_match(self):
+  for raw in (0x0001,0x8082,0xc002):
+   z=types.SimpleNamespace(bytes=raw.to_bytes(2,"little"),size=2,address=0,mnemonic="random")
+   self.assertIsNone(real_store(z))
  def test_strict_store_opcodes_only(self):
   self.assertEqual(real_store(ins(sw(10,5,0),0x40000000,"sw"))["width_bytes"],4)
   self.assertIsNone(real_store(ins(addi(5,5,0),0x40000000,"addi")))
