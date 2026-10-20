@@ -8,6 +8,10 @@ on:
       - 'rom_automation/new_function_triage.py'
       - 'rom_automation/rom_fast_graph.py'
       - 'rom_automation/rom_gap_branch_seeds.py'
+      - 'rom_automation/rom_p0a_indirect_roots.py'
+      - 'rom_automation/test_rom_p0a_indirect_roots.py'
+      - 'rom_automation/rom_p0b_vendor_exact.py'
+      - 'rom_automation/test_rom_p0b_vendor_exact.py'
       - 'rom_automation/rom_mmio_revision_diff.py'
       - 'rom_automation/test_rom_mmio_revision_diff.py'
       - 'rom_automation/test_rom_gap_branch_seeds.py'
@@ -105,6 +109,29 @@ jobs:
             --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
             --out rom_automation/output/new_function_hunt/P0B_MMIO_revision_delta.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0B_MMIO_revision_delta.log
+      - name: Test P0-A ELF symbol-size gaps and nonexecuting pointer target lookups
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0a_indirect_roots.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0A_indirect_roots_tests.log
+      - name: Search executable gap roots from ROM nonexecuting tables and ELF symbols
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0a_indirect_roots.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --out rom_automation/output/new_function_hunt/P0A_indirect_gap_roots.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0A_indirect_roots.log
+      - name: Test exact vendor register macro matches and corruption controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0b_vendor_exact.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0B_vendor_exact_tests.log
+      - name: Match all 13 static ROM register deltas against vendor pinned register headers
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0b_vendor_exact.py \
+            --p0b rom_automation/output/new_function_hunt/P0B_MMIO_revision_delta.json \
+            --out rom_automation/output/new_function_hunt/P0B_vendor_all13_exact_registers.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0B_vendor_exact.log
       - name: Validate ROM pointer-table scanning false-positive controls
         run: |
           set -euo pipefail
