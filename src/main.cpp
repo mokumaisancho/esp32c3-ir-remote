@@ -21,6 +21,7 @@
 #include "alarm_policy.h"
 #include "config.h"
 #include "diagnostic_policy.h"
+#include "rx_pin_probe.h"
 #include "web_ui_gzip.h"
 
 namespace {
@@ -113,6 +114,9 @@ esp_err_t rxInitError = ESP_ERR_INVALID_STATE;
 esp_err_t rxLastStartError = ESP_OK;
 esp_err_t rxLastResetError = ESP_OK;
 uint32_t rxLastSymbolCount = 0;
+uint32_t rxCompletedEvents = 0;
+uint32_t rxRejectedEvents = 0;
+uint32_t rxLargestFrameSymbols = 0;
 bool captureTruncated = false;
 uint32_t captureBytes = 0;
 uint32_t captureBudget = 0;
@@ -395,6 +399,9 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
   readAttempts = 0;
   earlyFailures = 0;
   rxLastSymbolCount = 0;
+  rxCompletedEvents = 0;
+  rxRejectedEvents = 0;
+  rxLargestFrameSymbols = 0;
   rxLastStartError = ESP_OK;
   rxLastResetError = ESP_OK;
   captureTruncated = false;
@@ -430,6 +437,8 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
       break;
     }
     rxLastSymbolCount = static_cast<uint32_t>(count);
+    ++rxCompletedEvents;
+    rxLargestFrameSymbols = std::max(rxLargestFrameSymbols, static_cast<uint32_t>(count));
     // A filled DMA/RMT output buffer could conceal a missing frame tail.
     if (count >= ircfg::MAX_RMT_SYMBOLS) {
       captureTruncated = true;
@@ -466,10 +475,12 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
               break;
             }
             const uint32_t endMs = millis();
+            ++rxCompletedEvents;
+            rxLargestFrameSymbols = std::max(rxLargestFrameSymbols, static_cast<uint32_t>(extraCount));
             if (extraCount >= ircfg::MAX_RMT_SYMBOLS) { captureTruncated = true; break; }
             if (extraCount == 0) continue;
             Signal extra = normalizeReceived(rxSymbols, extraCount);
-            if (extra.pulses.size() < 2 || extra.pulses.size() > ircfg::MAX_PULSES) continue;
+            if (extra.pulses.size() < 2 || extra.pulses.size() > ircfg::MAX_PULSES) { ++rxRejectedEvents; continue; }
             const uint32_t durationMs = (signalDurationUs(extra) + 999U) / 1000U;
             const uint32_t deltaMs = endMs - prevEnd;
             const uint32_t gapMs = deltaMs > durationMs ? deltaMs - durationMs : 0U;
@@ -494,6 +505,7 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
       }
     }
     // A noise burst must not end the user-visible capture window.
+    if (count > 0) ++rxRejectedEvents;
     if (static_cast<uint32_t>(millis() - start) < ircfg::LEARN_WINDOW_MS) delay(1);
   }
   elapsedMs = millis() - start;
@@ -696,6 +708,53 @@ String rawJson(const Signal &signal) {
   return json;
 }
 
+void handleRxPinProbe() {
+  constexpr uint32_t kProbeMs = 5000;
+  const uint32_t beganMs = millis();
+  const uint32_t beganUs = micros();
+  uint32_t prevUs = beganUs;
+  rx_pin_probe::Counters counters;
+  uint32_t nextYieldSample = 1024;
+  Serial.printf("RX_PIN_PROBE_BEGIN pin=%d duration_ms=%lu\n",
+                ircfg::IR_RX_PIN, static_cast<unsigned long>(kProbeMs));
+  while (static_cast<uint32_t>(millis() - beganMs) < kProbeMs) {
+    const uint32_t nowUs = micros();
+    counters.observe(digitalRead(ircfg::IR_RX_PIN), nowUs - prevUs);
+    prevUs = nowUs;
+    // Short microsecond polling resolves ~0.5ms demodulated IR marks.
+    delayMicroseconds(12);
+    if (counters.samples >= nextYieldSample) {
+      delay(0);
+      nextYieldSample += 1024;
+    }
+  }
+  const uint32_t elapsedMs = millis() - beganMs;
+  // Report observation, not interpretation: zero transitions alone does not
+  // prove failed receiver hardware or an absent remote signal.
+  String json = "{\"ok\":true,\"gpio\":" + String(ircfg::IR_RX_PIN);
+  json += ",\"duration_ms\":" + String(elapsedMs);
+  json += ",\"samples\":" + String(counters.samples);
+  json += ",\"initial_level\":" + String(counters.initial_level);
+  json += ",\"final_level\":" + String(counters.final_level);
+  json += ",\"high_samples\":" + String(counters.high_samples);
+  json += ",\"low_samples\":" + String(counters.low_samples);
+  json += ",\"transitions\":" + String(counters.transitions);
+  json += ",\"falling_edges\":" + String(counters.falling_edges);
+  json += ",\"rising_edges\":" + String(counters.rising_edges);
+  json += ",\"longest_sample_gap_us\":" + String(counters.longest_sample_gap_us);
+  json += ",\"rmt_rx_ready\":" + String(rmtRxReady ? "true" : "false");
+  json += ",\"classification\":\"" + String(counters.transitions > 0 ?
+      "PIN_ACTIVITY_OBSERVED" : "NO_PIN_ACTIVITY_OBSERVED") + "\"}";
+  Serial.printf("RX_PIN_PROBE_END elapsed_ms=%lu samples=%lu transitions=%lu low=%lu high=%lu max_gap_us=%lu\n",
+                static_cast<unsigned long>(elapsedMs),
+                static_cast<unsigned long>(counters.samples),
+                static_cast<unsigned long>(counters.transitions),
+                static_cast<unsigned long>(counters.low_samples),
+                static_cast<unsigned long>(counters.high_samples),
+                static_cast<unsigned long>(counters.longest_sample_gap_us));
+  sendJson(200, json);
+}
+
 void handleStatus() {
   const bool staConnected = WiFi.status() == WL_CONNECTED;
   const IPAddress ip = staConnected ? WiFi.localIP() : WiFi.softAPIP();
@@ -757,6 +816,10 @@ void handleLearn() {
     const bool resetFailed = rxLastResetError != ESP_OK;
     const char *reason = irpolicy::rxFailureReason(startFailed, resetFailed,
                                                    rxLastSymbolCount);
+    if (!startFailed && !resetFailed && !captureTruncated) {
+      if (libraryMode) reason = libraryLastRawLength > 0 ? "library_no_valid_frame" : "library_no_frame";
+      else reason = rxCompletedEvents > 0 ? "rmt_no_valid_frame" : "rmt_no_frame";
+    }
     String json = "{\"ok\":false,\"reason\":\"" + String(captureTruncated ? "capture_limit" : reason) + "\"";
     json += ",\"elapsed_ms\":" + String(elapsedMs);
     json += ",\"start_esp_err\":" + String(static_cast<int>(rxLastStartError));
@@ -769,7 +832,10 @@ void handleLearn() {
     json += ",\"overflow\":" + String(libraryMode && libraryLastOverflow ? "true" : "false");
     json += ",\"truncated\":" + String(captureTruncated ? "true" : "false");
     json += ",\"capture_bytes\":" + String(captureBytes);
-    json += ",\"capture_budget_bytes\":" + String(captureBudget) + "}";
+    json += ",\"capture_budget_bytes\":" + String(captureBudget);
+    json += ",\"rmt_completed_events\":" + String(libraryMode ? 0 : rxCompletedEvents);
+    json += ",\"rmt_rejected_events\":" + String(libraryMode ? 0 : rxRejectedEvents);
+    json += ",\"rmt_max_frame_symbols\":" + String(libraryMode ? 0 : rxLargestFrameSymbols) + "}";
     sendJson(captureTruncated ? 507 : (startFailed || resetFailed ? 503 : 408), json);
     return;
   }
@@ -1222,6 +1288,7 @@ void setupRoutes() {
                   reinterpret_cast<PGM_P>(INDEX_HTML_GZ), INDEX_HTML_GZ_LEN);
   });
   server.on("/api/status", HTTP_GET, handleStatus);
+  server.on("/api/rx-pin-probe", HTTP_POST, handleRxPinProbe);
   server.on("/api/diagnostics", HTTP_GET, handleDiagnostics);
   server.on("/api/learn", HTTP_POST, handleLearn);
   server.on("/api/save", HTTP_POST, handleSave);
