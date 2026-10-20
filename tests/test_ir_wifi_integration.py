@@ -244,6 +244,7 @@ int xQueueReceive(QueueHandle_t q, size_t* count, uint32_t timeout) {
   if (scenario == 2) { *count=4; return pdTRUE; }
   if (scenario == 5) { *count=4; fake_time += 110; return pdTRUE; }
   if (scenario == 6) { *count=4; fake_time += 2; return pdTRUE; }
+  if (scenario == 7) { *count=ircfg::MAX_RMT_SYMBOLS; fake_time += 110; return pdTRUE; }
   fake_time += timeout;
   return 0;
 }
@@ -280,13 +281,16 @@ int main(){
   ok=learnSignal(s,elapsed,attempts,early);
   assert(!ok && captureTruncated && s.extraFrames.size()==MAX_EXTRA_FRAMES && elapsed<5000);
   server.multi=false;
+  scenario=7; fake_time=0; rmtRxReady=true;
+  ok=learnSignal(s,elapsed,attempts,early);
+  assert(!ok && captureTruncated && elapsed<5000);
   scenario=3; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(!ok && elapsed==5000 && attempts==1 && early==0 && rxLastResetError==ESP_OK && rmtRxReady);
   scenario=4; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(!ok && rxLastResetError==ESP_ERR_INVALID_STATE && !rmtRxReady);
-  std::cout << "DIRECT_IDF_RECEIVE_7_SCENARIOS_PASS\n";
+  std::cout << "DIRECT_IDF_RECEIVE_8_SCENARIOS_PASS\n";
 }
 """
         with tempfile.TemporaryDirectory() as tmp:
@@ -301,7 +305,7 @@ int main(){
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
             execute = subprocess.run([str(binary)], text=True, capture_output=True, timeout=15)
             self.assertEqual(execute.returncode, 0, execute.stdout + execute.stderr)
-            self.assertIn("DIRECT_IDF_RECEIVE_7_SCENARIOS_PASS", execute.stdout)
+            self.assertIn("DIRECT_IDF_RECEIVE_8_SCENARIOS_PASS", execute.stdout)
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_exact_web_ui_javascript_syntax(self):
