@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "id": "TX-4065-20261020",
+  "date": "2026-10-20",
+  "original_problem": "Warm color command physically does not change lamp although RMT receive stores it and Arduino RMT transmit returns DRIVER_OK. Two independent TX HTTP calls both report duration 4065ms for a recorded ~64881us waveform.",
+  "observed": [
+    {
+      "capture": {
+        "backend": "rmt",
+        "multi": false,
+        "slot": 2,
+        "pulses": 67,
+        "frames": 1,
+        "raw_duration_us": 64881,
+        "command_nec_extended_hex": "80 C5 6A 95",
+        "HTTP": 200
+      }
+    },
+    {
+      "transmit": {
+        "max_frames": 1,
+        "HTTP": 200,
+        "driver": "DRIVER_OK",
+        "verified_by_receiver": false,
+        "tx_duration_ms": 4065,
+        "handler_ms": 6065,
+        "visual_color_change": "UNKNOWN"
+      }
+    },
+    {
+      "transmit": {
+        "slot": 2,
+        "max_frames": 1,
+        "HTTP": 200,
+        "driver": "DRIVER_OK",
+        "verified_by_receiver": false,
+        "tx_duration_ms": 4065,
+        "handler_ms": 6071,
+        "visual_color_change": false,
+        "tx_attempt": 3
+      }
+    }
+  ],
+  "analysis": {
+    "repo_source": "src/main.cpp",
+    "upstream_hwcdc": "https://github.com/espressif/arduino-esp32/blob/3.3.11/cores/esp32/HWCDC.cpp",
+    "upstream_known_issue": "https://github.com/espressif/arduino-esp32/issues/12983",
+    "diagnosis": "USB HWCDC backpressure can stall Serial writes for roughly 2 seconds per buffered write; 4-second and 6-second execution-time figures closely track this known failure, but timing must be confirmed on the user's Mac.",
+    "observed_RMT_HAL_behavior": "rmtWrite waits for TX_DONE, called with 200ms timeout; successful 4.065s measurement contains additional delays not intrinsically explained by physical waveform duration.",
+    "unproven": "A slow API does not itself prove the emitted IR optical waveform is wrong. Lamp may need NEC repeat frames; LED amplitude, wiring and carrier remain unknown."
+  },
+  "change": {
+    "CI_source_commit": "c4cfaf4665be2acd5d2e878d55e145d6c4ae56fa",
+    "CI_url": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39432189374",
+    "CI_status": "success",
+    "source_actions": [
+      "Bound ESP32C3 USB CDC TX timeout to 1ms instead of library default 100ms",
+      "Expose TX serial pre/post, RMT write and carrier configuration durations separately",
+      "Expose intended waveform length in microseconds",
+      "Preserve existing RMT capture, optical carrier, GPIO allocation, alarm and LittleFS logic"
+    ],
+    "CI_tests": {
+      "python_total": 28,
+      "source_impact": "PASS",
+      "native_edge_counter": "PASS",
+      "esp32_c3_binary_size": 1264736,
+      "partition_size": 1310720,
+      "partition_headroom": 45984
+    },
+    "release": {
+      "drive_file_url": "https://drive.google.com/file/d/1fm8jsN_acJlqIpNEHoaEnh0NvDL5Thmo/view",
+      "single_file_name": "IR_INSTALL_TX_FIX_c4cfaf4_v2.command",
+      "single_file_sha256": "2cdb0ac6d872d5a2821baea45d10d9d992f69fabeaf4ae7c22017fee352940bf",
+      "archive_sha256": "308ba0c641ce062d85e7aafc6519018d606e85ff7e264dff9ef43433bd0e05d7",
+      "firmware_image_sha256": "82ca1d68a897791b9f9c5fba32ccd780f8c865c56e3af4118504721eeb297ead",
+      "drive_readback_sha256_pass": true,
+      "note": "ZIP bundled in single .command, no second download required"
+    }
+  },
+  "acceptance_criteria": [
+    {
+      "id": "TX1",
+      "criterion": "CI builds and tests source",
+      "state": "PASS"
+    },
+    {
+      "id": "TX2",
+      "criterion": "Drive release is byte identical to validated local assembly",
+      "state": "PASS"
+    },
+    {
+      "id": "TX3",
+      "criterion": "User MAC installs new binary and confirms flash readback",
+      "state": "PENDING"
+    },
+    {
+      "id": "TX4",
+      "criterion": "tx_pre_serial_ms shows reduced USB output delay and tx_rmt_write_ms plausible versus ~65ms intended waveform",
+      "state": "PENDING"
+    },
+    {
+      "id": "TX5",
+      "criterion": "Warm lamp color physically changes on retransmit",
+      "state": "FAIL_PREVIOUS_VERSION_AND_PENDING_NEW_TEST"
+    },
+    {
+      "id": "TX6",
+      "criterion": "Physical IR waveform optically matches original capture or repeat-frame sequence",
+      "state": "NOT_VERIFIED"
+    }
+  ],
+  "status": "PARTIALLY_RESOLVED_SERIAL_BACKPRESSURE_FIX_BUILT__PHYSICAL_COLOR_UNVERIFIED"
+}
