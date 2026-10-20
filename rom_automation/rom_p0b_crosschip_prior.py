@@ -90,6 +90,6 @@ def main():
  a.out.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
  print("ROM_P0B_CROSSCHIP_11",json.dumps({
   "examined":result["examined_remaining"],"other_document_matches":result["other_source_exact_address_matches"],
-  "no_match_in_these_two_only":result["remaining_no_exact_matches_in_three_sources"],
+  "no_match_in_three_sources":result["remaining_no_exact_matches_in_three_sources"],
   "independent_C3_new_semantics":result["independently_verified_C3_new_semantics"]},sort_keys=True))
 if __name__=="__main__":main()
