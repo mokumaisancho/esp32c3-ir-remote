@@ -21,7 +21,7 @@ def linker_symbols(source):
 def inspect(strict,writer,graph,linker_text,git_blob_sha1):
  require(git_blob_sha1==EXPECTED_SHA1,"VENDOR_GIT_BLOB_PIN_MISMATCH")
  raw=linker_text.encode("utf-8")
- observed=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\\x00"+raw).hexdigest()
+ observed=hashlib.sha1(b"blob "+str(len(raw)).encode()+bytes([0])+raw).hexdigest()
  require(observed==EXPECTED_SHA1,"VENDOR_LINKER_CONTENT_SHA_MISMATCH")
  require(strict.get("pinned_rom_sha256")==ROM_SHA,"STRICT_SOURCE_SHA")
  require(writer.get("source_ROM_sha256")==ROM_SHA,"WRITER_SOURCE_SHA")
