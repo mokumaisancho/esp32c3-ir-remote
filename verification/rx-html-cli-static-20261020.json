@@ -42,5 +42,41 @@
     "Reproduce old HTML baseline with backend=rmt,multi=0; compare against deployed UI backend=rmt,multi=1; inspect exact 408 response body and avoid extra backend unless needed.",
     "Add static UI-versus-CLI API contract regression to prevent drift."
   ],
-  "status": "STATIC_DIFFERENCE_FOUND_CAUSE_NOT_YET_PROVEN"
+  "status": "POSITIVE_CONTROL_PASS__WARM_DIM_CAUSE_UNRESOLVED",
+  "new_physical_evidence": {
+    "date_local": "2026-10-20",
+    "baseline_request": {
+      "method": "POST",
+      "endpoint": "/api/learn",
+      "form": {
+        "multi": "0",
+        "backend": "rmt"
+      }
+    },
+    "first_attempt": {
+      "http_status": 408,
+      "reason": "rmt_no_frame",
+      "elapsed_ms": 7000,
+      "symbol_count": 0,
+      "rmt_completed_events": 0
+    },
+    "subsequent_attempt": {
+      "http_status": 200,
+      "ok": true,
+      "backend": "rmt",
+      "stored": true,
+      "slot": 0,
+      "frames": 1,
+      "pulses": 67,
+      "duration_us": 64837,
+      "elapsed_ms": 2449,
+      "capture_bytes": 268
+    },
+    "conclusions": [
+      "GPIO5 and RMT hardware path are demonstrably capable of receiving a valid full-remote frame under baseline conditions",
+      "HTTP 408 can occur intermittently under same nominal backend and multi=0 settings; do not attribute to hardware faults or multi flag alone",
+      "Need capture warm and dim with backend=rmt and multi=0 as next logical test before using extra multi-frame sequences",
+      "Do not treat successful transmit driver calls or lighting blink as proof that color/brightness changed"
+    ]
+  }
 }
