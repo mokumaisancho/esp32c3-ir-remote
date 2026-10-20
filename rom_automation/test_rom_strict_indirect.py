@@ -1,6 +1,6 @@
 """ROM-001: independently encoded raw-immediate positive/negative indirect calls."""
 import types,unittest
-from rom_strict_indirect import address_builder,decode_jalr,candidate_call,readonly_literal,prior_register_class
+from rom_strict_indirect import address_builder,decode_jalr,candidate_call,readonly_literal,prior_register_class,trace_load_base
 def enc(v,pc):return types.SimpleNamespace(bytes=int(v).to_bytes(4,"little"),size=4,address=pc)
 def cenc(v,pc):return types.SimpleNamespace(bytes=int(v).to_bytes(2,"little"),size=2,address=pc)
 def auipc(rd,hi):return 0x17 | (rd<<7) | (hi&0xfffff000)
@@ -35,6 +35,28 @@ class ROMIndirectEncodingTests(unittest.TestCase):
   seq=[enc(jalr(1,15),0x40000000)]
   seq[0].mnemonic="jalr"
   self.assertEqual(prior_register_class(seq,0,15)[0],"NOT_IN_BOUNDED_STRAIGHT_LINE")
+ def test_longer_bounded_defuse_resolves_only_immutable_ROM(self):
+  dest=0x40004100;elf=FakeElf([FakeSection(0x40001000,dest.to_bytes(4,"little"))])
+  seq=[enc(auipc(5,0x1000),0x40000000),
+       enc(addi(7,0,12),0x40000004),
+       enc(lw(6,5,0),0x40000008),
+       enc(jalr(1,6),0x4000000c)]
+  for ins,name in zip(seq,("auipc","addi","lw","jalr")):ins.mnemonic=name
+  got=trace_load_base(seq,3,6,elf,{dest:["id"]},0)
+  self.assertEqual(got["load_base_provenance"],"STATIC_PC_REL_OR_ABSOLUTE_ROM_BASE")
+  self.assertEqual(got["machine_proven_candidate"]["resolved_callee"],hex(dest))
+  self.assertFalse(got["machine_proven_candidate"]["dynamic_execution_proven"])
+ def test_writable_pointer_literal_never_certified(self):
+  dest=0x40004100;s=FakeSection(0x40001000,dest.to_bytes(4,"little"));s["sh_flags"]=3
+  seq=[enc(auipc(5,0x1000),0x40000000),
+       enc(lw(6,5,0),0x40000004),
+       enc(jalr(1,6),0x40000008)]
+  for ins,name in zip(seq,("auipc","lw","jalr")):ins.mnemonic=name
+  self.assertIsNone(trace_load_base(seq,2,6,FakeElf([s]),{dest:["id"]},0)["machine_proven_candidate"])
+ def test_unknown_argument_register_load_base(self):
+  seq=[enc(lw(6,10,0),0x40000000),enc(jalr(1,6),0x40000004)]
+  seq[0].mnemonic="lw";seq[1].mnemonic="jalr"
+  self.assertEqual(trace_load_base(seq,1,6,FakeElf([]),{},0)["load_base_provenance"],"ARGUMENT_REGISTER_UNMODELED")
  def test_auipc_addi_positive_immediate(self):
   a=enc(auipc(5,0x1000),0x40000000);b=enc(addi(5,5,12),0x40000004)
   t=address_builder(a,b)
