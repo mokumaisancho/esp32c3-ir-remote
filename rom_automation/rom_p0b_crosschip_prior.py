@@ -3,7 +3,7 @@
 
 Pinned immutable GitHub blob SHA-1 + pinned git commits. Two independent
 third-party repositories are used solely to identify prior *address use*:
-one ESP32-S3 PHY extraction and one ESP radio bring-up notebook. Both
+one ESP32-S3 PHY extraction, one radio bring-up notebook, and one\nunverified C3-labelled captured register-value series. Both
 sources are not authoritative C3 silicon function evidence.
 """
 import argparse,hashlib,json,pathlib,re,urllib.request
@@ -19,7 +19,13 @@ SOURCES=[
   "path":"doc/plan-radio.md",
   "blob_sha1":"dd51c71856495d43555bd03d555be29fa121b0cf",
   "target_chip":"UNCONFIRMED_FOR_THE_EXACT_LINE",
-  "strength":"THIRD_PARTY_RADIO_PLAN_EXACT_LITERAL_NOT_INDEPENDENT_HARDWARE_PROOF"}
+  "strength":"THIRD_PARTY_RADIO_PLAN_EXACT_LITERAL_NOT_INDEPENDENT_HARDWARE_PROOF"},
+ {"id":"THIRD_PARTY_C3_RADIO_CAPTURE","repo":"w1ne/labwired-core",
+  "ref":"f380910758c815b887cebbb5a87f7eaceb5c9cdb",
+  "path":"scripts/hw-oracle/captures/esp32c3/wifi-radio-20260611T214340Z/radio_windows.json",
+  "blob_sha1":"84c5df4c4d467d71c84225d626eda46bd84c4c1f",
+  "target_chip":"ESP32-C3_CLAIMED_BY_THIRD_PARTY_PATH",
+  "strength":"THIRD_PARTY_CLAIMED_DEVICE_CAPTURE_NO_INDEPENDENT_SENSOR_ATTESTATION"}
 ]
 def git_blob(data):
  return hashlib.sha1(b"blob "+str(len(data)).encode()+bytes([0])+data).hexdigest()
@@ -55,17 +61,17 @@ def inspect(report,texts):
     "same_chip_exact_register_function_proven":False,
     "published_worldfirst_novelty_claim_approved":False,
     "state":"OTHER_SOURCE_ADDRESS_MATCH_NOT_CHIP_VERIFIED" if hits else
-            "NO_EXACT_MATCH_IN_THESE_TWO_PINNED_SOURCES_NOT_WORLDWIDE_ABSENT"})
+            "NO_EXACT_MATCH_IN_THESE_THREE_PINNED_SOURCES_NOT_WORLDWIDE_ABSENT"})
  return {"schema":"ROM001_P0B_11_CROSS_CORPUS_ADDRESS_EVIDENCE_V1",
    "original_issue_id":"ESP32C3-ROM-001","source_ROM_sha256":ROM_SHA,
    "documents":corpus,"examined_remaining":11,
    "rows":rows,"other_source_exact_address_matches":sum(bool(x["source_hits"]) for x in rows),
-   "remaining_no_exact_matches_in_two_sources":sum(not x["source_hits"] for x in rows),
+   "remaining_no_exact_matches_in_three_sources":sum(not x["source_hits"] for x in rows),
    "independently_verified_C3_new_semantics":0,
    "limits":["ESP32-S3 PHY address coincidence is NOT ESP32-C3 register function equivalence.",
-     "Some radio plans may be speculative and are not proof of hardware-level behavior.",
+     "Third-party C3-labelled captures have no independent board-attestation or measurement replay; some radio plans may be speculative and are not proof of hardware-level behavior.",
      "Textual equality without register read/write trace or same-chip source is only search prioritization.",
-     "A missing exact address in two sources does not imply undocumented worldwide."]}
+     "A missing exact address in three sources does not imply undocumented worldwide."]}
 
 def evaluate(prior):
  corpus={}
@@ -84,6 +90,6 @@ def main():
  a.out.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
  print("ROM_P0B_CROSSCHIP_11",json.dumps({
   "examined":result["examined_remaining"],"other_document_matches":result["other_source_exact_address_matches"],
-  "no_match_in_these_two_only":result["remaining_no_exact_matches_in_two_sources"],
+  "no_match_in_these_two_only":result["remaining_no_exact_matches_in_three_sources"],
   "independent_C3_new_semantics":result["independently_verified_C3_new_semantics"]},sort_keys=True))
 if __name__=="__main__":main()
