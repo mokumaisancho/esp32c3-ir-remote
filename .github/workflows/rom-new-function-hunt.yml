@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'rom_automation/new_function_hunt.py'
+      - 'rom_automation/new_function_triage.py'
+      - 'rom_automation/test_new_function_triage.py'
       - 'rom_automation/test_new_function_hunt.py'
       - '.github/workflows/rom-new-function-hunt.yml'
 permissions:
@@ -42,7 +44,7 @@ jobs:
       - name: Run isolated negative controls
         run: |
           set -euo pipefail
-          python -m unittest discover -s rom_automation -p 'test_new_function_hunt.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/unit_tests.log
+          python -m unittest discover -s rom_automation -p 'test_new_function*.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/unit_tests.log
       - name: Scan all official ELF symbols and direct transfers into symbol-size gaps
         run: |
           set -euo pipefail
@@ -51,6 +53,14 @@ jobs:
             --machine "$RUNNER_TEMP/rom_discovery/original-88.zip" \
             --out rom_automation/output/new_function_hunt/complete_exploratory_census.json \
             2>&1 | tee rom_automation/output/new_function_hunt/census.log
+      - name: Screen all 152 previously uncatalogued named ELF functions by exact opcode side effects
+        run: |
+          set -euo pipefail
+          python rom_automation/new_function_triage.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --census rom_automation/output/new_function_hunt/complete_exploratory_census.json \
+            --out rom_automation/output/new_function_hunt/rev101_machine_screened_152.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/triage.log
       - name: Preserve exact reports and run logs
         uses: actions/upload-artifact@v4
         if: always()
