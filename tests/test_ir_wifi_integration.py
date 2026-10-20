@@ -346,6 +346,30 @@ class TXTimingAndUSBRegression(unittest.TestCase):
                       extract_body_function(SRC, "void handleSendLast()"))
 
 
+class PiAlarmEventEmissionContracts(unittest.TestCase):
+    def test_event_boundaries_wrap_actual_alarm_transmission(self):
+        clock = extract_body_function(SRC, "void runAlarmClock()")
+        self.assertIn('pi_alarm_telemetry::emit("alarm_persist_failed"', clock)
+        self.assertIn('pi_alarm_telemetry::emit("alarm_signal_missing"', clock)
+        before = clock.index('pi_alarm_telemetry::emit("alarm_before_tx"')
+        transmit = clock.index("transmitSignal(stored,")
+        after = clock.index('pi_alarm_telemetry::emit("alarm_after_tx"')
+        self.assertLess(before, transmit)
+        self.assertLess(transmit, after)
+        self.assertLess(clock.index("persistAlarmRules()"), before)
+        self.assertIn("lastTxDurationMs", clock)
+        self.assertIn("lastTxFrameCount", clock)
+
+    def test_esp_sender_has_no_private_key_or_large_runtime(self):
+        sender = pathlib.Path("include/pi_alarm_telemetry.h").read_text(encoding="utf-8")
+        self.assertIn("WiFiUDP udp", sender)
+        self.assertIn("char payload[220]", sender)
+        self.assertIn("192, 168, 2, 131", sender)
+        for forbidden in ("SSHClient", "HTTPClient", "WiFiClientSecure",
+                          "mbedtls", "Bearer ", "GOOGLE_API_KEY", "password"):
+            self.assertNotIn(forbidden, sender)
+
+
 class LightingAlarmContracts(unittest.TestCase):
     def test_ntp_is_jst_and_no_automatic_execution_without_wifi(self):
         alarm = extract_body_function(SRC, "void runAlarmClock()")
