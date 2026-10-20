@@ -21,6 +21,8 @@ on:
       - 'rom_automation/rom_p0b_vendor_exact.py'
       - 'rom_automation/rom_p0b_trm_windows.py'
       - 'rom_automation/rom_p0b_prior_art_2025.py'
+      - 'rom_automation/rom_p0b_crosschip_prior.py'
+      - 'rom_automation/test_rom_p0b_crosschip_prior.py'
       - 'rom_automation/test_rom_p0b_prior_art_2025.py'
       - 'rom_automation/test_rom_p0b_trm_windows.py'
       - 'rom_automation/test_rom_p0b_vendor_exact.py'
@@ -253,6 +255,17 @@ jobs:
             --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
             --out rom_automation/output/new_function_hunt/P0A_verified_static_indirect_into_gaps.json \
             2>&1 | tee rom_automation/output/new_function_hunt/P0A_strict_gap.log
+      - name: Validate immutable third-party source hash and cross-chip negative controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0b_crosschip_prior.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0B_crosschip_prior_tests.log
+      - name: Search 11 still ambiguous MMIO addresses in SHA-pinned S3 PHY and radio source documents
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0b_crosschip_prior.py \
+            --prior rom_automation/output/new_function_hunt/P0B_2025_peer_reviewed_prior_art.json \
+            --out rom_automation/output/new_function_hunt/P0B_11_crosschip_immutably_pinned_comparison.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0B_crosschip_prior.log
       - name: Verify literal-reference scanner controls
         run: |
           set -euo pipefail
