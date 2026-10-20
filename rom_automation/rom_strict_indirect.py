@@ -245,20 +245,20 @@ def inspect_revision(blob,revision,graph):
      counts[inferred["kind"]]+=1
     else:
      category,last=prior_register_class(seq,i,c["rs1"])
-     base=trace_load_base(seq,i,c["rs1"],elf,targets,c["imm"])
-     if base["machine_proven_candidate"] is not None:
-      edge=dict(base["machine_proven_candidate"])
+     base_trace=trace_load_base(seq,i,c["rs1"],elf,targets,c["imm"])
+     if base_trace["machine_proven_candidate"] is not None:
+      edge=dict(base_trace["machine_proven_candidate"])
       edge["caller_function_id"]=key;edge["revision"]=revision
       edge["call_pc"]=hex(x.address);edge["call_machine_bytes"]=bytes(x.bytes).hex()
       hits.append(edge);counts["machine_bytes_resolved_function_entry"]+=1
       counts["BOUNDED_IMMUTABLE_ROM_POINTER"]+=1
       continue
      source_classes[category]+=1
-     source_classes["BASE_"+base["load_base_provenance"]]+=1
+     source_classes["BASE_"+base_trace["load_base_provenance"]]+=1
      observed={"caller_function_id":key,"call_pc":hex(x.address),
        "machine_bytes":bytes(x.bytes).hex(),"rs1":c["rs1"],
        "rd":c["rd"],"nearest_register_source":category,"source_instruction":last,
-       "base_trace":base,"limitation":"Bounded byte-level register provenance, not actual call target"}
+       "base_trace":base_trace,"limitation":"Bounded byte-level register provenance, not actual call target"}
      if len(source_samples[category])<8:source_samples[category].append(observed)
      if len(unknown_samples)<25:unknown_samples.append(observed)
  return {"revision":revision,"elf_sha256":hashlib.sha256(blob).hexdigest(),
