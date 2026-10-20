@@ -317,6 +317,35 @@ int main(){
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
+class TXTimingAndUSBRegression(unittest.TestCase):
+    def test_serial_write_timeout_is_bounded_without_zero_timeout(self):
+        setup = extract_body_function(SRC, "void setup()")
+        self.assertIn("Serial.setTxTimeoutMs(1);", setup)
+        self.assertNotIn("Serial.setTxTimeoutMs(0)", setup)
+        self.assertLess(setup.index("Serial.setTxTimeoutMs(1)"),
+                        setup.index('diagMark("SETUP_ENTERED")'))
+
+    def test_transmission_separates_usb_backpressure_from_physical_tx_wait(self):
+        tx = extract_body_function(SRC, "bool transmitFrame(")
+        for s in ("lastTxPreSerialMs", "lastTxCarrierMs", "lastTxWriteMs",
+                  "lastTxPostSerialMs", "lastTxIntendedWaveformUs"):
+            self.assertIn(s, tx)
+        self.assertIn("lastTxWriteMs = millis() - writeStartMs", tx)
+        self.assertIn("rmtWrite(ircfg::IR_TX_PIN, txSymbols, symbolCount, 200)", tx)
+        self.assertLess(tx.index("const uint32_t writeStartMs = millis()"),
+                        tx.index("rmtWrite(ircfg::IR_TX_PIN"))
+        self.assertLess(tx.index("rmtWrite(ircfg::IR_TX_PIN"),
+                        tx.index("lastTxWriteMs = millis() - writeStartMs"))
+        # A true driver success does not establish an optical match.
+        result = extract_body_function(SRC, "String transmissionResult(")
+        self.assertIn('verified_by_receiver\\":false', result)
+        for field in ("tx_pre_serial_ms", "tx_carrier_config_ms",
+                      "tx_rmt_write_ms", "tx_post_serial_ms", "tx_intended_waveform_us"):
+            self.assertIn(field, result)
+        self.assertIn("transmitSignal(lastSignal, maxFrames)",
+                      extract_body_function(SRC, "void handleSendLast()"))
+
+
 class LightingAlarmContracts(unittest.TestCase):
     def test_ntp_is_jst_and_no_automatic_execution_without_wifi(self):
         alarm = extract_body_function(SRC, "void runAlarmClock()")
