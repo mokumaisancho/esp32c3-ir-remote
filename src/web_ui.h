@@ -58,6 +58,10 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 </div>
 <p id="learnStatus">未受信</p>
 <div id="lastMeta" class="muted"></div>
+<div class="row" style="margin-top:8px">
+<button type="button" id="rxPinProbe" class="secondary">GPIO5入力確認（5秒）</button>
+<span id="rxPinProbeStatus" class="muted" role="status">受信処理を経由せずGPIO5の変化を確認します（信号は保存しません）</span>
+</div>
 <div class="muted">先頭フレームのRAWプレビュー</div><pre id="raw"></pre>
 <div class="row">
 <div class="grow">
@@ -169,6 +173,20 @@ async function refreshSignals(){
     el.append(name,send,del,meta);list.append(el);
   });
 }
+$('#rxPinProbe').onclick=async()=>{
+  const button=$('#rxPinProbe');
+  button.disabled=true;
+  $('#rxPinProbeStatus').textContent='GPIO5を5秒間観測中。純正リモコンのボタンを押してください。';
+  try {
+    const d=await api('/api/rx-pin-probe',{method:'POST'});
+    $('#rxPinProbeStatus').textContent=
+      '観測='+d.duration_ms+'ms / 遷移='+d.transitions+
+      ' / LOW='+d.low_samples+' / HIGH='+d.high_samples+
+      ' / 最大取得間隔='+d.longest_sample_gap_us+'µs / '+d.classification;
+  }catch(e){
+    $('#rxPinProbeStatus').textContent='GPIO5診断失敗: '+e.message;
+  }finally{button.disabled=false}
+};
 $('#learn').onclick=async()=>{
   const b=$('#learn'); b.disabled=true; $('#save').disabled=true; $('#sendLast').disabled=true; $('#raw').textContent='';
   const start=Date.now(); const timer=setInterval(()=>{const left=Math.max(0,5000-(Date.now()-start));$('#learnStatus').textContent='受信待機中… '+(left/1000).toFixed(1)+'秒'},100);
