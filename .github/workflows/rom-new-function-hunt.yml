@@ -6,6 +6,8 @@ on:
     paths:
       - 'rom_automation/new_function_hunt.py'
       - 'rom_automation/new_function_triage.py'
+      - 'rom_automation/rom_fast_graph.py'
+      - 'rom_automation/test_rom_fast_graph.py'
       - 'rom_automation/test_new_function_triage.py'
       - 'rom_automation/test_new_function_hunt.py'
       - '.github/workflows/rom-new-function-hunt.yml'
@@ -53,6 +55,18 @@ jobs:
             --machine "$RUNNER_TEMP/rom_discovery/original-88.zip" \
             --out rom_automation/output/new_function_hunt/complete_exploratory_census.json \
             2>&1 | tee rom_automation/output/new_function_hunt/census.log
+      - name: Regression on SCC cycles and 40 independent Bellman-Ford shortest paths
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_fast_graph.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/graph_tests.log
+      - name: Run linear-pass indexed all-ROM function disassembly plus SCC task graph
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_fast_graph.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --census rom_automation/output/new_function_hunt/complete_exploratory_census.json \
+            --out rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/fast_graph.log
       - name: Screen all 152 previously uncatalogued named ELF functions by exact opcode side effects
         run: |
           set -euo pipefail
