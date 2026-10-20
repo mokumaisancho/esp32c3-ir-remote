@@ -42,6 +42,32 @@ class TrapRootsTests(unittest.TestCase):
   pc=0x40001000
   hist=[(pc,enc_lui(5,0x40012000)),(pc+8,enc_addi(5,5,4))]
   self.assertIsNone(resolve_adjacent_value(hist,pc+12,5))
+ def test_real_RV32_ROM_rev0_mtvec_three_opcode_dataflow(self):
+  examples=[
+   (0x40001db2,0x40001c01),
+   (0x400020b2,0x40001f01),
+   (0x40001eb2,0x40001d01)
+  ]
+  for pc,want in examples:
+   source=[(pc,bytes.fromhex("97020000")),
+    (pc+4,bytes.fromhex("9382e2e4")),
+    (pc+8,bytes.fromhex("93e21200"))]
+   got=resolve_adjacent_value(source,pc+12,5)
+   self.assertEqual(got["value"],want)
+   self.assertEqual(got["value"]&3,1)
+   self.assertEqual(got["kind"],"ADJACENT_AUIPC_ADDI_ORI")
+ def test_mutated_preceding_ori_register_blocks_vector_claim(self):
+  pc=0x40001db2
+  source=[(pc,bytes.fromhex("97020000")),
+   (pc+4,bytes.fromhex("9382e2e4")),
+   (pc+8,enc_addi(6,6,1))]
+  self.assertIsNone(resolve_adjacent_value(source,pc+12,5))
+ def test_nonadjacent_real_three_step_vector_chain_fail_closed(self):
+  pc=0x40001db2
+  source=[(pc,bytes.fromhex("97020000")),
+   (pc+8,bytes.fromhex("9382e2e4")),
+   (pc+12,bytes.fromhex("93e21200"))]
+  self.assertIsNone(resolve_adjacent_value(source,pc+16,5))
  def test_pc_relative_AUIPC_ADDI_with_sign_extension(self):
   pc=0x40001000
   hist=[(pc,enc_auipc(7,0x1000)),(pc+4,enc_addi(7,7,-12))]
