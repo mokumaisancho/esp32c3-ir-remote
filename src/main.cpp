@@ -22,6 +22,7 @@
 #include "config.h"
 #include "diagnostic_policy.h"
 #include "rx_pin_probe.h"
+#include "pi_alarm_telemetry.h"
 #include "web_ui_gzip.h"
 
 namespace {
@@ -1288,16 +1289,24 @@ void runAlarmClock() {
     if (!persistAlarmRules()) {
       r.lastMinute = previous;
       lastAlarmEvent = "保存エラー：自動送信を中止";
+      pi_alarm_telemetry::emit("alarm_persist_failed", static_cast<uint8_t>(i), r.slot, -1, 0, 0);
       Serial.printf("ALARM_SKIP id=%u reason=persist_failed\n", static_cast<unsigned>(i));
       continue;
     }
     Signal stored;
     if (!loadSignalFromSlot(r.slot, stored)) {
       lastAlarmEvent = "信号が見つかりません #" + String(r.slot);
+      pi_alarm_telemetry::emit("alarm_signal_missing", static_cast<uint8_t>(i), r.slot, -2, 0, 0);
       Serial.printf("ALARM_SKIP id=%u reason=signal_missing\n", static_cast<unsigned>(i));
       continue;
     }
+    // Capture only the anticipated action boundary, not continuous debug output.
+    // UDP is best-effort, local-network only and cannot block on SSH/cloud.
+    pi_alarm_telemetry::emit("alarm_before_tx", static_cast<uint8_t>(i), r.slot, 0, 0, 0);
     const bool ok = transmitSignal(stored, r.firstOnly ? 1 : MAX_EXTRA_FRAMES + 1);
+    pi_alarm_telemetry::emit("alarm_after_tx", static_cast<uint8_t>(i), r.slot,
+                             ok ? 1 : -3, lastTxDurationMs,
+                             static_cast<uint32_t>(lastTxFrameCount));
     lastAlarmEvent = String("ルール#") + String(i) + " " + String(ok ? "送信処理OK" : "送信失敗") +
                      " / 信号#" + String(r.slot) + " / " + String(local.tm_hour) +
                      ":" + String(local.tm_min);
