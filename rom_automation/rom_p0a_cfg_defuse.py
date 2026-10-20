@@ -131,6 +131,14 @@ def scan_one(blob,rev,graph):
    if "value" not in value:
     counts[value["unresolved"]]+=1;continue
    target=(value["value"]+call["imm"])&MASK&~1
+   # A syntactically constant JALR to address zero is NOT an executable
+   # ROM callee. Rev0 contains 95 such machine-word patterns, some in
+   # check_condCOUNTER labels. Do not treat zero or an unallocated address
+   # as a recovered function or target.
+   if not any(b<=target<e for b,(e,_,_) in by_sec.items()):
+    counts["NON_EXECUTABLE_TARGET_REJECTED"]+=1
+    if target==0:counts["ZERO_ADDRESS_REJECTED"]+=1
+    continue
    counts["CFG_LOCAL_CONSTANT_TARGET"]+=1
    match=in_gap(gaps,target)
    if match:counts["TARGET_IN_ELF_NAME_GAP"]+=1
