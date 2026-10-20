@@ -10,6 +10,8 @@ on:
       - 'rom_automation/rom_pointer_tables.py'
       - 'rom_automation/rom_strict_indirect.py'
       - 'rom_automation/rom_sram_writer_audit.py'
+      - 'rom_automation/rom_sram_literal_refs.py'
+      - 'rom_automation/test_rom_sram_literal_refs.py'
       - 'rom_automation/test_rom_sram_writer_audit.py'
       - 'rom_automation/test_rom_strict_indirect.py'
       - 'rom_automation/test_rom_pointer_tables.py'
@@ -110,6 +112,19 @@ jobs:
             --strict rom_automation/output/new_function_hunt/strict_indirect_edges.json \
             --out rom_automation/output/new_function_hunt/ROM_SRAM_writer_sites.json \
             2>&1 | tee rom_automation/output/new_function_hunt/sram_writer_sites.log
+      - name: Verify literal-reference scanner controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_sram_literal_refs.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/sram_literal_tests.log
+      - name: Check whether remaining nine SRAM dispatch slots appear in ROM initialized data
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_sram_literal_refs.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --strict rom_automation/output/new_function_hunt/strict_indirect_edges.json \
+            --writer rom_automation/output/new_function_hunt/ROM_SRAM_writer_sites.json \
+            --out rom_automation/output/new_function_hunt/remaining_9_sram_literal_references.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/remaining_sram_literals.log
       - name: Screen all 152 previously uncatalogued named ELF functions by exact opcode side effects
         run: |
           set -euo pipefail
