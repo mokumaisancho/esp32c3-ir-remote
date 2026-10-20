@@ -12,6 +12,8 @@ on:
       - 'rom_automation/rom_p0a_entry_trampoline.py'
       - 'rom_automation/rom_p0a_trap_vector_roots.py'
       - 'rom_automation/rom_p0a_vector_slots.py'
+      - 'rom_automation/rom_p0a_strict_indirect_gap.py'
+      - 'rom_automation/test_rom_p0a_strict_indirect_gap.py'
       - 'rom_automation/test_rom_p0a_vector_slots.py'
       - 'rom_automation/test_rom_p0a_trap_vector_roots.py'
       - 'rom_automation/test_rom_p0a_entry_trampoline.py'
@@ -239,6 +241,18 @@ jobs:
             --strict rom_automation/output/new_function_hunt/strict_indirect_edges.json \
             --out rom_automation/output/new_function_hunt/ROM_SRAM_writer_sites.json \
             2>&1 | tee rom_automation/output/new_function_hunt/sram_writer_sites.log
+      - name: Verify exact adjacent JALR into unknown executable area with mutation counterexamples
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0a_strict_indirect_gap.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/P0A_strict_gap_tests.log
+      - name: Scan function named JALR for static proof of jumps into unnamed ROM halfword gaps
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0a_strict_indirect_gap.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --out rom_automation/output/new_function_hunt/P0A_verified_static_indirect_into_gaps.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/P0A_strict_gap.log
       - name: Verify literal-reference scanner controls
         run: |
           set -euo pipefail
