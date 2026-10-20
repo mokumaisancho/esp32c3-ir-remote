@@ -11,6 +11,8 @@ on:
       - 'rom_automation/rom_strict_indirect.py'
       - 'rom_automation/rom_sram_writer_audit.py'
       - 'rom_automation/rom_sram_literal_refs.py'
+      - 'rom_automation/rom_sram_vendor_symbols.py'
+      - 'rom_automation/test_rom_sram_vendor_symbols.py'
       - 'rom_automation/test_rom_sram_literal_refs.py'
       - 'rom_automation/test_rom_sram_writer_audit.py'
       - 'rom_automation/test_rom_strict_indirect.py'
@@ -125,6 +127,34 @@ jobs:
             --writer rom_automation/output/new_function_hunt/ROM_SRAM_writer_sites.json \
             --out rom_automation/output/new_function_hunt/remaining_9_sram_literal_references.json \
             2>&1 | tee rom_automation/output/new_function_hunt/remaining_sram_literals.log
+      - name: Retrieve pinned Espressif ROM linker symbol labels
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --connect-timeout 30 \
+            'https://raw.githubusercontent.com/espressif/esp-idf/383dda6c182e3dabf6355160166fe007df775629/components/esp_rom/esp32c3/ld/esp32c3.rom.ld' \
+            -o "$RUNNER_TEMP/rom_discovery/esp32c3.rom.ld"
+          test "$(git hash-object "$RUNNER_TEMP/rom_discovery/esp32c3.rom.ld")" = 'f615f3ac3a5125837c74636463bec92b6db2465b'
+          git hash-object "$RUNNER_TEMP/rom_discovery/esp32c3.rom.ld" | tee rom_automation/output/new_function_hunt/vendor_linker_blob_sha1.log
+      - name: Test pinned vendor symbol provenance and mutation rejection
+        env:
+          ROM_VENDOR_LD: ${{ runner.temp }}/rom_discovery/esp32c3.rom.ld
+          ROM_FAST_GRAPH_JSON: rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json
+          ROM_STRICT_JSON: rom_automation/output/new_function_hunt/strict_indirect_edges.json
+          ROM_WRITER_JSON: rom_automation/output/new_function_hunt/ROM_SRAM_writer_sites.json
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_sram_vendor_symbols.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/vendor_symbol_tests.log
+      - name: Correlate remaining nine SRAM addresses against vendor linker names
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_sram_vendor_symbols.py \
+            --strict rom_automation/output/new_function_hunt/strict_indirect_edges.json \
+            --writer rom_automation/output/new_function_hunt/ROM_SRAM_writer_sites.json \
+            --graph rom_automation/output/new_function_hunt/all_rom_functions_ECv4_graph.json \
+            --vendor-ld "$RUNNER_TEMP/rom_discovery/esp32c3.rom.ld" \
+            --git-blob f615f3ac3a5125837c74636463bec92b6db2465b \
+            --out rom_automation/output/new_function_hunt/remaining_9_official_vendor_symbols.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/vendor_sram_symbols.log
       - name: Screen all 152 previously uncatalogued named ELF functions by exact opcode side effects
         run: |
           set -euo pipefail
