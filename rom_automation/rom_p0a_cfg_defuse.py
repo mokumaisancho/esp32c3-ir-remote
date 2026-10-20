@@ -10,6 +10,7 @@ from rom_fast_graph import make_symbol_index
 from rom_gap_branch_seeds import branch_target
 from rom_strict_indirect import decode_jalr,probable_last_writer,signed,readonly_literal
 from rom_p0a_indirect_roots import build_gaps,in_gap
+from rom_rvc_register_effects import rvc_effect
 MASK=0xffffffff
 def w32(ins):
  b=bytes(ins.bytes)
@@ -57,11 +58,28 @@ def infer_register_value(seq,idx,reg,max_steps=48):
   if p in uncertain:return {"unresolved":"CALL_RETURN_BARRIER"}
   ins=seq[p];v=w32(ins)
   if v is None:
-   desc=probable_last_writer(ins)
-   if desc and desc[0]==reg:return {"unresolved":"COMPRESSED_REGISTER_WRITER_UNSUPPORTED"}
-   if ins.mnemonic not in ("c.nop","c.sw","c.swsp","c.beqz","c.bnez","c.j"):
-    return {"unresolved":"UNMODELED_COMPRESSED_OPCODE"}
-   at=p;continue
+   effect=rvc_effect(bytes(ins.bytes))
+   kind=effect["kind"]
+   if kind=="UNKNOWN":return {"unresolved":"UNMODELED_COMPRESSED_OPCODE"}
+   if kind=="CONTROL":
+    if effect["mnemonic"]=="c.j_or_branch":
+     at=p;continue
+    return {"unresolved":"COMPRESSED_CONTROL_BARRIER"}
+   if kind=="PRESERVE":
+    at=p;continue
+   if effect.get("rd")!=reg:
+    at=p;continue
+   if kind=="ADD_IMM":
+    ops.append(("ADD",effect["imm"]))
+    witness.append({"pc":hex(ins.address),"raw":bytes(ins.bytes).hex()})
+    at=p;continue
+   if kind=="ASSIGN_IMM":
+    base=effect["value"]
+    for op_kind,operand in reversed(ops):
+     base=(base+operand if op_kind=="ADD" else base|operand)&MASK
+    return {"value":base,"kind":"UNIQUE_CFG_RV32C_DEFINITION",
+      "witnesses":list(reversed(witness+[{"pc":hex(ins.address),"raw":bytes(ins.bytes).hex()}]))}
+   return {"unresolved":"COMPRESSED_REGISTER_WRITER_UNSUPPORTED"}
   opcode=v&127
   # Branches and stores are read-only for registers, may remain on unique path.
   if opcode in (0x23,0x63,0x0f):
