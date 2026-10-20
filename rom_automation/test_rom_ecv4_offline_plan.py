@@ -1,10 +1,12 @@
 """ROM-001 offline ECv4 graph proposal from real hash-pinned ELF evidence."""
 import json,os,pathlib,unittest
 from rom_ecv4_offline_plan import convert
-FILE=pathlib.Path(os.environ["ROM_FAST_GRAPH_JSON"])
+FILE=pathlib.Path(os.environ["ROM_FAST_GRAPH_JSON"]) if os.getenv("ROM_FAST_GRAPH_JSON") else None
 class ECv4FunctionPlanTests(unittest.TestCase):
  @classmethod
- def setUpClass(cls):cls.source=json.loads(FILE.read_text())
+ def setUpClass(cls):
+  if FILE is None:raise unittest.SkipTest("Dedicated ROM graph artifact not configured for unrelated test suite")
+  cls.source=json.loads(FILE.read_text())
  def test_152_candidates_dependency_closure_and_correct_phases(self):
   plan=convert(self.source)
   self.assertEqual(plan["candidate_issues"],152)
