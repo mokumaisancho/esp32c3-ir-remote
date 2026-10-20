@@ -154,6 +154,63 @@ def prior_register_class(seq,index,reg,max_lookback=24):
   examined+=1
  return "NOT_IN_BOUNDED_STRAIGHT_LINE",None
 
+def trace_load_base(seq,index,reg,elf,entry_to_key,call_imm=0):
+ """Bounded two-level def-use: JALR source <- LW <- PC-relative base.
+
+ No cross-branch assumptions, no writable/nonexec RAM content guesses.
+ Returns a typed hint and, only if exact frozen memory and ELF entry match,
+ a structural potential target.
+ """
+ kind,source=prior_register_class(seq,index,reg)
+ info={"jalr_reg_source":kind,"load_base_provenance":"NOT_APPLICABLE",
+       "machine_proven_candidate":None}
+ if kind not in ("MEMORY_LOAD","COMPRESSED_MEMORY_LOAD") or not source:return info
+ ix=next((p for p in range(index-1,-1,-1)
+          if seq[p].address==int(source["source_pc"],16)),None)
+ require(ix is not None,"DEF_USE_SOURCE_NOT_FOUND")
+ load=seq[ix];w=word(load);base=None;offset=None
+ if w is not None and w&0x7f==0x03 and (w>>12)&7==2:
+  base=(w>>15)&31;offset=signed(w>>20,12)
+ elif load.mnemonic=="c.lw" and len(load.bytes)==2:
+  w=int.from_bytes(bytes(load.bytes),"little")
+  base=8+((w>>7)&7)
+  offset=(((w>>10)&7)<<3)|(((w>>6)&1)<<2)|(((w>>5)&1)<<6)
+ elif load.mnemonic=="c.lwsp" and len(load.bytes)==2:
+  w=int.from_bytes(bytes(load.bytes),"little")
+  base=2
+  offset=(((w>>12)&1)<<5)|(((w>>4)&7)<<2)|(((w>>2)&3)<<6)
+ if base is None:
+  info["load_base_provenance"]="UNSUPPORTED_LOAD_OPCODE"
+  return info
+ upstream,location=prior_register_class(seq,ix,base)
+ info.update({"load_pc":hex(load.address),"load_base_reg":base,
+     "load_offset":offset,"load_base_provenance":upstream})
+ if base==2 and upstream=="NOT_IN_BOUNDED_STRAIGHT_LINE":
+  info["load_base_provenance"]="STACK_POINTER_UNMODELED"
+ if upstream=="NOT_IN_BOUNDED_STRAIGHT_LINE" and base in range(10,18):
+  info["load_base_provenance"]="ARGUMENT_REGISTER_UNMODELED"
+ if upstream!="PC_REL_MATERIALIZATION" or not location:return info
+ producer=next((p for p in range(ix-1,-1,-1)
+               if seq[p].address==int(location["source_pc"],16)),None)
+ if producer is None:return info
+ instr=seq[producer];u=word(instr)
+ if u is None or u&0x7f not in (0x17,0x37) or (u>>7)&31!=base:return info
+ high=u&0xfffff000
+ value=((instr.address if u&0x7f==0x17 else 0)+high+offset)&MASK
+ info["load_base_provenance"]="STATIC_PC_REL_OR_ABSOLUTE_ROM_BASE"
+ info["candidate_readonly_slot"]=hex(value)
+ literal=readonly_literal(elf,value)
+ if literal is None:return info
+ dest=(literal+call_imm)&MASK&~1
+ if dest not in entry_to_key:return info
+ info["machine_proven_candidate"]={
+  "kind":"BOUNDED_IMMUTABLE_ROM_POINTER",
+  "slot":hex(value),"slot_value":hex(literal),"resolved_callee":hex(dest),
+  "callee_function_ids":entry_to_key[dest],
+  "producer_pc":hex(instr.address),"load_pc":hex(load.address),
+  "dynamic_execution_proven":False,"independent_novelty_proven":False}
+ return info
+
 def inspect_revision(blob,revision,graph):
  from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
  elf=ELFFile(io.BytesIO(blob))
@@ -188,11 +245,20 @@ def inspect_revision(blob,revision,graph):
      counts[inferred["kind"]]+=1
     else:
      category,last=prior_register_class(seq,i,c["rs1"])
+     base=trace_load_base(seq,i,c["rs1"],elf,targets,c["imm"])
+     if base["machine_proven_candidate"] is not None:
+      edge=dict(base["machine_proven_candidate"])
+      edge["caller_function_id"]=key;edge["revision"]=revision
+      edge["call_pc"]=hex(x.address);edge["call_machine_bytes"]=bytes(x.bytes).hex()
+      hits.append(edge);counts["machine_bytes_resolved_function_entry"]+=1
+      counts["BOUNDED_IMMUTABLE_ROM_POINTER"]+=1
+      continue
      source_classes[category]+=1
+     source_classes["BASE_"+base["load_base_provenance"]]+=1
      observed={"caller_function_id":key,"call_pc":hex(x.address),
        "machine_bytes":bytes(x.bytes).hex(),"rs1":c["rs1"],
        "rd":c["rd"],"nearest_register_source":category,"source_instruction":last,
-       "limitation":"Candidate syntactic register provenance only, no dynamic call target"}
+       "base_trace":base,"limitation":"Bounded byte-level register provenance, not actual call target"}
      if len(source_samples[category])<8:source_samples[category].append(observed)
      if len(unknown_samples)<25:unknown_samples.append(observed)
  return {"revision":revision,"elf_sha256":hashlib.sha256(blob).hexdigest(),
@@ -200,6 +266,7 @@ def inspect_revision(blob,revision,graph):
   "resolved_strict_machine_byte_edges":hits,
   "unresolved_examples":unknown_samples,
   "unresolved_register_source_classes":dict(source_classes),
+  "base_classification_does_not_add_indirect_calls_without_readonly_exact_match":True,
   "unresolved_source_examples_per_class":dict(source_samples),
   "dynamic_execution_proven":False,
   "supported_patterns":["AUIPC_ADDI_JALR","LUI_ADDI_JALR","AUIPC_LW_JALR","AUIPC_ADDI_LW_JALR"],
