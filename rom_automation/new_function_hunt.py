@@ -131,6 +131,7 @@ def decode_elf(blob,rev,original,catalogs,max_witness=8):
    link=bool(rd)
    all_target_hits[target].append({
     "source":hex(inst.address),"source_function":nearest_owner(inst.address),
+    "source_in_STT_FUNC_size_coverage":is_covered(inst.address),
     "opcode":inst.mnemonic,"kind":kind,"link_instruction":link,
     "source_raw_bytes":raw.hex()})
  anonymous=[]
@@ -153,13 +154,27 @@ def decode_elf(blob,rev,original,catalogs,max_witness=8):
   unique_sources={x["source"] for x in hits}
   named_callers={x["source_function"] for x in hits if x["source_function"]}
   link_count=sum(bool(x["link_instruction"]) for x in hits)
+  # Fail-closed anti-data gate. ESP32-C3 implements RV32IMC, not F/D.
+  unsupported_f={"c.fsw","c.flw","c.fld","c.fsd","flw","fsw","fld","fsd"}
+  contains_unsupported_f=any(x["mnemonic"] in unsupported_f
+                              for x in landing["sample"][:3])
+  known_code_source=any(x["source_in_STT_FUNC_size_coverage"] for x in hits)
   evidence_level=("ENTRY_LIKE_UNVERIFIED" if landing["decoded_contiguous_instructions"]>=2
-                    and link_count else "DIRECT_TARGET_UNRESOLVED")
+                    and link_count and known_code_source and not contains_unsupported_f
+                    else "UNRESOLVED_RAW_LINEAR_DECODE")
+  rejection_reasons=[]
+  if not known_code_source:rejection_reasons.append("NO_NAMED_FUNCTION_SOURCE")
+  if contains_unsupported_f:rejection_reasons.append("UNSUPPORTED_RV32IMC_F_EXTENSION")
+  if not link_count:rejection_reasons.append("NO_CALL_LINK_BIT")
+  if landing["decoded_contiguous_instructions"]<2:rejection_reasons.append("INSUFFICIENT_VALID_LANDING_BYTES")
   anonymous.append({
    "revision":rev,"entry":hex(target),"evidence_level":evidence_level,
    "direct_incoming_instructions":len(unique_sources),
    "linked_call_instructions":link_count,
    "known_caller_functions":sorted(named_callers),
+   "source_in_STT_FUNC_size_coverage":known_code_source,
+   "landing_has_unsupported_F_extension":contains_unsupported_f,
+   "rejection_reasons":rejection_reasons,
    "landing":landing,"incoming_witnesses":hits[:max_witness],
    "is_symbol_size_gap":True,"function_boundary_verified":False,
    "novel_function_verified":False,"priority":(
@@ -195,6 +210,8 @@ def decode_elf(blob,rev,original,catalogs,max_witness=8):
   "undecoded_linear_bytes":undecodable,
   "direct_targets_in_symbol_size_gaps_count":len(anonymous),
   "gap_target_entry_like_count":sum(x["evidence_level"]=="ENTRY_LIKE_UNVERIFIED" for x in anonymous),
+  "gap_targets_without_symbol_covered_sources":sum(not x["source_in_STT_FUNC_size_coverage"] for x in anonymous),
+  "gap_targets_with_unsupported_F_in_first_three":sum(x["landing_has_unsupported_F_extension"] for x in anonymous),
   "gap_target_candidates":anonymous,
   "limits":["ELF names and direct targets are not independently proven novel.",
    "Catalog not-found means not found in only three dated catalogs, not unpublished worldwide.",
@@ -227,6 +244,8 @@ def evaluate(rom_tar,machine_zip,catalogs,meta):
   "original_88_candidate_names_count":len(names),
   "selected_prior_catalogs":meta,
   "unique_ELF_names_not_in_selected_prior":len(all_missing),
+  "compiler_local_labels_excluded_from_feature_queue":sum(bool(re.fullmatch(r"check_condCOUNTER\\.\\d+",name)) for name in all_missing),
+  "named_candidates_for_prior_art_followup":sum(not bool(re.fullmatch(r"check_condCOUNTER\\.\\d+",name)) for name in all_missing),
   "all_missing_names":dict(sorted(all_missing.items())),
   "revisions":per,
   "novel_function_proven":0,"independent_semantic_review_proven":0,
@@ -255,6 +274,8 @@ def main():
  print("ROM_NEW_FUNCTION_HUNT",json.dumps({
   "known_original_88":result["original_88_candidate_names_count"],
   "named_absent_from_three_catalogs":result["unique_ELF_names_not_in_selected_prior"],
+  "compiler_generated_names":result["compiler_local_labels_excluded_from_feature_queue"],
+  "needs_broader_prior_art":result["named_candidates_for_prior_art_followup"],
   "named_by_revision":{r:d["all_named_ELF_functions"] for r,d in result["revisions"].items()},
   "symbol_gap_targets_by_revision":{r:d["direct_targets_in_symbol_size_gaps_count"] for r,d in result["revisions"].items()},
   "entry_like_by_revision":{r:d["gap_target_entry_like_count"] for r,d in result["revisions"].items()},
