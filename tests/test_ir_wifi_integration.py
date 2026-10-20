@@ -203,6 +203,7 @@ constexpr size_t MAX_CAPTURE_BYTES = 24U * 1024U;
 struct FakeESP { size_t getFreeHeap() const { return 200000U; } } ESP;
 bool captureTruncated = false;
 uint32_t captureBytes = 0, captureBudget = 0;
+uint32_t rxCompletedEvents = 0, rxRejectedEvents = 0, rxLargestFrameSymbols = 0;
 uint32_t signalDurationUs(const Signal &s) {
   uint32_t n=0;for(int32_t p:s.pulses)n+=p<0?-p:p;return n;
 }
