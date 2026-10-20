@@ -197,7 +197,7 @@ def trace_load_base(seq,index,reg,elf,entry_to_key,call_imm=0):
  if u is None or u&0x7f not in (0x17,0x37) or (u>>7)&31!=base:return info
  high=u&0xfffff000
  value=((instr.address if u&0x7f==0x17 else 0)+high+offset)&MASK
- info["load_base_provenance"]="STATIC_PC_REL_OR_ABSOLUTE_ROM_BASE"
+ info["load_base_provenance"]="STATIC_COMPUTED_BASE_REGION_NOT_YET_CONFIRMED"
  info["candidate_readonly_slot"]=hex(value)
  literal=readonly_literal(elf,value)
  if literal is None:return info
@@ -219,7 +219,7 @@ def inspect_revision(blob,revision,graph):
  for key,item in funcs.items():targets[int(item["entry"],16)].append(key)
  decoder=Cs(CS_ARCH_RISCV,CS_MODE_RISCV32|CS_MODE_RISCVC)
  decoder.skipdata=True
- hits=[];counts=collections.Counter();unknown_samples=[];source_classes=collections.Counter();source_samples=collections.defaultdict(list)
+ hits=[];counts=collections.Counter();unknown_samples=[];source_classes=collections.Counter();source_samples=collections.defaultdict(list);base_source_samples=collections.defaultdict(list)
  for s in elf.iter_sections():
   if s["sh_type"]!="SHT_PROGBITS" or not int(s["sh_flags"])&4:continue
   base=int(s["sh_addr"]);ins=list(decoder.disasm(s.data(),base))
@@ -260,6 +260,8 @@ def inspect_revision(blob,revision,graph):
        "rd":c["rd"],"nearest_register_source":category,"source_instruction":last,
        "base_trace":base_trace,"limitation":"Bounded byte-level register provenance, not actual call target"}
      if len(source_samples[category])<8:source_samples[category].append(observed)
+     if len(base_source_samples[base_trace["load_base_provenance"]])<20:
+      base_source_samples[base_trace["load_base_provenance"]].append(observed)
      if len(unknown_samples)<25:unknown_samples.append(observed)
  return {"revision":revision,"elf_sha256":hashlib.sha256(blob).hexdigest(),
   "function_bodies_indexed":len(funcs),"counts":dict(counts),
@@ -268,6 +270,7 @@ def inspect_revision(blob,revision,graph):
   "unresolved_register_source_classes":dict(source_classes),
   "base_classification_does_not_add_indirect_calls_without_readonly_exact_match":True,
   "unresolved_source_examples_per_class":dict(source_samples),
+  "unresolved_base_examples_per_class":dict(base_source_samples),
   "dynamic_execution_proven":False,
   "supported_patterns":["AUIPC_ADDI_JALR","LUI_ADDI_JALR","AUIPC_LW_JALR","AUIPC_ADDI_LW_JALR"],
   "limitations":["Only contiguous in-function code, no dynamic indexing/relocations or mutable tables.",
