@@ -430,7 +430,13 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
       break;
     }
     rxLastSymbolCount = static_cast<uint32_t>(count);
-    if (count > 0 && count <= ircfg::MAX_RMT_SYMBOLS) {
+    // A filled DMA/RMT output buffer could conceal a missing frame tail.
+    if (count >= ircfg::MAX_RMT_SYMBOLS) {
+      captureTruncated = true;
+      elapsedMs = millis() - start;
+      return false;
+    }
+    if (count > 0 && count < ircfg::MAX_RMT_SYMBOLS) {
       Signal candidate = normalizeReceived(rxSymbols, count);
       if (candidate.pulses.size() >= 6 && candidate.pulses.size() <= ircfg::MAX_PULSES) {
         captureBytes = candidate.pulses.size() * sizeof(int32_t);
@@ -444,7 +450,14 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
             xQueueReset(rxDoneQueue);
             const esp_err_t err = rmt_receive(rxChannel, rxSymbols, sizeof(rxSymbols), &cfg);
             if (err != ESP_OK) { Serial.printf("IR_MULTI_START_ERR=%d\n", static_cast<int>(err)); break; }
-            const uint32_t remain = multiUntil - millis();
+            const int32_t untilDeadline = static_cast<int32_t>(multiUntil - millis());
+            if (untilDeadline <= 0) {
+              rxLastResetError = rmt_disable(rxChannel);
+              if (rxLastResetError == ESP_OK) rxLastResetError = rmt_enable(rxChannel);
+              if (rxLastResetError != ESP_OK) rmtRxReady = false;
+              break;
+            }
+            const uint32_t remain = static_cast<uint32_t>(untilDeadline);
             size_t extraCount = 0;
             if (xQueueReceive(rxDoneQueue, &extraCount, pdMS_TO_TICKS(remain)) != pdTRUE) {
               rxLastResetError = rmt_disable(rxChannel);
@@ -453,7 +466,8 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
               break;
             }
             const uint32_t endMs = millis();
-            if (extraCount == 0 || extraCount > ircfg::MAX_RMT_SYMBOLS) continue;
+            if (extraCount >= ircfg::MAX_RMT_SYMBOLS) { captureTruncated = true; break; }
+            if (extraCount == 0) continue;
             Signal extra = normalizeReceived(rxSymbols, extraCount);
             if (extra.pulses.size() < 2 || extra.pulses.size() > ircfg::MAX_PULSES) continue;
             const uint32_t durationMs = (signalDurationUs(extra) + 999U) / 1000U;
