@@ -53,7 +53,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 <section class="card">
 <h2>5秒受信・記録</h2>
 <div class="row">
-<select id="rxBackend" aria-label="受信方式"><option value="rmt">RMT（従来）</option><option value="library">IRremoteESP8266（比較）</option></select><button id="learn">5秒受信・記録</button><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input id="multi" type="checkbox" style="width:auto">長押し・複数フレームを学習</label>
+<select id="rxBackend" aria-label="受信方式"><option value="rmt">RMT（従来）</option><option value="library">IRremoteESP8266（比較）</option></select><button id="learn">5秒受信・記録</button><span class="muted">5秒間の全フレームを記録</span>
 <button id="sendLast" class="secondary" disabled>今の信号を送信</button><span id="txStatus" class="muted" role="status">送信未実施</span>
 </div>
 <p id="learnStatus">未受信</p>
@@ -80,7 +80,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 <section class="card" id="lightingAlarms">
 <h2>照明アラーム（毎週繰り返し）</h2>
 <p id="alarmClock" class="muted" role="status">Wi-Fi時刻を確認中…</p>
-<p class="muted">日本時間（JST）。NTPの時刻取得と家庭内Wi-Fi接続が確認できるまで自動送信しません。過ぎた時刻の後追い実行はしません。</p>
+
 <div class="alarm-days" id="alarmWeekdays" aria-label="実行する曜日">
 <label><input type="checkbox" value="1" checked>月</label>
 <label><input type="checkbox" value="2" checked>火</label>
@@ -103,7 +103,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} #raw{max-height:12
 </div>
 <p id="alarmMessage" class="muted" role="status"></p>
 <div id="alarmList">読み込み中…</div>
-<p class="muted">最大16件。登録したアラームはLittleFSに保存し、再起動後も保持します。参照中の信号は、先にアラームを削除してから消去してください。</p>
+
 </section>
 
 <section class="card">
@@ -173,7 +173,7 @@ $('#learn').onclick=async()=>{
   const b=$('#learn'); b.disabled=true; $('#save').disabled=true; $('#sendLast').disabled=true; $('#raw').textContent='';
   const start=Date.now(); const timer=setInterval(()=>{const left=Math.max(0,5000-(Date.now()-start));$('#learnStatus').textContent='受信待機中… '+(left/1000).toFixed(1)+'秒'},100);
   try{
-    const d=await api('/api/learn',{method:'POST',body:form({multi:$('#multi').checked?'1':'0',backend:$('#rxBackend').value})});
+    const d=await api('/api/learn',{method:'POST',body:form({multi:'1',backend:$('#rxBackend').value})});
     $('#learnStatus').textContent=d.stored?'受信成功・自動保存済み #'+d.slot:'受信成功（保存できませんでした）';
     // Unlock immediately after the successful API response; rendering/list refresh
     // must not prevent a saved capture from being transmitted.
