@@ -43,6 +43,15 @@ def resolve_adjacent_value(history,write_pc,register):
  w=int.from_bytes(raw,"little");op=w&127
  rd=(w>>7)&31
  if rd!=register:return None
+ # ROM ELF entry uses strictly adjacent AUIPC -> ADDI -> ORI -> CSRRW mtvec.
+ # Never infer nonadjacent register state; do not cross unrelated instructions.
+ if op==0x13 and (w>>12)&7==6:
+  rs=(w>>15)&31;imm=sext((w>>20)&0xfff,12)
+  if rs!=register or len(last)<2:return None
+  inner=resolve_adjacent_value(last[:-1],lastpc,register)
+  if inner is None:return None
+  return {"value":(inner["value"]|(imm&0xffffffff))&0xffffffff,
+    "kind":inner["kind"]+"_ORI","origin":inner["origin"]+[hex(lastpc)]}
  if op==0x37:
   return {"value":w&0xfffff000,"kind":"EXACT_PRECEDING_LUI","origin":[hex(lastpc)]}
  if op==0x13 and (w>>12)&7==0:
@@ -97,7 +106,7 @@ def scan_elf(blob,rev,graph,boot):
       read_only+=1
     continue
    static_counts[w["name"]]+=1
-   hist=[(x.address,bytes(x.bytes)) for x in ins[max(0,i-2):i]]
+   hist=[(x.address,bytes(x.bytes)) for x in ins[max(0,i-3):i]]
    resolved=resolve_adjacent_value(hist,obj.address,w["writer_value_register"])
    if resolved is None and w["immediate_value"] is not None:
     resolved={"value":w["immediate_value"],"kind":"CSR_IMMEDIATE_ZIMM","origin":[hex(obj.address)]}
