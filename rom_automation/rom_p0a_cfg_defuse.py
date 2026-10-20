@@ -29,6 +29,7 @@ def predecessors(seq):
    if dest in pcs:inc[pcs[dest]].add(i)
    if kind.startswith("B_") or kind.startswith("CB_") or link:
     if nextpc in pcs:inc[pcs[nextpc]].add(i)
+    if link:uncertain.add(i)  # nonlocal call may clobber register values
    continue
   if decode_jalr(x):
    # Indirect call can return but its callee can change registers.
@@ -93,10 +94,12 @@ def infer_register_value(seq,idx,reg,max_steps=48):
     return {"value":base,"kind":"UNIQUE_CFG_X0_IMMEDIATE",
       "witnesses":list(reversed(witness+[{"pc":hex(ins.address),"raw":bytes(ins.bytes).hex()}]))}
    return {"unresolved":"TRANSFER_FROM_UNRESOLVED_REGISTER"}
-  # All writes, loads, atomics and unsupported operands fail closed.
-  if opcode in (0x03,0x33,0x1b,0x2f,0x0b,0x5b) and dest==reg:
+  # Custom/reserved opcode encodings may write any modeled source register.
+  if opcode in (0x0b,0x5b):return {"unresolved":"UNKNOWN_OPCODE_POSSIBLE_REG_WRITE"}
+  # All writes, loads and atomics fail closed on changed source.
+  if opcode in (0x03,0x33,0x1b,0x2f) and dest==reg:
    return {"unresolved":"LOAD_OR_UNMODELED_REG_WRITE"}
-  if opcode not in (0x03,0x33,0x1b,0x2f,0x0b,0x5b,0x37,0x17,0x13):
+  if opcode not in (0x03,0x33,0x1b,0x2f,0x37,0x17,0x13):
    return {"unresolved":"UNKNOWN_OPCODE_POSSIBLE_REG_WRITE"}
   at=p
  return {"unresolved":"LOOKBACK_LIMIT"}
