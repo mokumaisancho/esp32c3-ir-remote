@@ -111,7 +111,7 @@
       "status": "NOT_IMPLEMENTED"
     }
   ],
-  "result": "MAC_ISSUE_TRANSPORT_RECONFIRMED__PI_PROBE_DENIED_BY_INSTALLED_WORKER__PI_NOT_CONNECTED",
+  "result": "PRIVATE_GPT_INBOX_VERIFIED__PI_UPLOADER_CI_VALIDATED__PHYSICAL_PI_DEPLOYMENT_PENDING",
   "evidence_urls": [
     "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39502056920",
     "https://github.com/mokumaisancho/esp32c3-ir-remote/tree/fix/rmt-idf-error-diagnostics/pi_event_logger"
@@ -146,5 +146,60 @@
     "deployment_blocker": "Existing worker in detached HEAD, update path sync_pinned requires named managed branch; global BOOTSTRAP_RUN has reset --hard, do not use unsafe self-update path.",
     "pi_ssh_authenticated": false,
     "pi_live_device_connected": false
+  },
+  "private_cloud_redesign": {
+    "date": "2026-10-21",
+    "objective": "Make alarm logs readable by ChatGPT without requiring a live Mac/SSH/GAS path at read time",
+    "cloud_repo": "mokumaisancho/pi5-infrastructure-control",
+    "cloud_repo_private": true,
+    "private_issue": 19,
+    "private_issue_url": "https://github.com/mokumaisancho/pi5-infrastructure-control/issues/19",
+    "gpt_connector_test": {
+      "synthetic_comment_id": 6303040555,
+      "synthetic": true,
+      "write": "PASS",
+      "read": "PASS",
+      "real_pi_event": false
+    },
+    "components": {
+      "esp": "include/pi_alarm_telemetry.h",
+      "pi_receiver": "pi_event_logger/receiver.py --cloud",
+      "pi_uploader": "pi_event_logger/cloud_uplink.py",
+      "pi_test": "pi_event_logger/test_cloud_uplink.py",
+      "pi_docs": "pi_event_logger/README.md",
+      "private_index": "https://github.com/mokumaisancho/pi5-infrastructure-control/blob/main/docs/esp32_ir_alarm_cloud_inbox.md"
+    },
+    "security": "HTTPS/auth on Pi, no cloud credential on ESP; sender LAN UDP only; scrub source_ip from cloud payload; private issue; Pi fine-grained PAT Issues R/W recommended",
+    "delivery": "Local fsync spool and Pi cloud retry after offline; deterministic event_id for duplicate detection. UDP loss pre-Pi not recovered.",
+    "statuses": {
+      "gpt_private_cloud_read": "PASS_REAL_CONNECTOR",
+      "cloud_uploader_unit_mock": "PASS_CI",
+      "pi_real_cloud_upload": "NOT_TESTED",
+      "physical_esp_to_pi": "NOT_TESTED",
+      "pi_power_check": "PENDING",
+      "esp_firmware_current_device": "UNMODIFIED"
+    },
+    "acceptance": [
+      {
+        "ac": "C1",
+        "name": "GPT can read private event inbox",
+        "status": "PASS_REAL"
+      },
+      {
+        "ac": "C2",
+        "name": "Pi uplink retries failed cloud attempts from persisted local log",
+        "status": "PASS_TEST"
+      },
+      {
+        "ac": "C3",
+        "name": "Pi real on-LAN process running, cloud credential configured",
+        "status": "PENDING"
+      },
+      {
+        "ac": "C4",
+        "name": "Physical ESP alarm event stored on Pi and posted to Issue #19",
+        "status": "PENDING"
+      }
+    ]
   }
 }
