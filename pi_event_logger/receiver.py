@@ -89,10 +89,11 @@ def serve(bind, port, allowed, directory, cloud=False):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(socket_addr)
     stop = threading.Event()
+    wake = threading.Event()
     worker = None
     if cloud:
         worker = threading.Thread(
-            target=run_forever, args=(directory, token, stop),
+            target=run_forever, args=(directory, token, stop, wake),
             name="private-github-uplink", daemon=True)
         worker.start()
     print(json.dumps({"ready": True, "bind": bind, "port": sock.getsockname()[1],
@@ -106,12 +107,15 @@ def serve(bind, port, allowed, directory, cloud=False):
                 continue
             try:
                 path = persist(directory, raw, addr)
+                # Persist before waking private-cloud delivery.
+                wake.set()
                 print(json.dumps({"accepted": True, "file": str(path)}), flush=True)
             except (ValueError, json.JSONDecodeError, OSError) as exc:
                 print(json.dumps({"accepted": False, "reason": str(exc)[:120]}), flush=True)
     finally:
         sock.close()
         stop.set()
+        wake.set()
         if worker is not None:
             worker.join(timeout=2)
 
