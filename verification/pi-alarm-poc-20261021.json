@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "id": "PI-ALARM-EVENTS-POC-20261021",
+  "original_goal": "Confirm sandbox-to-home-Raspberry-Pi route; enable remote access; send ESP32-C3 scheduled IR action event logs to Pi and prove physical PoC",
+  "date_local": "2026-10-21",
+  "endpoints": {
+    "pi_ipv4": "192.168.2.131",
+    "pi_ap_ipv4": "192.168.50.1",
+    "esp32_lan_ipv4": "192.168.2.141",
+    "target_udp_port": 5514
+  },
+  "sandbox_route_probe": {
+    "environment_ipv4": "172.26.39.249/22",
+    "default_gateway": "172.26.36.1",
+    "probes": [
+      {
+        "dst": "192.168.2.131:22",
+        "observed": "ECONNREFUSED"
+      },
+      {
+        "dst": "192.168.2.131:8080",
+        "observed": "ECONNREFUSED"
+      },
+      {
+        "dst": "192.168.2.131:8081",
+        "observed": "ECONNREFUSED"
+      },
+      {
+        "dst": "192.168.50.1:22",
+        "observed": "ECONNREFUSED"
+      },
+      {
+        "dst": "1.1.1.1:443",
+        "observed": "ECONNREFUSED"
+      },
+      {
+        "dst": "8.8.8.8:443",
+        "observed": "ECONNREFUSED"
+      }
+    ],
+    "deduction": "Sandbox egress/network isolation prevents confirming Pi reachability. ECONNREFUSED from Pi destination alone cannot be classified as remote SSH server down.",
+    "direct_ssh_confirmed": false
+  },
+  "connector_path": {
+    "remote_desktop_commander_mac_device": "appurunoAir.elecom",
+    "status": "OFFLINE",
+    "last_seen_at_probe": "93h ago",
+    "previous_mac_pi_ssh_evidence": "2026-10-12 Mac->Pi `ssh pi@192.168.2.131 'echo SSH_OK'` returned SSH_OK",
+    "cannot_execute_pi_commands_now": true
+  },
+  "pi_power_safety": {
+    "source_repo": "mokumaisancho/pi5-infrastructure-control",
+    "status": "CURRENT POWER SAFETY STOP recorded 2026-10-11, no clearance verified",
+    "evidence": "get_throttled=0x50000, 24 historical undervoltage events in 10 minutes; supply capability 900mA reported",
+    "action": "No live Pi service deployment or added Pi workload performed pending safety clearance."
+  },
+  "implemented": {
+    "esp_sender": "include/pi_alarm_telemetry.h",
+    "esp_action_hook": "src/main.cpp runAlarmClock emits alarm_before_tx, alarm_after_tx, alarm_persist_failed, alarm_signal_missing",
+    "pi_receiver": "pi_event_logger/receiver.py",
+    "tests": "pi_event_logger/test_receiver.py plus tests/test_ir_wifi_integration.py",
+    "transport": "Private-LAN, 220-byte max JSON in single best-effort UDP datagram per event, PI source filter, fsync JSONL on receiver",
+    "scope": "Action boundary only, no raw IR waveform, network secrets, continuous high-rate logs, SSH/OAuth on ESP32",
+    "security_limit": "Private LAN allowlist is not cryptographic source authentication; do not expose UDP port to WAN.",
+    "operational_limit": "No ACK, no ESP offline queue; lost datagrams during power/WiFi outage cannot be recovered."
+  },
+  "tests": {
+    "actual_localhost_socket_and_file_io": "PASS in GitHub Actions job 39502056920",
+    "negative_schema_checks": "PASS",
+    "ESP_firmware_build": "PASS in run 39502056920",
+    "app_size_bytes": 1270448,
+    "ota_partition_bytes": 1310720,
+    "free_bytes": 40272,
+    "pi_physical_receive": "NOT_RUN_BLOCKED",
+    "esp_physical_flash_and_upload": "NOT_RUN_BLOCKED"
+  },
+  "acceptance": [
+    {
+      "id": "A1",
+      "description": "Code-level bounded event protocol and Pi receiver",
+      "status": "PASS"
+    },
+    {
+      "id": "A2",
+      "description": "On GitHub Linux CI, real UDP socket delivery into fsync JSONL",
+      "status": "PASS"
+    },
+    {
+      "id": "A3",
+      "description": "ESP32 firmware builds and respects partition margin",
+      "status": "PASS"
+    },
+    {
+      "id": "A4",
+      "description": "Sandbox reaches home Pi via authorized route",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "A5",
+      "description": "Pi has running listener, verified on Pi",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "A6",
+      "description": "Physical ESP32 sends event and Pi receives it",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "A7",
+      "description": "Pi logs persist over Pi reboot and failure/retry behavior covered",
+      "status": "NOT_IMPLEMENTED"
+    }
+  ],
+  "result": "SOFTWARE_POC_PASS__LIVE_PI_AND_ESP32_NOT_TESTED",
+  "evidence_urls": [
+    "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39502056920",
+    "https://github.com/mokumaisancho/esp32c3-ir-remote/tree/fix/rmt-idf-error-diagnostics/pi_event_logger"
+  ]
+}
