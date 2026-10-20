@@ -25,7 +25,7 @@
   "conclusions": [
     {
       "claim": "The 05:28 scheduler fired and software TX function reported success",
-      "status": "CONFIRMED_FROM_BROWSER_APP_STATE"
+      "status": "CONFIRMED_CURRENT_DAY_BY_FLASH_REBOOT_BOUND"
     },
     {
       "claim": "No explicit MCU sleep call in firmware",
@@ -33,7 +33,7 @@
     },
     {
       "claim": "ESP was power-cycled or sleeping during trigger minute",
-      "status": "NOT_SUPPORTED; schedule executed"
+      "status": "RULED_OUT_DURING_0528_EXECUTION; ESP entered runAlarmClock due block"
     },
     {
       "claim": "Physical IR output matched stored waveform and lamp received command",
@@ -50,6 +50,13 @@
     "For durable 05:28 RCA, add persistent bounded alarm event logging with time, uptime, boot reason, NTP validity, WiFi status, id/slot, driver response; do not infer from missing serial logs",
     "Independent ESP32-C3 IR receiver verify output waveform from GPIO7 emitter"
   ],
-  "status": "SCHEDULER_FIRED_DRIVER_OK__PHYSICAL_LIGHT_RESULT_UNVERIFIED",
-  "caveat": "Browser snapshot reflects app DOM read at device displayed time 05:31:25; not a direct raw serial trace."
+  "status": "CURRENT_DAY_SCHEDULER_FIRED_TX_DRIVER_OK_LAMP_NO_RESPONSE_ROOT_UNRESOLVED",
+  "caveat": "Browser snapshot reflects app DOM read at device displayed time 05:31:25; not a direct raw serial trace.",
+  "flash_reboot_crosscheck": {
+    "preceding_flash_local_time": "2026-10-20 20:30 JST",
+    "source": "Previous user-shared flash/readback receipt in this conversation, verified FLASH_READBACK_SHA256_PASS",
+    "software_initialization": "src/main.cpp defines String lastAlarmEvent = \"未実行\"; not persisted in LittleFS and reset on firmware boot",
+    "inference": "Because a confirmed firmware flash/restart occurred after 2026-10-20 05:28, the displayed RAM last_event '5:28' as of 2026-10-21 05:31 cannot refer to 2026-10-20 or earlier. It denotes 2026-10-21 05:28 barring contrary evidence such as different device.",
+    "status": "CURRENT_DAY_TRIGGER_CONFIRMED_BY_REBOOT_BOUND"
+  }
 }
