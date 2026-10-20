@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import sys
+import threading
+import time
 import tempfile
 import unittest
 from unittest import mock
@@ -16,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from receiver import persist
 from cloud_uplink import (
     API_URL, ISSUE_NUMBER, PREFIX, flush_once, github_comment,
-    iter_undelivered, load_delivered, sanitized_event,
+    iter_undelivered, load_delivered, sanitized_event, run_forever,
 )
 
 def sample(**kwargs):
@@ -101,6 +103,50 @@ class CloudRoute(unittest.TestCase):
             self.assertEqual(json.loads(reqbody["body"][len(PREFIX):])["event"], "alarm_after_tx")
             return FakeResponse()
         self.assertEqual(github_comment(event, "a"*64, "fake-secret", opener), 777)
+
+    def test_event_driven_uplink_does_not_poll_when_idle(self):
+        stop = threading.Event()
+        wake = threading.Event()
+        calls = []
+        def fake_flush(directory, token):
+            calls.append(time.monotonic())
+            return {"posted": 0, "pending_scanned": 0}
+        with mock.patch("cloud_uplink.flush_once", side_effect=fake_flush):
+            t = threading.Thread(target=run_forever,
+                                 args=("unused", "unused", stop, wake), daemon=True)
+            t.start()
+            try:
+                deadline = time.monotonic() + 1
+                while not calls and time.monotonic() < deadline:
+                    time.sleep(.005)
+                self.assertEqual(len(calls), 1)
+                time.sleep(.08)
+                self.assertEqual(len(calls), 1)
+                wake.set()
+                deadline = time.monotonic() + 1
+                while len(calls) == 1 and time.monotonic() < deadline:
+                    time.sleep(.005)
+                self.assertEqual(len(calls), 2)
+            finally:
+                stop.set()
+                wake.set()
+                t.join(timeout=1)
+                self.assertFalse(t.is_alive())
+
+    def test_cloud_offline_causes_retry_without_dropping_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            persist(d, sample(), "192.168.2.141")
+            called = []
+            def post(data, ident, token):
+                called.append(ident)
+                if len(called) == 1:
+                    raise TimeoutError("offline")
+                return 12345
+            with self.assertRaises(TimeoutError):
+                flush_once(d, "test-token", poster=post)
+            self.assertEqual(flush_once(d, "test-token", poster=post)["posted"], 1)
+            self.assertEqual(len(called), 2)
+            self.assertEqual(called[0], called[1])
 
     def test_reject_cloud_without_token(self):
         with self.assertRaises(ValueError):
