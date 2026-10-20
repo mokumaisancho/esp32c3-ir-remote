@@ -1,6 +1,6 @@
 """Fail-closed machine-byte JALR local CFG register origin tests."""
 import types,unittest
-from rom_p0a_cfg_defuse import infer_register_value,predecessors
+from rom_p0a_cfg_defuse import infer_register_value,predecessors,is_rom_exec_address
 
 def ins(pc,value,mnemonic="addi"):
  return types.SimpleNamespace(address=pc,size=4,bytes=value.to_bytes(4,"little"),mnemonic=mnemonic)
@@ -11,6 +11,24 @@ def code(base):
          ins(base+8,0x00140413),ins(base+12,0x000280e7,"jalr")]
 
 class CFGTests(unittest.TestCase):
+ def test_zero_call_and_nearby_outside_ROM_rejected(self):
+  regions=[(0x40000000,0x40060000)]
+  self.assertFalse(is_rom_exec_address(0,regions))
+  self.assertFalse(is_rom_exec_address(0x3ffffffe,regions))
+  self.assertFalse(is_rom_exec_address(0x40060000,regions))
+  self.assertTrue(is_rom_exec_address(0x40000000,regions))
+  self.assertTrue(is_rom_exec_address(0x4005fffe,regions))
+ def test_rev0_common_zero_register_JALR_is_not_a_rom_callee(self):
+  # Actual rev0 machine bytes JALR x1,x0,0, observed 95 times.
+  pc=0x4004725e
+  insn=ins(pc,0x000000e7,"jalr")
+  from rom_strict_indirect import decode_jalr
+  dec=decode_jalr(insn)
+  self.assertEqual(dec["rs1"],0)
+  self.assertEqual(dec["imm"],0)
+  reg=infer_register_value([insn],0,dec["rs1"])
+  self.assertEqual(reg["value"],0)
+  self.assertFalse(is_rom_exec_address(reg["value"],[(0x40000000,0x40060000)]))
  def test_nonadjacent_register_source_passes(self):
   seq=code(0x40001000)
   r=infer_register_value(seq,3,5)
