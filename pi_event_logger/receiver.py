@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import socket
 import sys
+import threading
+from cloud_uplink import git_token, run_forever
 
 MAX_PACKET = 512
 EVENTS = frozenset({"alarm_before_tx", "alarm_after_tx",
@@ -75,13 +77,27 @@ def persist(directory, payload, source_ip, now=None):
     return fname
 
 
-def serve(bind, port, allowed, directory):
+def serve(bind, port, allowed, directory, cloud=False):
     if bind in ("0.0.0.0", "::"):
         raise ValueError("Do not bind a LAN log receiver to all interfaces")
+    # Fail closed: "--cloud" must not silently fall back to local-only.
+    # Pi retains GitHub credentials. ESP32 never runs TLS/OAuth/GitHub.
+    token = git_token() if cloud else ""
+    if cloud and not token:
+        raise RuntimeError("PI_GITHUB_TOKEN_NOT_CONFIGURED")
+    socket_addr = (bind, port)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((bind, port))
+    sock.bind(socket_addr)
+    stop = threading.Event()
+    worker = None
+    if cloud:
+        worker = threading.Thread(
+            target=run_forever, args=(directory, token, stop),
+            name="private-github-uplink", daemon=True)
+        worker.start()
     print(json.dumps({"ready": True, "bind": bind, "port": sock.getsockname()[1],
-                      "allow": allowed, "dir": str(directory)}), flush=True)
+                      "allow": allowed, "dir": str(directory),
+                      "private_cloud_enabled": cloud}), flush=True)
     try:
         while True:
             raw, (addr, _) = sock.recvfrom(MAX_PACKET + 1)
@@ -95,6 +111,9 @@ def serve(bind, port, allowed, directory):
                 print(json.dumps({"accepted": False, "reason": str(exc)[:120]}), flush=True)
     finally:
         sock.close()
+        stop.set()
+        if worker is not None:
+            worker.join(timeout=2)
 
 
 def main():
@@ -103,8 +122,10 @@ def main():
     p.add_argument("--allow", default="192.168.2.141")
     p.add_argument("--port", type=int, default=5514)
     p.add_argument("--dir", default=str(Path.home() / ".local/share/esp32-alarm-events"))
+    p.add_argument("--cloud", action="store_true",
+                   help="enable Pi -> private GitHub Issue #19 delivery; needs scoped GitHub credential")
     a = p.parse_args()
-    serve(a.bind, a.port, a.allow, a.dir)
+    serve(a.bind, a.port, a.allow, a.dir, cloud=a.cloud)
 
 
 if __name__ == "__main__":
