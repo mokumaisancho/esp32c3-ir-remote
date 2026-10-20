@@ -1,0 +1,60 @@
+name: ROM-001 exploratory new-function discovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/new_function_hunt.py'
+      - 'rom_automation/test_new_function_hunt.py'
+      - '.github/workflows/rom-new-function-hunt.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: rom-new-function-hunt-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  scan-all-three-revisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32 capstone==5.0.6
+      - name: Retrieve and SHA-256 verify pinned official ROM and original-88 census
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rom_discovery" rom_automation/output/new_function_hunt
+          curl -fL --retry 3 --connect-timeout 30 \
+            'https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz' \
+            -o "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz"
+          echo 'caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46  ' "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" | sha256sum -c
+          curl -fL --retry 3 -H "Authorization: Bearer $GH_TOKEN" \
+            'https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12180128997/zip' \
+            -o "$RUNNER_TEMP/rom_discovery/original-88.zip"
+          echo 'cc08989ed0967d091b9d63eae9e714a661d03604fc54c6c57778b034ee264896  ' "$RUNNER_TEMP/rom_discovery/original-88.zip" | sha256sum -c
+          sha256sum "$RUNNER_TEMP/rom_discovery/"* | tee rom_automation/output/new_function_hunt/input_sha256.log
+      - name: Run isolated negative controls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_new_function_hunt.py' -v 2>&1 | tee rom_automation/output/new_function_hunt/unit_tests.log
+      - name: Scan all official ELF symbols and direct transfers into symbol-size gaps
+        run: |
+          set -euo pipefail
+          python rom_automation/new_function_hunt.py \
+            --rom "$RUNNER_TEMP/rom_discovery/esp-rom-elfs.tar.gz" \
+            --machine "$RUNNER_TEMP/rom_discovery/original-88.zip" \
+            --out rom_automation/output/new_function_hunt/complete_exploratory_census.json \
+            2>&1 | tee rom_automation/output/new_function_hunt/census.log
+      - name: Preserve exact reports and run logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rom-001-complete-new-function-exploratory-evidence
+          path: rom_automation/output/new_function_hunt/
+          retention-days: 90
+          if-no-files-found: error
