@@ -219,6 +219,10 @@ def decode_elf(blob,rev,original,catalogs,max_witness=8):
    "Linear instruction decoding may interpret noncode bytes as instructions.",
    "Indirect targets, address-table entries, alternate-entry roots and full CFG remain unresolved."]}
 
+def is_compiler_local_name(name):
+ # Do not interpret GCC check_condCOUNTER.<number> local labels as new functions.
+ return bool(re.fullmatch(r"check_condCOUNTER\.\d+",name))
+
 def evaluate(rom_tar,machine_zip,catalogs,meta):
  require(sha(rom_tar)==ROM_SHA,"OFFICIAL_ELF_ARCHIVE_SHA")
  require(sha(machine_zip)==MACHINE_SHA,"CANONICAL_88_SOURCE_SHA")
@@ -244,8 +248,8 @@ def evaluate(rom_tar,machine_zip,catalogs,meta):
   "original_88_candidate_names_count":len(names),
   "selected_prior_catalogs":meta,
   "unique_ELF_names_not_in_selected_prior":len(all_missing),
-  "compiler_local_labels_excluded_from_feature_queue":sum(bool(re.fullmatch(r"check_condCOUNTER\\.\\d+",name)) for name in all_missing),
-  "named_candidates_for_prior_art_followup":sum(not bool(re.fullmatch(r"check_condCOUNTER\\.\\d+",name)) for name in all_missing),
+  "compiler_local_labels_excluded_from_feature_queue":sum(is_compiler_local_name(name) for name in all_missing),
+  "named_candidates_for_prior_art_followup":sum(not is_compiler_local_name(name) for name in all_missing),
   "all_missing_names":dict(sorted(all_missing.items())),
   "revisions":per,
   "novel_function_proven":0,"independent_semantic_review_proven":0,
