@@ -1,6 +1,6 @@
 """ROM-001: independently encoded raw-immediate positive/negative indirect calls."""
 import types,unittest
-from rom_strict_indirect import address_builder,decode_jalr,candidate_call,readonly_literal
+from rom_strict_indirect import address_builder,decode_jalr,candidate_call,readonly_literal,prior_register_class
 def enc(v,pc):return types.SimpleNamespace(bytes=int(v).to_bytes(4,"little"),size=4,address=pc)
 def cenc(v,pc):return types.SimpleNamespace(bytes=int(v).to_bytes(2,"little"),size=2,address=pc)
 def auipc(rd,hi):return 0x17 | (rd<<7) | (hi&0xfffff000)
@@ -17,6 +17,24 @@ class FakeElf:
  def __init__(self,sections):self.s=sections
  def iter_sections(self):return iter(self.s)
 class ROMIndirectEncodingTests(unittest.TestCase):
+ def test_unresolved_register_loaded_from_memory(self):
+  seq=[enc(lw(15,10,4),0x40000000),enc(jalr(1,15),0x40000004)]
+  seq[0].mnemonic="lw";seq[1].mnemonic="jalr"
+  source,loc=prior_register_class(seq,1,15)
+  self.assertEqual(source,"MEMORY_LOAD")
+  self.assertEqual(loc["source_pc"],"0x40000000")
+ def test_relative_address_source_not_known_target(self):
+  seq=[enc(auipc(5,0x1000),0x40000000),enc(jalr(1,5),0x40000004)]
+  seq[0].mnemonic="auipc";seq[1].mnemonic="jalr"
+  self.assertEqual(prior_register_class(seq,1,5)[0],"PC_REL_MATERIALIZATION")
+ def test_branch_is_provenance_barrier(self):
+  seq=[enc(lw(15,10,4),0x40000000),enc(0x00000063,0x40000004),enc(jalr(1,15),0x40000008)]
+  for i,name in enumerate(("lw","beq","jalr")):seq[i].mnemonic=name
+  self.assertEqual(prior_register_class(seq,2,15)[0],"CONTROL_FLOW_BARRIER")
+ def test_unbound_register_returns_unknown(self):
+  seq=[enc(jalr(1,15),0x40000000)]
+  seq[0].mnemonic="jalr"
+  self.assertEqual(prior_register_class(seq,0,15)[0],"NOT_IN_BOUNDED_STRAIGHT_LINE")
  def test_auipc_addi_positive_immediate(self):
   a=enc(auipc(5,0x1000),0x40000000);b=enc(addi(5,5,12),0x40000004)
   t=address_builder(a,b)
