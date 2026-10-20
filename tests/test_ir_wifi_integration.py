@@ -96,7 +96,7 @@ class WifiProvisioningContracts(unittest.TestCase):
         tx = extract_body_function(SRC, "bool transmitSignal(")
         frame = extract_body_function(SRC, "bool transmitFrame(")
         learn = extract_body_function(SRC, "bool learnSignal(")
-        self.assertIn("150U", tx)
+        self.assertIn("delayMicroseconds(gapUs % 1000U)", tx)
         self.assertIn("IR_TX_GAP", tx)
         self.assertIn("symbolCount, 200)", frame)
         self.assertIn("IR_RX_BEGIN", learn)
@@ -198,7 +198,11 @@ struct FakeServer {
 struct FakeSerial {
   template <typename... A> void printf(const char*, A...) const {}
 } Serial;
-constexpr size_t MAX_EXTRA_FRAMES = 4;
+constexpr size_t MAX_EXTRA_FRAMES = 127;
+constexpr size_t MAX_CAPTURE_BYTES = 24U * 1024U;
+struct FakeESP { size_t getFreeHeap() const { return 200000U; } } ESP;
+bool captureTruncated = false;
+uint32_t captureBytes = 0, captureBudget = 0;
 uint32_t signalDurationUs(const Signal &s) {
   uint32_t n=0;for(int32_t p:s.pulses)n+=p<0?-p:p;return n;
 }
@@ -239,6 +243,7 @@ int xQueueReceive(QueueHandle_t q, size_t* count, uint32_t timeout) {
   if (scenario == 1) { *count=1; return pdTRUE; }
   if (scenario == 2) { *count=4; return pdTRUE; }
   if (scenario == 5) { *count=4; fake_time += 110; return pdTRUE; }
+  if (scenario == 6) { *count=4; fake_time += 2; return pdTRUE; }
   fake_time += timeout;
   return 0;
 }
@@ -269,7 +274,11 @@ int main(){
   assert(ok && elapsed<50 && attempts==1 && s.pulses.size()==6);
   scenario=5; fake_time=0; rmtRxReady=true; server.multi=true;
   ok=learnSignal(s,elapsed,attempts,early);
-  assert(ok && s.extraFrames.size()==4 && s.interFrameGapUs.size()==4 && elapsed<=1200);
+  assert(ok && s.extraFrames.size()>4 && s.extraFrames.size()==s.interFrameGapUs.size() && elapsed>=5000);
+  server.multi=false;
+  scenario=6; fake_time=0; rmtRxReady=true; server.multi=true;
+  ok=learnSignal(s,elapsed,attempts,early);
+  assert(!ok && captureTruncated && s.extraFrames.size()==MAX_EXTRA_FRAMES && elapsed<5000);
   server.multi=false;
   scenario=3; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
@@ -277,7 +286,7 @@ int main(){
   scenario=4; fake_time=0; rmtRxReady=true;
   ok=learnSignal(s,elapsed,attempts,early);
   assert(!ok && rxLastResetError==ESP_ERR_INVALID_STATE && !rmtRxReady);
-  std::cout << "DIRECT_IDF_RECEIVE_6_SCENARIOS_PASS\n";
+  std::cout << "DIRECT_IDF_RECEIVE_7_SCENARIOS_PASS\n";
 }
 """
         with tempfile.TemporaryDirectory() as tmp:
@@ -292,7 +301,7 @@ int main(){
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
             execute = subprocess.run([str(binary)], text=True, capture_output=True, timeout=15)
             self.assertEqual(execute.returncode, 0, execute.stdout + execute.stderr)
-            self.assertIn("DIRECT_IDF_RECEIVE_6_SCENARIOS_PASS", execute.stdout)
+            self.assertIn("DIRECT_IDF_RECEIVE_7_SCENARIOS_PASS", execute.stdout)
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_exact_web_ui_javascript_syntax(self):
@@ -333,11 +342,15 @@ class LightingAlarmContracts(unittest.TestCase):
         for term in ('照明アラーム', 'alarmTime', 'alarmWeekdays',
                      'alarmSignal', 'alarmFirstOnly', 'alarmEnabled',
                      'addAlarm', 'refreshAlarms()', 'id="alarmList"',
-                     'dayText', 'NTPの時刻'):
+                     'dayText'):
             self.assertIn(term, UI)
         self.assertIn("'/api/alarms/save'", UI)
         self.assertIn("'/api/alarms/delete'", UI)
         self.assertIn("document.querySelectorAll('#alarmWeekdays input:checked')", UI)
+        self.assertNotIn("登録したアラームはLittleFSに保存し", UI)
+        self.assertNotIn("過ぎた時刻の後追い実行はしません", UI)
+        self.assertNotIn('id="multi" type="checkbox"', UI)
+        self.assertIn("form({multi:'1'", UI)
 
 
 if __name__ == "__main__":
