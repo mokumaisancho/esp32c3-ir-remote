@@ -11,12 +11,25 @@ from decision_gate import REVS,ROM_SHA,require,sha
 from rom_strict_indirect import word,signed,probable_last_writer,official_c3_memory_region
 
 def real_store(ins):
+ raw=bytes(ins.bytes)
+ if len(raw)==2:
+  c=int.from_bytes(raw,"little")
+  # RV32C C.SW: quadrant 0, funct3 110, compact base/data registers.
+  if c&3==0 and c>>13&7==6:
+   offset=((c>>10&7)<<3)|((c>>6&1)<<2)|((c>>5&1)<<6)
+   return {"base_reg":8+((c>>7)&7),"value_reg":8+((c>>2)&7),
+    "offset":offset,"width_bytes":4,"machine_bytes":raw.hex(),"encoding":"C.SW"}
+  # RV32C C.SWSP: quadrant 2, funct3 110, base SP.
+  if c&3==2 and c>>13&7==6:
+   offset=((c>>9&15)<<2)|((c>>7&3)<<6)
+   return {"base_reg":2,"value_reg":(c>>2)&31,
+    "offset":offset,"width_bytes":4,"machine_bytes":raw.hex(),"encoding":"C.SWSP"}
  w=word(ins)
  if w is not None and w&0x7f==0x23 and (w>>12)&7 in (0,1,2):
   imm=((w>>25)&0x7f)<<5 | ((w>>7)&0x1f)
   return {"base_reg":(w>>15)&31,"value_reg":(w>>20)&31,
    "offset":signed(imm,12),"width_bytes":1<<((w>>12)&7),
-   "machine_bytes":bytes(ins.bytes).hex()}
+   "machine_bytes":bytes(ins.bytes).hex(),"encoding":"RV32I_STORE"}
  return None
 
 def nearest_writer_index(seq,limit,reg,window=32):
@@ -59,7 +72,7 @@ def detect_store(seq,ix,target_slots):
  if addr not in target_slots:return None
  return {"store_pc":hex(ins.address),"store_binary":op["machine_bytes"],
    "target_sram_slot":hex(addr),"stored_value_register":op["value_reg"],
-   "width_bytes":op["width_bytes"],"address_provenance":earlier[1],
+   "width_bytes":op["width_bytes"],"instruction_encoding":op["encoding"],"address_provenance":earlier[1],
    "target_region":official_c3_memory_region(addr),
    "actual_written_function_pointer_value":None,
    "runtime_execution_verified":False}
