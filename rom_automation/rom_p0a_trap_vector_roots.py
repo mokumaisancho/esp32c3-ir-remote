@@ -92,8 +92,8 @@ def scan_elf(blob,rev,graph,boot):
    raw=bytes(obj.bytes)
    w=csr_vector_write(raw)
    if w is None:
-    if len(raw)==4 and int.from_bytes(raw,"little")&127==0x73 and
-       (int.from_bytes(raw,"little")>>20)&0xfff in VECTORS:
+    if (len(raw)==4 and (int.from_bytes(raw,"little")&127)==0x73
+        and ((int.from_bytes(raw,"little")>>20)&0xfff) in VECTORS):
       read_only+=1
     continue
    static_counts[w["name"]]+=1
