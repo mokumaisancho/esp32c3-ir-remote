@@ -104,6 +104,9 @@ def infer_register_value(seq,idx,reg,max_steps=48):
   at=p
  return {"unresolved":"LOOKBACK_LIMIT"}
 
+def is_rom_exec_address(target,section_intervals):
+ return any(start<=target<stop for start,stop in section_intervals)
+
 def scan_one(blob,rev,graph):
  from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
  elf=ELFFile(io.BytesIO(blob));sections,bounds,pairs,owners,entries,_=make_symbol_index(elf)
@@ -135,7 +138,7 @@ def scan_one(blob,rev,graph):
    # ROM callee. Rev0 contains 95 such machine-word patterns, some in
    # check_condCOUNTER labels. Do not treat zero or an unallocated address
    # as a recovered function or target.
-   if not any(b<=target<e for b,(e,_,_) in by_sec.items()):
+   if not is_rom_exec_address(target,[(b,e) for b,(e,_,_) in by_sec.items()]):
     counts["NON_EXECUTABLE_TARGET_REJECTED"]+=1
     if target==0:counts["ZERO_ADDRESS_REJECTED"]+=1
     continue
