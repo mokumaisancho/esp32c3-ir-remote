@@ -28,7 +28,8 @@ namespace {
 constexpr uint32_t SIGNAL_MAGIC = 0x31524945; // "EIR1"
 constexpr uint16_t SIGNAL_VERSION = 1;
 constexpr uint16_t SIGNAL_MULTI_VERSION = 2;
-constexpr size_t MAX_EXTRA_FRAMES = 4;
+constexpr size_t MAX_EXTRA_FRAMES = 127; // 128 frames, V2 uint8_t compatible.
+constexpr size_t MAX_CAPTURE_BYTES = 24U * 1024U; // Keep a quarter-heap safety margin.
 
 struct Signal {
   String name;
@@ -112,6 +113,9 @@ esp_err_t rxInitError = ESP_ERR_INVALID_STATE;
 esp_err_t rxLastStartError = ESP_OK;
 esp_err_t rxLastResetError = ESP_OK;
 uint32_t rxLastSymbolCount = 0;
+bool captureTruncated = false;
+uint32_t captureBytes = 0;
+uint32_t captureBudget = 0;
 uint32_t rebootAt = 0;
 
 rmt_data_t rxSymbols[ircfg::MAX_RMT_SYMBOLS];
@@ -393,6 +397,9 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
   rxLastSymbolCount = 0;
   rxLastStartError = ESP_OK;
   rxLastResetError = ESP_OK;
+  captureTruncated = false;
+  captureBytes = 0;
+  captureBudget = std::min<uint32_t>(MAX_CAPTURE_BYTES, ESP.getFreeHeap() / 4U);
   if (!rxChannel || !rxDoneQueue) return false;
   Serial.printf("IR_RX_BEGIN t=%lu multi=%d\n", static_cast<unsigned long>(start),
                 server.hasArg("multi") && server.arg("multi") == "1" ? 1 : 0);
@@ -426,14 +433,14 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
     if (count > 0 && count <= ircfg::MAX_RMT_SYMBOLS) {
       Signal candidate = normalizeReceived(rxSymbols, count);
       if (candidate.pulses.size() >= 6 && candidate.pulses.size() <= ircfg::MAX_PULSES) {
+        captureBytes = candidate.pulses.size() * sizeof(int32_t);
+        if (captureBytes > captureBudget) { captureTruncated = true; elapsedMs = millis() - start; return false; }
         signal = std::move(candidate);
         if (server.hasArg("multi") && server.arg("multi") == "1") {
-          // Collect subsequent frames for up to 1.2 seconds after the first.
-          // Short NEC repeat frames are valid even when they have under six pulses.
-          const uint32_t multiUntil = millis() + 1200U;
+          // Capture until the original five-second deadline, not 1.2s after first frame.
+          const uint32_t multiUntil = start + ircfg::LEARN_WINDOW_MS;
           uint32_t prevEnd = millis();
-          while (static_cast<int32_t>(multiUntil - millis()) > 0 &&
-                 signal.extraFrames.size() < MAX_EXTRA_FRAMES) {
+          while (static_cast<int32_t>(multiUntil - millis()) > 0) {
             xQueueReset(rxDoneQueue);
             const esp_err_t err = rmt_receive(rxChannel, rxSymbols, sizeof(rxSymbols), &cfg);
             if (err != ESP_OK) { Serial.printf("IR_MULTI_START_ERR=%d\n", static_cast<int>(err)); break; }
@@ -452,15 +459,24 @@ bool learnSignal(Signal &signal, uint32_t &elapsedMs,
             const uint32_t durationMs = (signalDurationUs(extra) + 999U) / 1000U;
             const uint32_t deltaMs = endMs - prevEnd;
             const uint32_t gapMs = deltaMs > durationMs ? deltaMs - durationMs : 0U;
+            const size_t extraBytes = extra.pulses.size() * sizeof(int32_t);
+            if (signal.extraFrames.size() >= MAX_EXTRA_FRAMES ||
+                captureBytes + extraBytes > captureBudget) { captureTruncated = true; break; }
             signal.interFrameGapUs.push_back(gapMs * 1000U);
             signal.extraFrames.push_back(std::move(extra.pulses));
+            captureBytes += static_cast<uint32_t>(extraBytes);
             prevEnd = endMs;
           }
           Serial.printf("IR_MULTI_CAPTURE frames=%u\n",
                         static_cast<unsigned>(signal.extraFrames.size() + 1));
         }
         elapsedMs = millis() - start;
-        return true;
+        Serial.printf("IR_CAPTURE_SUMMARY elapsed=%lu frames=%u bytes=%lu budget=%lu truncated=%d\n",
+                      static_cast<unsigned long>(elapsedMs),
+                      static_cast<unsigned>(signal.extraFrames.size() + 1),
+                      static_cast<unsigned long>(captureBytes),
+                      static_cast<unsigned long>(captureBudget), captureTruncated ? 1 : 0);
+        return !captureTruncated && rxLastResetError == ESP_OK;
       }
     }
     // A noise burst must not end the user-visible capture window.
@@ -475,6 +491,9 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
   const bool wantMulti = server.hasArg("multi") && server.arg("multi") == "1";
   libraryLastRawLength = 0;
   libraryLastOverflow = false;
+  captureTruncated = false;
+  captureBytes = 0;
+  captureBudget = std::min<uint32_t>(MAX_CAPTURE_BYTES, ESP.getFreeHeap() / 4U);
   rxLastStartError = ESP_OK;
   rxLastResetError = ESP_OK;
   rxLastSymbolCount = 0;
@@ -489,14 +508,12 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
   comparisonReceiverActive = true;
   decode_results result;
   bool found = false;
-  uint32_t multiDeadline = 0;
-  while (millis() - started < ircfg::LEARN_WINDOW_MS ||
-         (found && wantMulti && static_cast<int32_t>(multiDeadline - millis()) > 0)) {
-    if (found && (!wantMulti || signal.extraFrames.size() >= MAX_EXTRA_FRAMES ||
-                  static_cast<int32_t>(multiDeadline - millis()) <= 0)) break;
+  const uint32_t multiDeadline = started + ircfg::LEARN_WINDOW_MS;
+  while (static_cast<uint32_t>(millis() - started) < ircfg::LEARN_WINDOW_MS) {
+    if (found && !wantMulti) break;
     if (!comparisonReceiver.decode(&result)) { delay(1); continue; }
     libraryLastRawLength = result.rawlen;
-    libraryLastOverflow = result.overflow;
+    libraryLastOverflow = libraryLastOverflow || result.overflow;
     const uint32_t gapUs = result.rawlen ?
         static_cast<uint32_t>(result.rawbuf[0]) * kRawTick : 0;
     Signal frame;
@@ -512,18 +529,24 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
                   static_cast<unsigned>(frame.pulses.size()), result.repeat ? 1 : 0,
                   static_cast<unsigned long>(gapUs));
     comparisonReceiver.resume();
-    if (result.overflow || frame.pulses.size() < 2 ||
-        frame.pulses.size() > ircfg::MAX_PULSES) continue;
+    if (result.overflow) { captureTruncated = true; break; }
+    if (frame.pulses.size() < 2 || frame.pulses.size() > ircfg::MAX_PULSES) continue;
+    const size_t nextBytes = frame.pulses.size() * sizeof(int32_t);
+    if (captureBytes + nextBytes > captureBudget ||
+        (found && signal.extraFrames.size() >= MAX_EXTRA_FRAMES)) {
+      captureTruncated = true; break;
+    }
     if (!found) {
       // An NEC short repeat alone cannot operate the lamp. Wait for a full first frame.
       if (frame.pulses.size() < 6) continue;
       signal = std::move(frame);
       found = true;
+      captureBytes += static_cast<uint32_t>(nextBytes);
       if (!wantMulti) break;
-      multiDeadline = millis() + 1200U;
     } else {
       signal.interFrameGapUs.push_back(gapUs);
       signal.extraFrames.push_back(std::move(frame.pulses));
+      captureBytes += static_cast<uint32_t>(nextBytes);
     }
   }
   comparisonReceiver.disableIRIn();
@@ -536,7 +559,7 @@ bool learnWithLibrary(Signal &signal, uint32_t &elapsedMs) {
                 static_cast<unsigned long>(libraryLastRawLength),
                 libraryLastOverflow ? 1 : 0, static_cast<unsigned long>(elapsedMs),
                 static_cast<int>(rxLastResetError));
-  return found && rxLastResetError == ESP_OK;
+  return found && !captureTruncated && rxLastResetError == ESP_OK;
 }
 
 uint32_t lastTxDurationMs = 0;
@@ -626,14 +649,15 @@ bool transmitSignal(const Signal &signal, size_t maxFrames = MAX_EXTRA_FRAMES + 
   const size_t repeatCount = std::min(signal.extraFrames.size(), maxFrames - 1);
   for (size_t i = 0; ok && i < repeatCount; ++i) {
     if (i >= signal.interFrameGapUs.size()) { ok = false; break; }
-    const uint32_t gapMs = std::min<uint32_t>((signal.interFrameGapUs[i] + 500U) / 1000U, 150U);
+    const uint32_t gapUs = signal.interFrameGapUs[i];
     const uint32_t gapStartMs = millis();
-    delay(gapMs);
+    delay(gapUs / 1000U);
+    if (gapUs % 1000U) delayMicroseconds(gapUs % 1000U);
     lastTxGapMs += millis() - gapStartMs;
-    Serial.printf("IR_TX_GAP frame=%u original_us=%lu applied_ms=%lu\n",
+    Serial.printf("IR_TX_GAP frame=%u original_us=%lu applied_us=%lu\n",
                   static_cast<unsigned>(i + 1),
-                  static_cast<unsigned long>(signal.interFrameGapUs[i]),
-                  static_cast<unsigned long>(gapMs));
+                  static_cast<unsigned long>(gapUs),
+                  static_cast<unsigned long>(gapUs));
     ok = transmitFrame(signal, signal.extraFrames[i]);
     if (ok) ++lastTxFrameCount;
   }
@@ -719,7 +743,7 @@ void handleLearn() {
     const bool resetFailed = rxLastResetError != ESP_OK;
     const char *reason = irpolicy::rxFailureReason(startFailed, resetFailed,
                                                    rxLastSymbolCount);
-    String json = "{\"ok\":false,\"reason\":\"" + String(reason) + "\"";
+    String json = "{\"ok\":false,\"reason\":\"" + String(captureTruncated ? "capture_limit" : reason) + "\"";
     json += ",\"elapsed_ms\":" + String(elapsedMs);
     json += ",\"start_esp_err\":" + String(static_cast<int>(rxLastStartError));
     json += ",\"reset_esp_err\":" + String(static_cast<int>(rxLastResetError));
@@ -728,8 +752,11 @@ void handleLearn() {
     json += ",\"early_failures\":" + String(earlyFailures);
     json += ",\"backend\":\"" + String(libraryMode ? "library" : "rmt") + "\"";
     json += ",\"raw_length\":" + String(libraryMode ? libraryLastRawLength : rxLastSymbolCount);
-    json += ",\"overflow\":" + String(libraryMode && libraryLastOverflow ? "true" : "false") + "}";
-    sendJson(startFailed || resetFailed ? 503 : 408, json);
+    json += ",\"overflow\":" + String(libraryMode && libraryLastOverflow ? "true" : "false");
+    json += ",\"truncated\":" + String(captureTruncated ? "true" : "false");
+    json += ",\"capture_bytes\":" + String(captureBytes);
+    json += ",\"capture_budget_bytes\":" + String(captureBudget) + "}";
+    sendJson(captureTruncated ? 507 : (startFailed || resetFailed ? 503 : 408), json);
     return;
   }
 
@@ -741,9 +768,10 @@ void handleLearn() {
   String autoName;
   if (slot >= 0) {
     autoName = "capture-" + String(slot);
-    Signal persistent = lastSignal;
-    persistent.name = autoName;
-    stored = saveSignalToSlot(static_cast<size_t>(slot), persistent);
+    const String originalName = lastSignal.name;
+    lastSignal.name = autoName;
+    stored = saveSignalToSlot(static_cast<size_t>(slot), lastSignal);
+    lastSignal.name = originalName;
   }
 
   String json = "{";
@@ -755,6 +783,8 @@ void handleLearn() {
   json += "\"pulses\":" + String(lastSignal.pulses.size()) + ",";
   json += "\"duration_us\":" + String(signalDurationUs(lastSignal)) + ",";
   json += "\"frames\":" + String(lastSignal.extraFrames.size() + 1) + ",";
+  json += "\"capture_bytes\":" + String(captureBytes) + ",";
+  json += "\"capture_budget_bytes\":" + String(captureBudget) + ",";
   json += "\"elapsed_ms\":" + String(elapsedMs) + ",";
   json += "\"raw\":" + rawJson(lastSignal);
   json += "}";
@@ -780,9 +810,11 @@ void handleSave() {
     return;
   }
 
-  Signal toSave = lastSignal;
-  toSave.name = name;
-  if (!saveSignalToSlot(static_cast<size_t>(slot), toSave)) {
+  const String originalName = lastSignal.name;
+  lastSignal.name = name;
+  const bool saved = saveSignalToSlot(static_cast<size_t>(slot), lastSignal);
+  lastSignal.name = originalName;
+  if (!saved) {
     sendJson(500, "{\"ok\":false,\"error\":\"LittleFSへの保存に失敗しました\"}");
     return;
   }
