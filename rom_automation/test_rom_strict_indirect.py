@@ -1,6 +1,6 @@
 """ROM-001: independently encoded raw-immediate positive/negative indirect calls."""
 import types,unittest
-from rom_strict_indirect import address_builder,decode_jalr,candidate_call,readonly_literal,prior_register_class,trace_load_base
+from rom_strict_indirect import address_builder,decode_jalr,candidate_call,readonly_literal,prior_register_class,trace_load_base,official_c3_memory_region
 def enc(v,pc):return types.SimpleNamespace(bytes=int(v).to_bytes(4,"little"),size=4,address=pc)
 def cenc(v,pc):return types.SimpleNamespace(bytes=int(v).to_bytes(2,"little"),size=2,address=pc)
 def auipc(rd,hi):return 0x17 | (rd<<7) | (hi&0xfffff000)
@@ -35,6 +35,11 @@ class ROMIndirectEncodingTests(unittest.TestCase):
   seq=[enc(jalr(1,15),0x40000000)]
   seq[0].mnemonic="jalr"
   self.assertEqual(prior_register_class(seq,0,15)[0],"NOT_IN_BOUNDED_STRAIGHT_LINE")
+ def test_official_c3_sram_memory_map(self):
+  self.assertEqual(official_c3_memory_region(0x3fcdfbe4),"INTERNAL_SRAM")
+  self.assertEqual(official_c3_memory_region(0x4003e9fe),"INTERNAL_ROM")
+  self.assertEqual(official_c3_memory_region(0x6003de0c),"PERIPHERAL")
+  self.assertEqual(official_c3_memory_region(0xffffffff),"OUTSIDE_CLASSIFIED_RANGES")
  def test_longer_bounded_defuse_resolves_only_immutable_ROM(self):
   dest=0x40004100;elf=FakeElf([FakeSection(0x40001000,dest.to_bytes(4,"little"))])
   seq=[enc(auipc(5,0x1000),0x40000000),
