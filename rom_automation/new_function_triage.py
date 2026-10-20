@@ -19,14 +19,19 @@ FEATURE_WORDS=("get","read","query","is_dead","status","count")
 
 def inspect_mnemonics(mnemonics,bytes_ok=True):
  """Fail-closed static hint, not a side-effect safety certification."""
- ops=list(mnemonics)
- invalid=[x for x in ops if x in RISKY_FLOAT or x in TRAP or x==".byte"]
- stores=sum(x in WRITES for x in ops)
- loads=sum(x in LOADS for x in ops)
- csrs=sum(x in CSR_WRITES for x in ops)
- calls=sum(x in CTRL_CALL for x in ops if x not in ("c.jr","jr"))
- indirect=sum(x in ("jalr","c.jalr","jr","c.jr") for x in ops)
- rets=sum(x in ("ret","c.jr","jr") for x in ops)
+ ops=[(x if isinstance(x,str) else x[0],"" if isinstance(x,str) else x[1]) for x in mnemonics]
+ opcodes=[op for op,args in ops]
+ invalid=[x for x in opcodes if x in RISKY_FLOAT or x in TRAP or x==".byte"]
+ stores=sum(x in WRITES for x in opcodes)
+ loads=sum(x in LOADS for x in opcodes)
+ csrs=sum(x in CSR_WRITES for x in opcodes)
+ def verified_return(op,args):
+  normalized=args.replace(" ","")
+  return op=="ret" or (op in ("c.jr","jr") and normalized=="ra") or (
+    op=="jalr" and normalized in ("zero,0(ra)","x0,0(ra)"))
+ rets=sum(verified_return(op,args) for op,args in ops)
+ calls=sum(op in CTRL_CALL and not verified_return(op,args) for op,args in ops)
+ indirect=sum(x in ("jalr","c.jalr","jr","c.jr") for x in opcodes)
  # Any call or unknown indirect target can hide effects in the callee.
  simple=(bool(ops) and bytes_ok and not invalid and stores==0
          and csrs==0 and calls==0 and rets>0)
@@ -83,7 +88,7 @@ def analyze(census,rom):
      require(chunk is not None,"ELF_SYMBOL_NOT_WITHIN_EXECUTABLE_BYTES:"+name)
      ops=list(decoder.disasm(chunk,addr))
      covered=sum(i.size for i in ops)==len(chunk)
-     metrics=inspect_mnemonics([i.mnemonic for i in ops],bytes_ok=covered)
+     metrics=inspect_mnemonics([(i.mnemonic,i.op_str) for i in ops],bytes_ok=covered)
      # RV32IMC includes neither F/D, reject float decode even if Capstone parsed it.
      sample=[{"pc":hex(i.address),"mnemonic":i.mnemonic,"bytes":bytes(i.bytes).hex()}
               for i in ops[:10]]
