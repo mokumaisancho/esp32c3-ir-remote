@@ -16,7 +16,8 @@ class CrossChipPriorTests(unittest.TestCase):
      "remaining_without_match_in_this_study":[hex(0x60033090+i*4) for i in range(11)]}
   sources={
    "S3_PHY_LIBRARY_MAP":("Register: 0x60033094","http://s3","abc"),
-   "FLINTOS_RADIO_PLAN":("Register: 0x60033090, 0x600330a0","http://plan","def")}
+   "FLINTOS_RADIO_PLAN":("Register: 0x60033090, 0x600330a0","http://plan","def"),
+   "THIRD_PARTY_C3_RADIO_CAPTURE":("observed 0x600330a0","http://capture","ghi")}
   r=inspect(d,sources)
   self.assertEqual(r["examined_remaining"],11)
   self.assertTrue(r["rows"][0]["source_hits"])
