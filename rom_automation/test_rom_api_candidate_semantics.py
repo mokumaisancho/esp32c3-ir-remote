@@ -18,17 +18,18 @@ class ROMApiSemantics(unittest.TestCase):
  def test_branch_target_mutation_cannot_pass(self):
   c=copy.deepcopy(self.pinned)
   for ins in c["new_api_candidates"]["rom2_temp_to_power1"]["instructions"]:
-   if ins["pc"]=="0x4003ea04":ins["operands"]="a2, 2"
-  with self.assertRaises(ValueError):audit(c)
+   if ins["pc"]=="0x4003ea04":ins["operands"]="a2, 1"
+  with self.assertRaisesRegex(ValueError,"INSTRUCTION_OR_OPERAND_TAMPER"):audit(c)
  def test_changed_quotient_is_refuted_by_differential_suite(self):
   c=copy.deepcopy(self.pinned)
   for ins in c["new_api_candidates"]["rom2_temp_to_power1"]["instructions"]:
    if ins["pc"]=="0x4003ea12":ins["operands"]="a1, 7"
-  r=audit(c)
-  self.assertTrue(r["mismatches"])
-  self.assertFalse(r["tested_static_equivalence"])
+  raw=c["new_api_candidates"]["rom2_temp_to_power1"]["instructions"]
+  got,_=execute(raw,-10,0,1)
+  self.assertNotEqual(got,formula(-10,0,1))
+  with self.assertRaisesRegex(ValueError,"INSTRUCTION_OR_OPERAND_TAMPER"):audit(c)
  def test_signed_wrapping_and_branch_boundary(self):
-  self.assertEqual(formula(32768,0,0),-8192%256-256 if (-8192%256)>=128 else (-8192%256))
+  self.assertEqual(formula(32768,0,0),0)
   self.assertEqual(formula(0,0,0),0)
   self.assertEqual(formula(5,0,1),1)
   self.assertEqual(formula(5,0,0),0)
