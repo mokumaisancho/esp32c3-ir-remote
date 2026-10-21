@@ -49,7 +49,32 @@ class CFGTests(unittest.TestCase):
  def test_call_clobber_blocks(self):
   seq=code(0x40001000)
   seq[2]=ins(0x40001008,0x000000ef,"jal")
-  self.assertEqual(infer_register_value(seq,3,5)["unresolved"],"CALL_RETURN_BARRIER")
+  self.assertEqual(infer_register_value(seq,3,5)["unresolved"],"UNKNOWN_PREDECESSOR_OR_CALL_BARRIER")
+ def test_rvc_jr_cannot_fallthrough_to_constant(self):
+  # c.jr x5 is a branch, not a predecessor of subsequent bytes.
+  pc=0x40001000
+  jr=(0x8002|(5<<7))
+  seq=[ins(pc,0x400002b7,"lui"),
+       types.SimpleNamespace(address=pc+4,size=2,bytes=jr.to_bytes(2,"little"),mnemonic="c.jr"),
+       ins(pc+6,0x000280e7,"jalr")]
+  r=infer_register_value(seq,2,5)
+  self.assertNotIn("value",r)
+  self.assertEqual(r["unresolved"],"CFG_JOIN_OR_NO_PREDECESSOR")
+ def test_rvc_jalr_must_clobber_registers_on_return(self):
+  pc=0x40001000
+  jalr=(0x9002|(6<<7))
+  seq=[ins(pc,0x400002b7,"lui"),
+       types.SimpleNamespace(address=pc+4,size=2,bytes=jalr.to_bytes(2,"little"),mnemonic="c.jalr"),
+       ins(pc+6,0x000280e7,"jalr")]
+  r=infer_register_value(seq,2,5)
+  self.assertEqual(r["unresolved"],"UNKNOWN_PREDECESSOR_OR_CALL_BARRIER")
+ def test_unrecognized_compressed_predecessor_fails_closed(self):
+  pc=0x40001000
+  seq=[ins(pc,0x400002b7,"lui"),
+       types.SimpleNamespace(address=pc+4,size=2,bytes=(0x6000).to_bytes(2,"little"),mnemonic="unknown"),
+       ins(pc+6,0x000280e7,"jalr")]
+  r=infer_register_value(seq,2,5)
+  self.assertEqual(r["unresolved"],"UNKNOWN_PREDECESSOR_OR_CALL_BARRIER")
  def test_unknown_opcode_blocks(self):
   seq=code(0x40001000)
   seq[2]=ins(0x40001008,0x0000000b,"unknown")
