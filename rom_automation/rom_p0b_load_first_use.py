@@ -8,10 +8,22 @@ ends analysis. Not a CFG path, no hardware behavior inference.
 import argparse,json,pathlib
 from decision_gate import ROM_SHA,require
 from rom_rvc_register_effects import rvc_effect
+from rom_p0b_two_rmw_bits import decode_c_alu
 
 def decode_consumer(raw,register):
  b=bytes.fromhex(raw)
  if len(b)==2:
+  # Reuse independently tested c.and / c.or decoder from the exact ROM
+  # read-modify-write proof. These ops READ rd before writing it.
+  alu=decode_c_alu(b)
+  if alu["op"] in ("c.and","c.or"):
+   if alu["rd"]==register:
+    return {"status":"READ_AND_WRITE_FOR_RVC_ALU","opcode":alu["op"],
+            "reads_old_value":True,"source_reg":alu["rs2"]}
+   if alu["rs2"]==register:
+    return {"status":"READ_FOR_RVC_ALU","opcode":alu["op"],
+            "reads_old_value":True,"destination_reg":alu["rd"]}
+   return {"status":"NO_TARGET_REG_EFFECT","opcode":alu["op"]}
   x=rvc_effect(b);k=x["kind"]
   if k=="UNKNOWN" or k=="CONTROL":
    return {"status":"UNKNOWN_OR_CONTROL","detail":x}
