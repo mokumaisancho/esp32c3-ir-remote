@@ -5,6 +5,8 @@ on:
     paths:
       - 'rom_automation/rom_api_candidate_dossier.py'
       - 'rom_automation/test_rom_api_candidate_dossier.py'
+      - 'rom_automation/rom_api_candidate_semantics.py'
+      - 'rom_automation/test_rom_api_candidate_semantics.py'
       - '.github/workflows/rom-api-candidate-dossiers.yml'
   workflow_dispatch:
 permissions:
@@ -35,6 +37,14 @@ jobs:
           set -euo pipefail
           python rom_automation/rom_api_candidate_dossier.py --rom /tmp/esp-rom-elfs.tar.gz --out rom_automation/output/api_candidates/full_rom_api_dossiers.json 2>&1 | tee rom_automation/output/api_candidates/results.log
           sha256sum rom_automation/output/api_candidates/*.json | tee rom_automation/output/api_candidates/output_sha256.log
+      - name: Falsify arithmetic formula against pinned RV32C instructions and encoded-mutant controls
+        env:
+          ROM_DOSSIER_JSON: rom_automation/output/api_candidates/full_rom_api_dossiers.json
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_api_candidate_semantics.py' -v 2>&1 | tee rom_automation/output/api_candidates/semantics_tests.log
+          python rom_automation/rom_api_candidate_semantics.py --dossier "$ROM_DOSSIER_JSON" --out rom_automation/output/api_candidates/rom2_temp_to_power1_semantics.json 2>&1 | tee rom_automation/output/api_candidates/semantics_results.log
+          sha256sum rom_automation/output/api_candidates/rom2_temp_to_power1_semantics.json | tee rom_automation/output/api_candidates/semantics_sha256.log
       - uses: actions/upload-artifact@v4
         with:
           name: rom001-pinned-api-dossiers
