@@ -20,7 +20,7 @@ def predecessors(seq):
  """Under-approximation of explicitly encoded local control flow, with unknown flag."""
  pcs={x.address:i for i,x in enumerate(seq)}
  inc=[set() for _ in seq]
- uncertain=set()
+ uncertain={}
  for i,x in enumerate(seq):
   raw=bytes(x.bytes)
   decoded=branch_target(raw,x.address)
@@ -30,12 +30,12 @@ def predecessors(seq):
    if dest in pcs:inc[pcs[dest]].add(i)
    if kind.startswith("B_") or kind.startswith("CB_") or link:
     if nextpc in pcs:inc[pcs[nextpc]].add(i)
-    if link:uncertain.add(i)  # nonlocal call may clobber register values
+    if link:uncertain[i]="CALL_RETURN_BARRIER"  # calls may clobber
    continue
   if decode_jalr(x):
    # Indirect call can return but its callee can change registers.
    if (j:=decode_jalr(x))["rd"]!=0 and nextpc in pcs:
-    inc[pcs[nextpc]].add(i);uncertain.add(i)
+    inc[pcs[nextpc]].add(i);uncertain[i]="CALL_RETURN_BARRIER"
    continue
   if x.size==2:
    effect=rvc_effect(bytes(x.bytes))
@@ -44,16 +44,16 @@ def predecessors(seq):
     # all values without a callee summary. Neither is an ordinary
     # instruction through which register constants can propagate.
     if effect["mnemonic"]=="c.jalr" and nextpc in pcs:
-     inc[pcs[nextpc]].add(i);uncertain.add(i)
+     inc[pcs[nextpc]].add(i);uncertain[i]="CALL_RETURN_BARRIER"
     elif effect["mnemonic"]=="c.j_or_branch":
      # Already handled valid c.j/c.beqz/c.bnez by branch_target.
      # Any remaining control encoding is unknown, not fallthrough.
-     uncertain.add(i)
+     uncertain[i]="COMPRESSED_CONTROL_BARRIER"
     continue
    if effect["kind"]=="UNKNOWN":
     # Unknown compressed opcode may also affect control flow.
     # A sequential next PC is not a validated predecessor.
-    uncertain.add(i)
+    uncertain[i]="UNMODELED_COMPRESSED_OPCODE"
   if x.mnemonic in ("ecall","ebreak","c.ebreak"):
    continue
   if nextpc in pcs:inc[pcs[nextpc]].add(i)
@@ -72,7 +72,7 @@ def infer_register_value(seq,idx,reg,max_steps=48):
   prior=incoming[at]
   if len(prior)!=1:return {"unresolved":"CFG_JOIN_OR_NO_PREDECESSOR"}
   p=next(iter(prior))
-  if p in uncertain:return {"unresolved":"UNKNOWN_PREDECESSOR_OR_CALL_BARRIER"}
+  if p in uncertain:return {"unresolved":uncertain[p]}
   ins=seq[p];v=w32(ins)
   if v is None:
    effect=rvc_effect(bytes(ins.bytes))
