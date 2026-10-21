@@ -48,6 +48,13 @@ def audit(d):
   raise ValueError("MACHINE_PROVENANCE_DRIFT")
  ins=f["instructions"]
  if len(ins)!=16 or sum(len(bytes.fromhex(x["hex"])) for x in ins)!=38:raise ValueError("BYTE_COVERAGE")
+ from capstone import Cs,CS_ARCH_RISCV,CS_MODE_RISCV32,CS_MODE_RISCVC
+ raw=b"".join(bytes.fromhex(x["hex"]) for x in ins)
+ if hashlib.sha256(raw).hexdigest()!=f["function_sha256"]:raise ValueError("RAW_MACHINE_SHA_DRIFT")
+ decode=list(Cs(CS_ARCH_RISCV,CS_MODE_RISCV32|CS_MODE_RISCVC).disasm(raw,int(f["entry"],16)))
+ canonical=[(hex(x.address),bytes(x.bytes).hex(),x.mnemonic,x.op_str) for x in decode]
+ claimed=[(x["pc"],x["hex"],x["mnemonic"],x["operands"]) for x in ins]
+ if canonical!=claimed:raise ValueError("INSTRUCTION_OR_OPERAND_TAMPER")
  boundary=[-65536,-32769,-32768,-257,-256,-255,-128,-127,-25,-20,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,20,25,127,128,255,256,257,32767,32768,65535,65536]
  inputs=[(a,b,c) for a in boundary for b in (-32768,-1,0,32767) for c in (0,1,-1)]
  rng=random.Random(20261021)
