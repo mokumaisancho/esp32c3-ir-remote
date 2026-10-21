@@ -37,6 +37,23 @@ def predecessors(seq):
    if (j:=decode_jalr(x))["rd"]!=0 and nextpc in pcs:
     inc[pcs[nextpc]].add(i);uncertain.add(i)
    continue
+  if x.size==2:
+   effect=rvc_effect(bytes(x.bytes))
+   if effect["kind"]=="CONTROL":
+    # c.jr has no fallthrough. c.jalr may return, but clobbers
+    # all values without a callee summary. Neither is an ordinary
+    # instruction through which register constants can propagate.
+    if effect["mnemonic"]=="c.jalr" and nextpc in pcs:
+     inc[pcs[nextpc]].add(i);uncertain.add(i)
+    elif effect["mnemonic"]=="c.j_or_branch":
+     # Already handled valid c.j/c.beqz/c.bnez by branch_target.
+     # Any remaining control encoding is unknown, not fallthrough.
+     uncertain.add(i)
+    continue
+   if effect["kind"]=="UNKNOWN":
+    # Unknown compressed opcode may also affect control flow.
+    # A sequential next PC is not a validated predecessor.
+    uncertain.add(i)
   if x.mnemonic in ("ecall","ebreak","c.ebreak"):
    continue
   if nextpc in pcs:inc[pcs[nextpc]].add(i)
@@ -55,7 +72,7 @@ def infer_register_value(seq,idx,reg,max_steps=48):
   prior=incoming[at]
   if len(prior)!=1:return {"unresolved":"CFG_JOIN_OR_NO_PREDECESSOR"}
   p=next(iter(prior))
-  if p in uncertain:return {"unresolved":"CALL_RETURN_BARRIER"}
+  if p in uncertain:return {"unresolved":"UNKNOWN_PREDECESSOR_OR_CALL_BARRIER"}
   ins=seq[p];v=w32(ins)
   if v is None:
    effect=rvc_effect(bytes(ins.bytes))
