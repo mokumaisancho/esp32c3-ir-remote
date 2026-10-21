@@ -19,6 +19,21 @@ class FirstUseTests(unittest.TestCase):
   # BEQ x10,x15,+4; marks read in control but cannot follow fallthrough as fact
   w=(15<<20)|(10<<15)|(0<<12)|(2<<8)|0x63
   self.assertEqual(decode_consumer(raw32(w),15)["status"],"CONTROL_USING_LOADED_REG")
+ def test_c_and_reads_loaded_register_before_its_write(self):
+  # RV32C q1 funct3=100 top=1 subop=11 c.and, x15 &= x14
+  raw=(0x9ff9).to_bytes(2,"little").hex()
+  v=decode_consumer(raw,15)
+  self.assertEqual(v["status"],"READ_AND_WRITE_FOR_RVC_ALU")
+  self.assertEqual(v["opcode"],"c.and")
+  self.assertTrue(v["reads_old_value"])
+ def test_c_and_source_reg_is_a_read_not_an_overwrite(self):
+  raw=(0x9ff9).to_bytes(2,"little").hex()
+  v=decode_consumer(raw,14)
+  self.assertEqual(v["status"],"READ_FOR_RVC_ALU")
+ def test_c_and_unrelated_reg_is_not_consumed(self):
+  raw=(0x9ff9).to_bytes(2,"little").hex()
+  v=decode_consumer(raw,11)
+  self.assertEqual(v["status"],"NO_TARGET_REG_EFFECT")
  def test_unknown_compressed_is_not_ignored(self):
   self.assertEqual(decode_consumer((0x6000).to_bytes(2,"little").hex(),15)["status"],"UNKNOWN_OR_CONTROL")
  def test_compressed_memory_store_blocks_provenance(self):
