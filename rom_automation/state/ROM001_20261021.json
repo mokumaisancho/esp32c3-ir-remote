@@ -1,0 +1,134 @@
+{
+  "schema": "ESP32C3_ROM001_HANDOFF_STATE_V1",
+  "as_of": "2026-10-21T21:40:00+09:00",
+  "original_issue_id": "ESP32C3-ROM-001",
+  "objective": "Discover genuinely new callable ESP32-C3 ROM APIs or undocumented SoC capabilities, not merely previously unlisted ELF symbol names.",
+  "github_issue": "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/2",
+  "sources": {
+    "public_rom_archive_sha256": "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46",
+    "rev101_elf_sha256": "9495e1453f36f7eec4112714ea1dca22d77808776adffa93dda7dda4393e8336",
+    "source_ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39597421117",
+    "proof_ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39601296478",
+    "proof_artifact_id": 12345409308,
+    "proof_semantics_json_sha256": "75aa60b5c2a809ac8e049d452faaaea32784f786df23660a5ca90f117dedd41b"
+  },
+  "discovered_static_function": {
+    "name": "rom2_temp_to_power1",
+    "revision": "esp32c3_rev101_rom.elf",
+    "address": "0x4003e9fe",
+    "size_bytes": 38,
+    "machine_sha256": "af3082b062898053b7b87d13db160876549cc293e225cac8177410715a2422a5",
+    "decoded_instructions": 16,
+    "pc_coverage": 16,
+    "ram_loads": 0,
+    "ram_stores": 0,
+    "external_calls": 0,
+    "estimated_inputs": [
+      "a0",
+      "a1",
+      "a2"
+    ],
+    "estimated_output": "a0",
+    "formula": "signed8(trunc_zero(signed16(a0-a1)/divisor))",
+    "divisor": {
+      "a2 == 0": {
+        "delta > 0": 6,
+        "delta <= 0": 4
+      },
+      "a2 != 0": {
+        "delta > 0": 4,
+        "delta <= 0": 5
+      }
+    },
+    "independent_differential_cases": 10576,
+    "mismatches": 0,
+    "negative_tests": "PASS",
+    "hardware_test": "NOT_RUN",
+    "calling_convention_certified": false,
+    "published_novelty_certified": false,
+    "usable_new_api_certified": false
+  },
+  "other_potential_entries": [
+    {
+      "name": "ieee80211_hdrsize",
+      "entry": "0x40045d04",
+      "status": "KNOWN_GENERIC_PRIOR_ART_NAME; C3 ROM external ABI UNVERIFIED"
+    },
+    {
+      "name": "rom2_get_tx_gain_value1",
+      "entry": "0x4003efb4",
+      "status": "CALLER_MEMORY_WRITES; DATA_TABLE_ABI UNVERIFIED"
+    }
+  ],
+  "inventory": {
+    "revision_count": 3,
+    "rev101_named_rom_functions": 2118,
+    "selected_catalog_absent_names": 177,
+    "compiler_local_excluded": 25,
+    "unique_names_screened": 152,
+    "nontrivial_simple_read_candidates": 6,
+    "confirmed_new_executable_unlabelled_entries": 0,
+    "confirmed_new_usable_hardware_apis": 0
+  },
+  "dependencies": [
+    {
+      "id": "P0C",
+      "topic": "Prove temperature-to-power ROM primitive ABI and prior-art uniqueness",
+      "depends_on": [
+        "full ISA byte proof PASS"
+      ],
+      "status": "STATIC_SEMANTICS_PASS_ABI_AND_NOVELTY_OPEN"
+    },
+    {
+      "id": "P0B",
+      "topic": "Resolve two RF/WiFi register meanings and silicon effects",
+      "depends_on": [
+        "MMIO byte evidence PASS",
+        "datasheet/source correlation",
+        "controlled real device"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "P0A",
+      "topic": "Find true symbolless ROM callable entrypoints",
+      "depends_on": [
+        "roots and CFG evidence",
+        "filter prior labels"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "P1",
+      "topic": "Cross check all 152 against broader official and public prior art",
+      "depends_on": [
+        "dated pinning of primary sources"
+      ],
+      "status": "OPEN"
+    },
+    {
+      "id": "ORIGINAL88",
+      "topic": "Independent semantics and physical validation of original 88 function candidates",
+      "depends_on": [
+        "trusted device test capacity"
+      ],
+      "status": "PARKED"
+    }
+  ],
+  "mvp_acceptance": {
+    "AC1_pinned_full_disassembly": "PASS_FOR_P0C",
+    "AC2_independent_static_semantics_and_negative_controls": "PASS_FOR_P0C",
+    "AC3_externally_callable_abi_and_prior_art": "OPEN",
+    "AC4_silicon_causal_test": "OPEN",
+    "AC5_verified_new_usable_capability": "OPEN",
+    "AC6_reproducible_source_ci_and_state": "PASS_STATIC_ONLY"
+  },
+  "safeguards": [
+    "PASS on simulated arithmetic is not hardware PASS.",
+    "ELF symbol existence does not prove worldwide novelty.",
+    "No raw RF register write on live C3 without explicit safe test.",
+    "Keep IR remote hardware E2E issue #1 independent from ROM research issue #2.",
+    "Never insert expected answer into candidate discovery results.",
+    "Do not repeat three-catalog name-only false positives."
+  ]
+}
