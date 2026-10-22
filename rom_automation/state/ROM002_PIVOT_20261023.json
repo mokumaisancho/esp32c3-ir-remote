@@ -1,0 +1,116 @@
+{
+  "schema": "ROM002_PIVOT_EXECUTION_STATE_V1",
+  "date_jst": "2026-10-23",
+  "original_issue": "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/2",
+  "followup_issue": "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/4",
+  "decision": "DEPRIORITIZE_LOW_YIELD_SILICON_NOVELTY_SEARCH_PIVOT_TO_VERSION_PINNED_ROM_EMULATION_VERIFICATION",
+  "reasons": {
+    "originally_unlisted_named_candidates": 152,
+    "confirmed_actively_named_by_official_linker": 128,
+    "found_published_but_commented_vendor": 16,
+    "found_other_public_name_mentions": 8,
+    "physically_confirmed_novel_usable_APIs": 0,
+    "remaining_R1_and_R2": "read-modify-write semantics statically recovered; unknown bit-level silicon meaning",
+    "important_caveat": "This decision is an engineering priority decision, not proof that undiscovered APIs cannot exist."
+  },
+  "new_deliverable": {
+    "file": "rom_automation/rom_mmio_trace_oracle.py",
+    "purpose": "Validate supplied ROM MMIO read/store pairs against exactly verified machine-effect formulas, gated by ROM revision and exact PC.",
+    "cases": [
+      {
+        "case": "rev0_fe",
+        "revision": "esp32c3_rev0_rom.elf",
+        "address": "0x600061c4",
+        "entry_function": "rom_phy_xpd_rf",
+        "model": "(old & 0xffff0000)|0x5555"
+      },
+      {
+        "case": "rev101_wifi",
+        "revision": "esp32c3_rev101_rom.elf",
+        "address": "0x60033c00",
+        "entry_function": "wdev_mac_wakeup",
+        "model": "old|0xf0"
+      }
+    ],
+    "cli_example": "python rom_automation/rom_mmio_trace_oracle.py --strict --trace rom_automation/fixtures/rom_mmio_synthetic_trace_v1.json --output verdict.json",
+    "users": "ESP32-C3 emulator developers, regression test harnesses and future instrumented hardware captures",
+    "real_emulator_trace_ingestion_verified": false,
+    "real_silicon_input_verified": false
+  },
+  "verification": {
+    "github_ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39866163538",
+    "result": "PASS",
+    "isolated_negative_tests_passed": 20,
+    "isolated_negative_tests_failed": 0,
+    "synthetic_pairs_checked": 4,
+    "synthetic_pairs_consistent": 4,
+    "synthetic_pairs_contradictory": 0,
+    "report_sha256": "ad1833433f57fc549418abf0aedc0d43daf6c022c8765f45d1945f5550f5f01f",
+    "artifact_id": 12464221374,
+    "artifact_digest_sha256": "3b5295bb24fcdba726dc30f98450d9aa0fb10091fd8f194337acdd9cec49f0eb",
+    "source_origin_attested": false,
+    "physical_hardware_claim": false,
+    "actual_emulator_run_claim": false
+  },
+  "acceptance_criteria": [
+    {
+      "id": "ROM002-AC1",
+      "name": "R1 revision-specific static RMW pair",
+      "state": "PASS_CI_SYNTHETIC"
+    },
+    {
+      "id": "ROM002-AC2",
+      "name": "R2 revision-specific static RMW pair",
+      "state": "PASS_CI_SYNTHETIC"
+    },
+    {
+      "id": "ROM002-AC3",
+      "name": "Malformed/contradictory/forged trace negative controls",
+      "state": "PASS_CI"
+    },
+    {
+      "id": "ROM002-AC4",
+      "name": "Source origin cannot be claimed as attested",
+      "state": "PASS_CI"
+    },
+    {
+      "id": "ROM002-AC5",
+      "name": "Reproducible CLI, sample and artifact",
+      "state": "PASS_CI"
+    },
+    {
+      "id": "ROM002-AC6",
+      "name": "Documented input adapter format",
+      "state": "PASS_DOCUMENTED"
+    },
+    {
+      "id": "ROM002-AC7",
+      "name": "Actual emulator MMIO trace ingestion",
+      "state": "OPEN"
+    },
+    {
+      "id": "ROM002-AC8",
+      "name": "Firmware and ROM revision E2E emulator validation",
+      "state": "OPEN"
+    }
+  ],
+  "next_priority": [
+    {
+      "id": "P0",
+      "task": "Obtain genuine MMIO PC/read/write trace from a compatible ESP32-C3 emulator via supported hooks; ensure no values are sourced from ROM-002 expected formulas",
+      "dependency": "instrumentation or emulator trace availability"
+    },
+    {
+      "id": "P1",
+      "task": "Add trace-to-JSON adapter with captured ROM/firmware hash metadata, falsifying mismatches and testing opposite revisions",
+      "dependency": "P0"
+    },
+    {
+      "id": "P2",
+      "task": "Track external emulator behavior regressions and add more ROM pure functions only after machine-byte and prior-art gates",
+      "dependency": "P1"
+    }
+  ],
+  "docs": "rom_automation/ROM002_TRACE_ORACLE.md",
+  "no_background_execution_or_future_guarantee": true
+}
