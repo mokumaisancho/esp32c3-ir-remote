@@ -10,7 +10,8 @@
     "source_ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39597421117",
     "proof_ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39601296478",
     "proof_artifact_id": 12345409308,
-    "proof_semantics_json_sha256": "75aa60b5c2a809ac8e049d452faaaea32784f786df23660a5ca90f117dedd41b"
+    "proof_semantics_json_sha256": "75aa60b5c2a809ac8e049d452faaaea32784f786df23660a5ca90f117dedd41b",
+    "latest_vendor_prior_art_ci_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39777111796"
   },
   "discovered_static_function": {
     "name": "rom2_temp_to_power1",
@@ -68,7 +69,11 @@
     "unique_names_screened": 152,
     "nontrivial_simple_read_candidates": 6,
     "confirmed_new_executable_unlabelled_entries": 0,
-    "confirmed_new_usable_hardware_apis": 0
+    "confirmed_new_usable_hardware_apis": 0,
+    "pinned_vendor_linker_active_export_hits": 128,
+    "pinned_vendor_linker_commented_name_hits": 16,
+    "additional_published_public_name_hits": 8,
+    "named_candidate_queue_remaining_after_public_name_countercheck": 0
   },
   "dependencies": [
     {
@@ -77,7 +82,7 @@
       "depends_on": [
         "full ISA byte proof PASS"
       ],
-      "status": "STATIC_SEMANTICS_PASS_ABI_AND_NOVELTY_OPEN"
+      "status": "NAME_PUBLISHED_IN_OFFICIAL_ECO7_LINKER_NOT_NOVEL_API"
     },
     {
       "id": "P0B",
@@ -87,7 +92,7 @@
         "datasheet/source correlation",
         "controlled real device"
       ],
-      "status": "OPEN"
+      "status": "ACTIVE_PRIMARY_UNVERIFIED_REGISTER_SEMANTICS"
     },
     {
       "id": "P0A",
@@ -96,7 +101,7 @@
         "roots and CFG evidence",
         "filter prior labels"
       ],
-      "status": "OPEN"
+      "status": "ACTIVE_SECONDARY_UNVERIFIED_UNNAMED_ENTRY"
     },
     {
       "id": "P1",
@@ -104,7 +109,7 @@
       "depends_on": [
         "dated pinning of primary sources"
       ],
-      "status": "OPEN"
+      "status": "NAME_CATALOG_FALSIFICATION_COMPLETE_SEMANTIC_NOVELTY_OPEN"
     },
     {
       "id": "ORIGINAL88",
@@ -118,9 +123,9 @@
   "mvp_acceptance": {
     "AC1_pinned_full_disassembly": "PASS_FOR_P0C",
     "AC2_independent_static_semantics_and_negative_controls": "PASS_FOR_P0C",
-    "AC3_externally_callable_abi_and_prior_art": "OPEN",
+    "AC3_externally_callable_abi_and_prior_art": "P0C_NAME_PRIOR_ART_CONFIRMED_NO_NEW_API",
     "AC4_silicon_causal_test": "OPEN",
-    "AC5_verified_new_usable_capability": "OPEN",
+    "AC5_verified_new_usable_capability": "OPEN_ZERO_CERTIFIED",
     "AC6_reproducible_source_ci_and_state": "PASS_STATIC_ONLY"
   },
   "safeguards": [
@@ -130,5 +135,7 @@
     "Keep IR remote hardware E2E issue #1 independent from ROM research issue #2.",
     "Never insert expected answer into candidate discovery results.",
     "Do not repeat three-catalog name-only false positives."
-  ]
+  ],
+  "superseded_at": "2026-10-22T21:18:00+09:00",
+  "superseding_state_file": "rom_automation/state/ROM001_20261022_PRIOR_ART.json"
 }
