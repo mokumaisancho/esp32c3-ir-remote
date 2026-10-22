@@ -38,12 +38,12 @@ VENDOR_BLOBS={
 assert len(VENDOR_BLOBS)==21
 
 def blob_sha(data):
- return hashlib.sha1(b"blob "+str(len(data)).encode()+b"\\0"+data).hexdigest()
+ return hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
 
 # To avoid including a commented-out symbol as an actual exported API.
-C_BLOCK=re.compile(r"/\\*.*?\\*/",re.DOTALL)
-C_LINE=re.compile(r"//[^\\n]*")
-ASSIGN=re.compile(r"(?m)^\\s*([A-Za-z_$][A-Za-z0-9_.$]*)\\s*=\\s*(0x[0-9A-Fa-f]+|[0-9]+)\\s*;")
+C_BLOCK=re.compile(r"/\*.*?\*/",re.DOTALL)
+C_LINE=re.compile(r"//[^\n]*")
+ASSIGN=re.compile(r"(?m)^\s*([A-Za-z_$][A-Za-z0-9_.$]*)\s*=\s*(0x[0-9A-Fa-f]+|[0-9]+)\s*;")
 
 def extract_linker_symbols(text):
  clean=C_LINE.sub("",C_BLOCK.sub("",text))
