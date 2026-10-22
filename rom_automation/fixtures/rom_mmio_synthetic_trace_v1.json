@@ -1,0 +1,78 @@
+{
+  "schema": "ROM002_MMIO_PAIR_TRACE_V1",
+  "source_kind": "synthetic",
+  "samples": [
+    {
+      "sample_id": "rev0_fe_zero",
+      "case": "rev0_fe",
+      "events": [
+        {
+          "op": "read",
+          "pc": "0x4003ba76",
+          "address": "0x600061c4",
+          "value": "0x0"
+        },
+        {
+          "op": "write",
+          "pc": "0x4003ba88",
+          "address": "0x600061c4",
+          "value": "0x5555"
+        }
+      ]
+    },
+    {
+      "sample_id": "rev0_fe_deadbeef",
+      "case": "rev0_fe",
+      "events": [
+        {
+          "op": "read",
+          "pc": "0x4003ba76",
+          "address": "0x600061c4",
+          "value": "0xdeadbeef"
+        },
+        {
+          "op": "write",
+          "pc": "0x4003ba88",
+          "address": "0x600061c4",
+          "value": "0xdead5555"
+        }
+      ]
+    },
+    {
+      "sample_id": "rev101_wifi_zero",
+      "case": "rev101_wifi",
+      "events": [
+        {
+          "op": "read",
+          "pc": "0x40045474",
+          "address": "0x60033c00",
+          "value": "0x0"
+        },
+        {
+          "op": "write",
+          "pc": "0x4004547c",
+          "address": "0x60033c00",
+          "value": "0xf0"
+        }
+      ]
+    },
+    {
+      "sample_id": "rev101_wifi_12345678",
+      "case": "rev101_wifi",
+      "events": [
+        {
+          "op": "read",
+          "pc": "0x40045474",
+          "address": "0x60033c00",
+          "value": "0x12345678"
+        },
+        {
+          "op": "write",
+          "pc": "0x4004547c",
+          "address": "0x60033c00",
+          "value": "0x123456f8"
+        }
+      ]
+    }
+  ]
+}
