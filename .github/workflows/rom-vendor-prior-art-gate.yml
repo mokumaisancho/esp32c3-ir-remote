@@ -1,0 +1,48 @@
+name: ROM-001 official vendor linker novelty rejection
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_api_prior_art_gate.py'
+      - 'rom_automation/test_rom_api_prior_art_gate.py'
+      - '.github/workflows/rom-vendor-prior-art-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  check-all-152-against-21-official-linkers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute six isolated negative and integrity tests
+        run: |
+          set -euo pipefail
+          mkdir -p rom_automation/output/vendor_prior_art
+          python -m unittest discover -s rom_automation -p 'test_rom_api_prior_art_gate.py' -v 2>&1 | tee rom_automation/output/vendor_prior_art/tests.log
+      - name: Retrieve immutable archived 152-case machine triage with verified evidence ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rom001"
+          curl -fL --retry 3 --connect-timeout 25 -H "Authorization: Bearer $GH_TOKEN" 'https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12345165056/zip' -o "$RUNNER_TEMP/rom001/verified-census.zip"
+          echo "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a  $RUNNER_TEMP/rom001/verified-census.zip" | sha256sum -c
+          unzip -p "$RUNNER_TEMP/rom001/verified-census.zip" rev101_machine_screened_152.json > "$RUNNER_TEMP/rom001/triage.json"
+          test "$(python -c 'import json,sys;d=json.load(open(sys.argv[1]));print(d["actual_functions_screened"])' "$RUNNER_TEMP/rom001/triage.json")" = 152
+          sha256sum "$RUNNER_TEMP/rom001/triage.json" | tee rom_automation/output/vendor_prior_art/inputs_sha256.log
+      - name: Fetch and cryptographically verify all 21 official ROM linker definitions; reject known exports
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_api_prior_art_gate.py --triage "$RUNNER_TEMP/rom001/triage.json" --out rom_automation/output/vendor_prior_art/all152_vendor_comparison.json 2>&1 | tee rom_automation/output/vendor_prior_art/result.log
+          sha256sum rom_automation/output/vendor_prior_art/*.json | tee rom_automation/output/vendor_prior_art/results_sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom001-vendor-21-prior-art-152-matrix
+          path: rom_automation/output/vendor_prior_art/
+          retention-days: 90
+          if-no-files-found: error
