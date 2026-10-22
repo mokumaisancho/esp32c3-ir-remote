@@ -8,6 +8,25 @@ Original goal: independently verify genuinely new, *usable* ESP32-C3 ROM API or 
 - Open: two unexplained C3 MMIO register bitfields, provable symbolless ROM entrypoint, revision-matched device observation, usable novel capability.
 - Out of scope: separate ESP32-C3 IR receive/flash issue #1.
 
+## Executed progress receipt (2026-10-22)
+
+This plan is now accompanied by independently runnable CI evidence; the dates below remain estimates, not background jobs.
+
+| Task | Latest executable evidence | Current AC status |
+|---|---|---|
+| R0 | Pinned original ROM ZIP, vendor `reg_base.h` Git blob and 152-name reference catalog | **PASS static source integrity** |
+| R1 | [10 tests and source provenance CI](https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39782655886): `0x600061c4` is Espressif FE base `0x60006000` + `0x1c4` (official memory map), despite broad TRM Reserved band | **Region PASS; exact bits UNKNOWN** |
+| R2 | Same CI: `0x60033c00` in 2025 academic ESP32-C3 MAC `0x60033000..0x60035fff`, offset `0xc00` | **Region PASS; exact bits UNKNOWN** |
+| R3 | [11 tests and 3-ROM SHA-pinned archived evidence](https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39783512557): an ELF-anchored entry at `0x40000000` jumps into named-symbol gaps at `0x40001d90` / `0x40002090` / `0x40001e90`, then reaches named ROM code. No novel callable API established | **Bounded static proof PASS; global novelty OPEN** |
+| R4 | No safe connected physical device. Avoid unknown RF/Wi-Fi register writes. | **BLOCKED** |
+| R5 | Requires field or device evidence/explicit unknown gating. | **OPEN** |
+
+No more scanning of the already published 152 function names. As of this receipt, **0 newly usable ROM APIs** have been independently verified. The two code-only CI suites **21/21 tests PASS**, not silicon testing.
+
+[Canonical machine-readable receipt](https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/state/ROM001_EXECUTION_20261022.json)
+
+---
+
 ## Calendar & workload assumptions
 Start 2026-10-23; estimated 3–4 focused effort-hours on working days with GitHub CI available. Dates are indicative and require re-estimation if external sources or device access are blocked. Estimated core execution effort 20–34 focused hours for R1–R5, plus 1–2 hours of setup R0 (21–36 hours in total), excluding major new findings and external waits. We do not run this work in the background.
 
