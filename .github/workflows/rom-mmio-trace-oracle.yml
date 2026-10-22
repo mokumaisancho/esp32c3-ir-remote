@@ -1,0 +1,49 @@
+name: ROM-002 revision-aware MMIO trace consistency oracle
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_mmio_trace_oracle.py'
+      - 'rom_automation/test_rom_mmio_trace_oracle.py'
+      - 'rom_automation/fixtures/rom_mmio_synthetic_trace_v1.json'
+      - '.github/workflows/rom-mmio-trace-oracle.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pinned-ROM-readwrite-oracle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute isolated negative controls (no physical or emulator source)
+        run: |
+          set -euo pipefail
+          mkdir -p rom_automation/output/mmio_oracle
+          python -m unittest discover -s rom_automation -p 'test_rom_mmio_trace_oracle.py' -v 2>&1 | tee rom_automation/output/mmio_oracle/unit_tests.log
+      - name: Run passive trace oracle over explicitly synthetic fixture
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_mmio_trace_oracle.py --strict \
+           --trace rom_automation/fixtures/rom_mmio_synthetic_trace_v1.json \
+           --output rom_automation/output/mmio_oracle/synthetic_verdict.json \
+           2>&1 | tee rom_automation/output/mmio_oracle/oracle.log
+          python - <<'PY'
+          import json
+          r=json.load(open('rom_automation/output/mmio_oracle/synthetic_verdict.json'))
+          assert r['total_pairs']==4 and r['contradictory_pairs']==0
+          assert r['input_source_kind_claimed']=='synthetic'
+          assert r['input_source_kind_independently_attested'] is False
+          assert r['hardware_behavior_verified'] is False
+          assert r['actual_emulator_execution_verified'] is False
+          PY
+          sha256sum rom_automation/output/mmio_oracle/synthetic_verdict.json | tee rom_automation/output/mmio_oracle/sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom002-synthetic-trace-oracle-proof
+          path: rom_automation/output/mmio_oracle/
+          retention-days: 90
+          if-no-files-found: error
