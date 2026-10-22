@@ -1,0 +1,38 @@
+name: ROM-001 R0 R1 R2 field provenance gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_p0b_region_reconciliation.py'
+      - 'rom_automation/test_rom_p0b_region_reconciliation.py'
+      - 'rom_automation/rom_p0b_trm_windows.py'
+      - 'research/esp32c3_rom_public/official_reg_base.h'
+      - '.github/workflows/rom-p0b-region-reconciliation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reconcile-official-C3-FE-and-reverse-engineered-WiFi-MAC:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Ten independent integrity and negative controls
+        run: |
+          set -euo pipefail
+          mkdir -p rom_automation/output/p0b_region
+          python -m unittest discover -s rom_automation -p 'test_rom_p0b_region_reconciliation.py' -v 2>&1 | tee rom_automation/output/p0b_region/negative_tests.log
+      - name: Record official FE and academically described WiFi range without inferred field semantics
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0b_region_reconciliation.py --output rom_automation/output/p0b_region/region_reconciliation.json 2>&1 | tee rom_automation/output/p0b_region/results.log
+          sha256sum rom_automation/output/p0b_region/region_reconciliation.json | tee rom_automation/output/p0b_region/sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom001-r0-r1-r2-region-provenance
+          path: rom_automation/output/p0b_region/
+          retention-days: 90
+          if-no-files-found: error
