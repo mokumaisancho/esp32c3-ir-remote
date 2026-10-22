@@ -1,0 +1,96 @@
+{
+  "schema": "ROM001_PRIOR_ART_SCOPE_DECISION_V2",
+  "time_local": "2026-10-22T21:18:00+09:00",
+  "original_issue": "ESP32C3-ROM-001",
+  "objective": "Identify genuinely unexposed, callable ESP32-C3 ROM API or new peripheral behavior; do not mistake names absent from narrow catalog for discoveries.",
+  "provenance": {
+    "pinned_rom_bundle_sha256": "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46",
+    "official_esp_idf_commit": "383dda6c182e3dabf6355160166fe007df775629",
+    "official_linker_files_sha_pinned_count": 21,
+    "original_machine_triage_candidates": 152,
+    "triage_artifact_zip_sha256": "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a",
+    "verification_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39777111796",
+    "verification_artifact_id": 12424158903,
+    "verification_artifact_sha256": "a29d0bf910be19a1270ebe7106912e48a57509981cce94bb40f3046c1feeac59",
+    "negative_test_count": 7,
+    "negative_tests_status": "PASS"
+  },
+  "named_function_census": {
+    "source_name_catalog_missing_initial": 152,
+    "active_official_rom_linker_named": 128,
+    "known_official_but_commented_not_exported": 16,
+    "not_named_in_21_current_official_linkers": 8,
+    "additional_public_name_matches": 8,
+    "name_without_selected_public_match_after_followup": 0,
+    "independently_verified_new_ROM_API": 0,
+    "remark": "Same-name published does not prove byte-identical implementation. No names are independently certified new, and this is not a proof of exhaustive world-wide prior art."
+  },
+  "extra_8_public_name_evidence": [
+    {
+      "name": "ieee80211_hdrsize",
+      "url": "https://github.com/illumos/illumos-gate/blob/a2504179488e929aea246b617973c10d05727e95/usr/src/uts/common/sys/net80211.h",
+      "type": "PUBLIC_GENERIC_NETWORK_API_NAME"
+    },
+    {
+      "name": "r_btdm_vnd_offload_process",
+      "url": "https://github.com/vmtuan10/esp-idf-release-v5.0/blob/03c6a0672e38da7f99abd735858623821dba060e/components/esp_rom/esp32c3/ld/esp32c3.rom.eco7.ld",
+      "type": "PUBLIC_OLDER_VENDOR_LINKER_NAME"
+    },
+    {
+      "name": "hci_vendor_ble_update_duplicate_exceptional_list_cmd_handler",
+      "url": "https://github.com/esp-rs/esp-hal/blob/3a0ce844538f7f7a69199752ea4542152e46a248/esp-rom-sys/ld/esp32c3/rom/esp32c3.rom.ble_scan.ld",
+      "type": "PUBLIC_C3_ROM_LINKER_NAME"
+    },
+    {
+      "name": "r_btdm_task_post_from_isr_impl",
+      "url": "https://github.com/vmtuan10/esp-idf-release-v5.0/blob/03c6a0672e38da7f99abd735858623821dba060e/components/esp_rom/esp32c3/ld/esp32c3.rom.eco7.ld",
+      "type": "PUBLIC_OLDER_VENDOR_LINKER_NAME"
+    },
+    {
+      "name": "r_btdm_task_post_impl",
+      "url": "https://github.com/vmtuan10/esp-idf-release-v5.0/blob/03c6a0672e38da7f99abd735858623821dba060e/components/esp_rom/esp32c3/ld/esp32c3.rom.eco7.ld",
+      "type": "PUBLIC_OLDER_VENDOR_LINKER_NAME"
+    },
+    {
+      "name": "r_btdm_vnd_offload_post",
+      "url": "https://github.com/espressif/esp-idf/blob/383dda6c182e3dabf6355160166fe007df775629/components/bt/controller/esp32c3/bt.c",
+      "type": "PUBLIC_OFFICIAL_ESP_IDF_NAME"
+    },
+    {
+      "name": "r_btdm_vnd_offload_post_from_isr",
+      "url": "https://github.com/espressif/esp-idf/blob/383dda6c182e3dabf6355160166fe007df775629/components/bt/controller/esp32c3/bt.c",
+      "type": "PUBLIC_OFFICIAL_ESP_IDF_NAME"
+    },
+    {
+      "name": "explicit_bzero",
+      "url": "https://github.com/Yubico/pam-u2f/blob/b5846bb74f9f9871c14adb986516817f546f8096/util.h",
+      "type": "PUBLIC_STANDARD_C_SECURITY_FUNCTION_NAME"
+    }
+  ],
+  "decision": {
+    "stop_as_novel_api_queue": "Original 152 named STT_FUNC shortlist",
+    "reason": "Official linker records and broader public-name sources fully explain catalog nonmatches; no individually certified new API found.",
+    "retain": "Exact ROM byte semantics and replicable 10,576-case proof for rom2_temp_to_power1 are valid static reverse-engineering results, but its public ECO7 linker name is prior art.",
+    "next_focus": [
+      "P0B: 0x600061c4 in rom_phy_xpd_rf rev0; and 0x60033c00 in wdev_mac_wakeup rev101; verify exact register-field and hardware causal semantics without unvalidated RF writes.",
+      "P0A: strictly prove unsymbolized ROM entrypoints from independent control-flow roots, not data coincidences.",
+      "P0C: only reconsider external callable ABI if it adds an objectively new capability not already in Espressif API definitions."
+    ]
+  },
+  "mvp_acceptance": {
+    "official_catalog_sha_verification": "PASS",
+    "machine_candidate_screen": "PASS",
+    "novel_named_function_found": "NO",
+    "unknown_mmio_semantic_proof": "OPEN",
+    "unnamed_entry_proof": "OPEN",
+    "real_silicon_causal_test": "OPEN",
+    "verified_new_usable_capability": "OPEN"
+  },
+  "limits": [
+    "Third-party public symbol occurrences refute new-name claims, not necessarily exact semantics.",
+    "Commented vendor linker symbol must not be treated as exported/callable.",
+    "Absence of a ROM direct caller is not proof of absence of external firmware callers.",
+    "ROM MMIO RMW sequences are not demonstrated physical capabilities without device tests.",
+    "No blind hardware RF/PHY mutations; revision- and rollback-guarded testing required."
+  ]
+}
