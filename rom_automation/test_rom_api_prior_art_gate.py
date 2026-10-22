@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import hashlib
 import unittest
-from rom_api_prior_art_gate import VENDOR_BLOBS,blob_sha,extract_linker_symbols,screen
+from rom_api_prior_art_gate import VENDOR_BLOBS,blob_sha,extract_linker_symbols,commented_names,screen
 
 class ROM001VendorPriorArtGate(unittest.TestCase):
  def test_all_21_manifest_entries_pinned(self):
@@ -33,6 +33,19 @@ class ROM001VendorPriorArtGate(unittest.TestCase):
          ["rom2_temp_to_power1","rom2_get_tx_gain_value1"]+[f"candidate_{i}" for i in range(150)]]
   with self.assertRaisesRegex(ValueError,"PRIOR_ART_FALSE_NEGATIVE"):
    screen({"schema":"ESP32C3_ROM_REV101_UNMATCHED_FUNCTION_MACHINE_TRIAGE_V1","all_152_ranked":items},{},{})
+ def test_commented_definitions_are_published_but_not_exported(self):
+  fake="/*\\nr_llc_llcp_send_eco = 0x40001cf4;\\n*/\\nets_printf = 0x40000040;\\n"
+  self.assertEqual(commented_names(fake)["r_llc_llcp_send_eco"],{0x40001cf4})
+  self.assertNotIn("r_llc_llcp_send_eco",extract_linker_symbols(fake))
+  names=["rom2_temp_to_power1","rom2_get_tx_gain_value1","r_llc_llcp_send_eco"]+[f"candidate_{i}" for i in range(149)]
+  t={"schema":"ESP32C3_ROM_REV101_UNMATCHED_FUNCTION_MACHINE_TRIAGE_V1",
+      "all_152_ranked":[{"name":n,"priority_score":0,"trivial_stub_candidate":False,"revisions":{}} for n in names]}
+  known={"rom2_temp_to_power1":[{"file":"eco7","exported_link_address":"0x40001ab4"}],
+         "rom2_get_tx_gain_value1":[{"file":"eco7","exported_link_address":"0x40001bc0"}]}
+  r=screen(t,known,{},{"r_llc_llcp_send_eco":[{"file":"bt","address":"0x40001cf4"}]})
+  self.assertEqual(r["published_but_commented"],1)
+  self.assertEqual(r["not_in_these_21_official_linkers"],149)
+  self.assertEqual(r["published_commented_names"][0]["status"],"DOCUMENTED_BUT_COMMENTED_NOT_EXPORTED")
  def test_duplicate_candidate_rejected(self):
   t={"schema":"ESP32C3_ROM_REV101_UNMATCHED_FUNCTION_MACHINE_TRIAGE_V1","all_152_ranked":
      [{"name":"rom2_temp_to_power1"}]*152}
