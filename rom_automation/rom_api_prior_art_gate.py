@@ -52,8 +52,15 @@ def extract_linker_symbols(text):
   out.setdefault(m.group(1),set()).add(int(m.group(2),0))
  return out
 
+def commented_names(text):
+ out={}
+ for m in C_BLOCK.finditer(text):
+  for name, values in extract_linker_symbols(m.group(0)[2:-2]).items():
+   out.setdefault(name,set()).update(values)
+ return out
+
 def get_official(cached=None):
- inventory={};sources={}
+ inventory={};sources={};commented={}
  for filename,expected in VENDOR_BLOBS.items():
   if cached:
    data=(cached/filename).read_bytes()
@@ -62,7 +69,10 @@ def get_official(cached=None):
    with urllib.request.urlopen(req,timeout=25) as resp:data=resp.read()
   digest=blob_sha(data)
   if digest!=expected:raise ValueError("VENDOR_SOURCE_HASH_MISMATCH:"+filename+":"+digest)
-  symbols=extract_linker_symbols(data.decode("utf-8"))
+  body=data.decode("utf-8")
+  symbols=extract_linker_symbols(body)
+  for name,values in commented_names(body).items():
+   for address in values:commented.setdefault(name,[]).append({"file":filename,"address":hex(address)})
   sources[filename]={"git_blob_sha1":digest,"extracted_symbols":len(symbols),
                      "url":"https://github.com/espressif/esp-idf/blob/"+PINNED_COMMIT+"/"+VENDOR_DIR+"/"+filename}
   for name,values in symbols.items():
@@ -70,7 +80,7 @@ def get_official(cached=None):
     inventory.setdefault(name,[]).append({"file":filename,"exported_link_address":hex(value)})
  if "ets_printf" not in inventory:raise ValueError("MISSING_POSITIVE_KNOWN_ROM_EXPORT")
  if "rom2_temp_to_power1" not in inventory:raise ValueError("MISSING_ECO7_KNOWN_PRIOR_ART_CONTROL")
- return inventory,sources
+ return inventory,sources,commented
 
 def screen(triage,inventory,sources):
  if triage.get("schema")!="ESP32C3_ROM_REV101_UNMATCHED_FUNCTION_MACHINE_TRIAGE_V1":
