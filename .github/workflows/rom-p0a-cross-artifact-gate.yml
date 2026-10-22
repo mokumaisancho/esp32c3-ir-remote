@@ -1,0 +1,53 @@
+name: ROM-001 R3 pinned tri-revision gap-proof audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_p0a_cross_artifact_gate.py'
+      - 'rom_automation/test_rom_p0a_cross_artifact_gate.py'
+      - '.github/workflows/rom-p0a-cross-artifact-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  falsify-novel-unnamed-callable-claims:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download immutable original three-ROM evidence bundle and verify digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rom001" rom_automation/output/p0a_crossproof
+          curl -fL --retry 3 --connect-timeout 25 -H "Authorization: Bearer $GH_TOKEN" \
+           'https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12345165056/zip' \
+           -o "$RUNNER_TEMP/rom001/provenance.zip"
+          echo "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a  $RUNNER_TEMP/rom001/provenance.zip" | sha256sum -c
+      - name: Eleven tests covering corrupt artifact and false claims
+        env:
+          ROM_P0A_ARCHIVE_ZIP: ${{ runner.temp }}/rom001/provenance.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_p0a_cross_artifact_gate.py' -v 2>&1 \
+           | tee rom_automation/output/p0a_crossproof/negative_tests.log
+      - name: Produce cross-artifact reason-coded report with boot gap root distinctions
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_p0a_cross_artifact_gate.py \
+           --artifact-zip "$RUNNER_TEMP/rom001/provenance.zip" \
+           --output rom_automation/output/p0a_crossproof/three_revision_gap_audit.json \
+           2>&1 | tee rom_automation/output/p0a_crossproof/results.log
+          sha256sum rom_automation/output/p0a_crossproof/three_revision_gap_audit.json \
+           | tee rom_automation/output/p0a_crossproof/sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom001-r3-three-revision-reasoned-gap-audit
+          path: rom_automation/output/p0a_crossproof/
+          retention-days: 90
+          if-no-files-found: error
