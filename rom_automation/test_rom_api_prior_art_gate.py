@@ -34,7 +34,7 @@ class ROM001VendorPriorArtGate(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,"PRIOR_ART_FALSE_NEGATIVE"):
    screen({"schema":"ESP32C3_ROM_REV101_UNMATCHED_FUNCTION_MACHINE_TRIAGE_V1","all_152_ranked":items},{},{})
  def test_commented_definitions_are_published_but_not_exported(self):
-  fake="/*\\nr_llc_llcp_send_eco = 0x40001cf4;\\n*/\\nets_printf = 0x40000040;\\n"
+  fake="/*\nr_llc_llcp_send_eco = 0x40001cf4;\n*/\nets_printf = 0x40000040;\n"
   self.assertEqual(commented_names(fake)["r_llc_llcp_send_eco"],{0x40001cf4})
   self.assertNotIn("r_llc_llcp_send_eco",extract_linker_symbols(fake))
   names=["rom2_temp_to_power1","rom2_get_tx_gain_value1","r_llc_llcp_send_eco"]+[f"candidate_{i}" for i in range(149)]
