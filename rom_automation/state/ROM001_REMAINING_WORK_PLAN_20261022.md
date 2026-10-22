@@ -9,7 +9,7 @@ Original goal: independently verify genuinely new, *usable* ESP32-C3 ROM API or 
 - Out of scope: separate ESP32-C3 IR receive/flash issue #1.
 
 ## Calendar & workload assumptions
-Start 2026-10-23; estimated 3–4 focused effort-hours on working days with GitHub CI available. Dates are indicative and require re-estimation if external sources or device access are blocked. Estimated effort 20–34 focused hours, excluding major new findings and external waits. We do not run this work in the background.
+Start 2026-10-23; estimated 3–4 focused effort-hours on working days with GitHub CI available. Dates are indicative and require re-estimation if external sources or device access are blocked. Estimated core execution effort 20–34 focused hours for R1–R5, plus 1–2 hours of setup R0 (21–36 hours in total), excluding major new findings and external waits. We do not run this work in the background.
 
 | Work ID | Priority | Work / measurable acceptance criteria | Dependencies | Effort | Target | Done evidence |
 |---|---|---|---|---:|---|---|
