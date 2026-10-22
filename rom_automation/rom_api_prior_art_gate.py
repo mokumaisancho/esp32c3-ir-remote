@@ -82,28 +82,31 @@ def get_official(cached=None):
  if "rom2_temp_to_power1" not in inventory:raise ValueError("MISSING_ECO7_KNOWN_PRIOR_ART_CONTROL")
  return inventory,sources,commented
 
-def screen(triage,inventory,sources):
+def screen(triage,inventory,sources,commented=None):
+ if commented is None:commented={}
  if triage.get("schema")!="ESP32C3_ROM_REV101_UNMATCHED_FUNCTION_MACHINE_TRIAGE_V1":
   raise ValueError("UNEXPECTED_CANDIDATE_SCHEMA")
  items=triage.get("all_152_ranked",[])
  if len(items)!=152 or len({x["name"] for x in items})!=152:
   raise ValueError("PINNED_152_CANDIDATES_INCOMPLETE")
- allrows=[];matched=[];unmatched=[]
+ allrows=[];matched=[];not_exported=[];unmatched=[]
  for x in items:
-  name=x["name"];refs=inventory.get(name,[])
+  name=x["name"];refs=inventory.get(name,[]);shown=commented.get(name,[])
   record={
    "name":name,"triage_score":x["priority_score"],
    "trivial_stub":x["trivial_stub_candidate"],
    "vendor_linker_locations":refs,
+   "commented_vendor_locations":shown,
+   "published_name_in_pinned_vendor_catalog":bool(refs or shown),
    "in_this_pinned_vendor_linker_catalog":bool(refs),
-   "status":("KNOWN_OFFICIAL_LINKER_EXPORT" if refs else "NOT_IN_21_PINNED_VENDOR_LINKERS_NOT_NOVELTY"),
+   "status":("KNOWN_OFFICIAL_LINKER_EXPORT" if refs else ("DOCUMENTED_BUT_COMMENTED_NOT_EXPORTED" if shown else "NOT_IN_21_PINNED_VENDOR_LINKERS_NOT_NOVELTY")),
    "novelty_proven":False,
    "callable_abi_proven":False,
    "silicon_proven":False,
    "static_machine_metrics":{r:[v["metrics"] for v in arr]
        for r,arr in x["revisions"].items()}
   }
-  allrows.append(record);(matched if refs else unmatched).append(record)
+  allrows.append(record);(matched if refs else not_exported if shown else unmatched).append(record)
  for n in ("rom2_temp_to_power1","rom2_get_tx_gain_value1"):
   if n not in {x["name"] for x in matched}:raise ValueError("PRIOR_ART_FALSE_NEGATIVE:"+n)
  # Evidence is a publication of the name and exported linker entry; the
@@ -114,6 +117,8 @@ def screen(triage,inventory,sources):
   "vendor_linker_files":sources,
   "total_candidates":len(allrows),
   "known_in_official_linkers":len(matched),
+  "published_but_commented":len(not_exported),
+  "published_commented_names":not_exported,
   "not_in_these_21_official_linkers":len(unmatched),
   "known_exports":matched,
   "unmatched_for_independent_followup":unmatched,
@@ -133,13 +138,14 @@ def main():
  p.add_argument("--out",required=True,type=pathlib.Path)
  p.add_argument("--vendor-dir",type=pathlib.Path)
  a=p.parse_args();source_bytes=a.triage.read_bytes()
- inventory,sources=get_official(a.vendor_dir)
- result=screen(json.loads(source_bytes),inventory,sources)
+ inventory,sources,commented=get_official(a.vendor_dir)
+ result=screen(json.loads(source_bytes),inventory,sources,commented)
  result["triage_json_sha256"]=hashlib.sha256(source_bytes).hexdigest()
  a.out.parent.mkdir(parents=True,exist_ok=True)
  a.out.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
  print("ROM001_PRIOR_ART_GATE",json.dumps({
   "total":result["total_candidates"],"known_official_linker_names":result["known_in_official_linkers"],
+  "published_but_commented":result["published_but_commented"],
   "pending_other_prior_art":result["not_in_these_21_official_linkers"],
   "new_api_verified":0,"control_temp_to_power1":inventory["rom2_temp_to_power1"],
   "control_tx_gain_value1":inventory.get("rom2_get_tx_gain_value1",[])
