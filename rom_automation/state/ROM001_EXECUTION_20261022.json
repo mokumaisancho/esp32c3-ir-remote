@@ -1,0 +1,152 @@
+{
+  "schema": "ROM001_EXECUTION_RECEIPT_V1",
+  "as_of_jst": "2026-10-22",
+  "original_issue_id": "ESP32C3-ROM-001",
+  "github_issue": "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/2",
+  "target": "Find independently demonstrated new usable ESP32-C3 ROM or silicon API; bounded static audit can legitimately find zero.",
+  "completed_this_turn": [
+    {
+      "task": "R0",
+      "status": "PASS_STATIC_EVIDENCE_BASELINE",
+      "evidence": [
+        {
+          "kind": "pinned_Espressif_vendor_reg_base_Git_blob",
+          "sha1": "d0ef6acfeeb32f66365bdbb1410ab906450374dc"
+        },
+        {
+          "kind": "pinned_original_three_ROM_evidence_ZIP",
+          "sha256": "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a"
+        },
+        {
+          "kind": "prior_art_152_names",
+          "run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39777111796"
+        }
+      ]
+    },
+    {
+      "task": "R1",
+      "status": "REGION_OWNER_PASS_FIELD_SEMANTICS_OPEN",
+      "address": "0x600061c4",
+      "region": "DR_REG_FE_BASE 0x60006000 + 0x1c4",
+      "static_RMW": "(OLD & 0xffff0000) | 0x5555",
+      "evidence": [
+        "Espressif pinned soc/reg_base.h",
+        "https://dl.espressif.com/public/esp32c3-mm.pdf",
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39782655886"
+      ],
+      "caveat": "TRM v1.4 marks wider area Reserved; different Espressif published memory map identifies FE. Neither determines individual bits."
+    },
+    {
+      "task": "R2",
+      "status": "REGION_OWNER_PASS_FIELD_SEMANTICS_OPEN",
+      "address": "0x60033c00",
+      "region": "WiFi MAC 0x60033000..0x60035fff + 0xc00",
+      "static_RMW": "OLD | 0xf0",
+      "evidence": [
+        "https://arxiv.org/pdf/2501.17684",
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39782655886"
+      ],
+      "caveat": "2025 paper covers containing address window, but not exact 0x60033c00 or bit positions."
+    },
+    {
+      "task": "R3",
+      "status": "PASS_BOUNDED_CROSS_REPORT_NO_NEW_CALLABLE_API",
+      "source_artifact_sha256": "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a",
+      "verified_rev_count": 3,
+      "first_root": "0x40000000",
+      "first_boot_gap_landing_by_revision": {
+        "esp32c3_rev0_rom_elf": "0x40001d90",
+        "esp32c3_rev101_rom_elf": "0x40002090",
+        "esp32c3_rev3_rom_elf": "0x40001e90"
+      },
+      "report_families": 7,
+      "first_ten_machine_instructions_byte_identical": true,
+      "archived_reports_consistent": true,
+      "new_callable_API_certified": 0,
+      "physical_boot_observed": false,
+      "caveat": "No new direct CFG/JALR/vector-gap candidate in bounded methods; this cannot prove global absence of unnamed APIs.",
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39783512557"
+      ]
+    }
+  ],
+  "validation": {
+    "R0_R1_R2": {
+      "tests_pass": 10,
+      "tests_fail": 0,
+      "ci_run_id": 39782655886,
+      "artifact_id": 12425904910,
+      "artifact_digest_sha256": "9b95d2b7aa12cb3fd9b4749b1533ce82d6b64d7fb38d4aadb91487cb5d0e14aa",
+      "json_sha256": "f4060b76253482695e9f1520d347f88483abe8ef8b6071515c08da8c8b69bcc6"
+    },
+    "R3": {
+      "tests_pass": 11,
+      "tests_fail": 0,
+      "ci_run_id": 39783512557,
+      "artifact_id": 12428121055,
+      "artifact_digest_sha256": "cd2e5f76bdc57873738318a5e95cdbd248dfc424729d9d3819b205adca1cd9b7",
+      "json_sha256": "1858cc7bc5c031c43980ebdd6159881fff5db2e6363874d2840e2eb6adf54d90"
+    }
+  },
+  "remaining": [
+    {
+      "task": "R1-FIELD",
+      "priority": "P0",
+      "state": "OPEN_NO_RELIABLE_PER_BIT_MEANING",
+      "depends_on": [
+        "R1-REGION"
+      ],
+      "acceptance": "Find explicit same-chip bitfield source or valid safe comparative hardware evidence; otherwise mark unknown."
+    },
+    {
+      "task": "R2-FIELD",
+      "priority": "P0",
+      "state": "OPEN_NO_RELIABLE_PER_BIT_MEANING",
+      "depends_on": [
+        "R2-REGION"
+      ],
+      "acceptance": "Find explicit same-chip bitfield source or valid safe comparative hardware evidence; otherwise mark unknown."
+    },
+    {
+      "task": "R3-GLOBAL",
+      "priority": "P1",
+      "state": "OPEN_NOT_EXHAUSTIVE",
+      "depends_on": [
+        "R3-BOUNDED"
+      ],
+      "acceptance": "No unsupported claim of exhaustive novelty or global function absence."
+    },
+    {
+      "task": "R4",
+      "priority": "P0",
+      "state": "BLOCKED_NO_AUTHORIZED_CONNECTED_SILICON_AND_SAFE_SEMANTICS",
+      "depends_on": [
+        "R1-FIELD",
+        "R2-FIELD",
+        "R3-CANDIDATE",
+        "authorized actual C3"
+      ],
+      "acceptance": "On revision-matched connected device, non-destructive observation and logs only; no blind RF/MMIO register writes."
+    },
+    {
+      "task": "R5",
+      "priority": "P0",
+      "state": "OPEN",
+      "depends_on": [
+        "R1-FIELD",
+        "R2-FIELD",
+        "R3-GLOBAL",
+        "R4 or explicit device BLOCKED decision"
+      ],
+      "acceptance": "Truthful AC-by-AC closeout, keep newly useful APIs 0 unless newly demonstrated."
+    }
+  ],
+  "confirmed_new_usable_ROM_APIs": 0,
+  "simulated_results_reclassified_as_silicon_results": 0,
+  "original_rom_evidence_sha256": "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46",
+  "next_action": "Concentrate on authoritative field meaning for FE+0x1c4 / Wi-Fi+0xc00; stop when 2 independent sources or real device proof unavailable, mark unresolved; do not invent semantics.",
+  "scope_exclusions": [
+    "IR remote flash/hardware E2E separate issue 1",
+    "192-candidate folklore / 152-name queue of known prior art"
+  ]
+}
