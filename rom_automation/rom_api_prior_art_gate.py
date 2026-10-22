@@ -68,7 +68,7 @@ def get_official(cached=None):
   for name,values in symbols.items():
    for value in values:
     inventory.setdefault(name,[]).append({"file":filename,"exported_link_address":hex(value)})
- if "nets_printf" not in inventory:raise ValueError("MISSING_POSITIVE_KNOWN_ROM_EXPORT")
+ if "ets_printf" not in inventory:raise ValueError("MISSING_POSITIVE_KNOWN_ROM_EXPORT")
  if "rom2_temp_to_power1" not in inventory:raise ValueError("MISSING_ECO7_KNOWN_PRIOR_ART_CONTROL")
  return inventory,sources
 
