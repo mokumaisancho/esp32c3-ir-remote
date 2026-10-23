@@ -1,0 +1,142 @@
+name: ROM-003 E1 E2 sealed boundary discovery and evaluation
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_boundary_byte_frontier.py'
+      - 'rom_automation/test_rom_boundary_byte_frontier.py'
+      - 'rom_automation/rom_boundary_blind_evaluator.py'
+      - 'rom_automation/test_rom_boundary_blind_evaluator.py'
+      - '.github/workflows/rom-boundary-frontier-e2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  split-rom-exec-and-sealed-oracle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32
+      - name: Download and hash-pin official ROM
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rom003"
+          curl -fL --retry 3 --connect-timeout 30 \
+            'https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz' \
+            -o "$RUNNER_TEMP/rom003/official_rom.tar.gz"
+          echo "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46  $RUNNER_TEMP/rom003/official_rom.tar.gz" | sha256sum -c
+      - name: E0 regenerate candidate-only bytes and separate evaluation oracle
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_boundary_source_seal.py \
+            --rom "$RUNNER_TEMP/rom003/official_rom.tar.gz" \
+            --outdir "$RUNNER_TEMP/rom003/split"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e1-input-only-no-function-symbols
+          path: ${{ runner.temp }}/rom003/split/candidate/
+          if-no-files-found: error
+          retention-days: 60
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e2-privileged-evaluator-oracle
+          path: ${{ runner.temp }}/rom003/split/evaluator_sealed/
+          if-no-files-found: error
+          retention-days: 60
+  byte-only-entrant-generator:
+    needs: [split-rom-exec-and-sealed-oracle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32 capstone==5.0.6
+      - uses: actions/download-artifact@v4
+        with:
+          name: rom003-e1-input-only-no-function-symbols
+          path: ${{ runner.temp }}/candidate-only
+      - name: E1 negative controls only against public sample bytes
+        run: |
+          set -euo pipefail
+          mkdir -p rom_automation/output/e1
+          python -m unittest discover -s rom_automation -p 'test_rom_boundary_byte_frontier.py' -v \
+            2>&1 | tee rom_automation/output/e1/negative_tests.log
+      - name: E1 analyze all revisions WITHOUT oracle mounted on this runner
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_boundary_byte_frontier.py \
+            --input-dir "$RUNNER_TEMP/candidate-only" \
+            --out-dir rom_automation/output/e1/candidates \
+            2>&1 | tee rom_automation/output/e1/rooted_report.log
+          sha256sum rom_automation/output/e1/candidates/*.json \
+            | tee rom_automation/output/e1/sha256.log
+          python - <<'PY'
+          import pathlib
+          assert not pathlib.Path.home().joinpath('evaluator_sealed').exists()
+          outputs=list(pathlib.Path("rom_automation/output/e1/candidates").glob("*.json"))
+          assert len(outputs)==3
+          for p in outputs:
+            v=p.read_text()
+            assert "symbol_function_records" not in v and "source_elf_sha256" not in v
+          print("E1_PUBLIC_ONLY_3_ROM_REVISION_FILES_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e1-byte-frontier-public-candidates
+          path: rom_automation/output/e1/candidates/
+          if-no-files-found: error
+          retention-days: 60
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e1-execution-logs
+          path: |
+            rom_automation/output/e1/negative_tests.log
+            rom_automation/output/e1/rooted_report.log
+            rom_automation/output/e1/sha256.log
+          if-no-files-found: error
+          retention-days: 60
+  independent-sealed-boundary-evaluator:
+    needs: [split-rom-exec-and-sealed-oracle, byte-only-entrant-generator]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: rom003-e1-byte-frontier-public-candidates
+          path: ${{ runner.temp }}/candidates
+      - uses: actions/download-artifact@v4
+        with:
+          name: rom003-e2-privileged-evaluator-oracle
+          path: ${{ runner.temp }}/oracle
+      - name: E2 real three ROM boundary-blind evaluation + mutation/negative tests
+        env:
+          ROM003_E2_CANDIDATE_DIR: ${{ runner.temp }}/candidates
+          ROM003_E2_ORACLE_DIR: ${{ runner.temp }}/oracle
+        run: |
+          set -euo pipefail
+          mkdir -p rom_automation/output/e2
+          python -m unittest discover -s rom_automation -p 'test_rom_boundary_blind_evaluator.py' -v \
+            2>&1 | tee rom_automation/output/e2/negative_tests.log
+          python rom_automation/rom_boundary_blind_evaluator.py \
+            --candidate-dir "$ROM003_E2_CANDIDATE_DIR" \
+            --evaluator-dir "$ROM003_E2_ORACLE_DIR" \
+            --output rom_automation/output/e2/boundary_blind_comparison.json \
+            2>&1 | tee rom_automation/output/e2/results.log
+          sha256sum rom_automation/output/e2/boundary_blind_comparison.json \
+            | tee rom_automation/output/e2/sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e2-three-rom-real-blind-evaluation
+          path: rom_automation/output/e2/
+          if-no-files-found: error
+          retention-days: 90
