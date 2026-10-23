@@ -56,14 +56,14 @@
     ],
     "selected_metrics": "hits@100, labeled-recall@100 and known-positive yield@100, NOT true precision on unknown code",
     "fivefold_total_hits_at_100": {
-      "deterministic_random": null,
-      "highest_degree": null,
-      "near_known": null,
-      "farthest_finite": null,
-      "reverse_to_known": null,
-      "dual_root_farthest": null
+      "deterministic_random": 123,
+      "highest_degree": 239,
+      "near_known": 308,
+      "farthest_finite": 16,
+      "reverse_to_known": 276,
+      "dual_root_farthest": 261
     },
-    "fivefold_total_labeled_positives": 3122,
+    "fivefold_total_labeled_positives": 1846,
     "fivefold_per_revision": [
       {
         "revision": "esp32c3_rev0_rom.elf",
@@ -72,16 +72,16 @@
         "isolated_nodes": 1222,
         "root_reachable_candidates_frozen": 116,
         "weakly_disconnected_candidates_frozen": 984,
-        "fivefold_masked_positives": 984,
-        "hits_at_100": {},
-        "historical_public_names_proxy_count": [
-          34,
-          77,
-          106,
-          6,
-          92,
-          89
-        ]
+        "fivefold_masked_positives": 619,
+        "hits_at_100": {
+          "deterministic_random": 34,
+          "highest_degree": 77,
+          "near_known": 106,
+          "farthest_finite": 6,
+          "reverse_to_known": 92,
+          "dual_root_farthest": 89
+        },
+        "historical_public_names_proxy_count": 0
       },
       {
         "revision": "esp32c3_rev101_rom.elf",
@@ -90,16 +90,16 @@
         "isolated_nodes": 1277,
         "root_reachable_candidates_frozen": 121,
         "weakly_disconnected_candidates_frozen": 1097,
-        "fivefold_masked_positives": 1097,
-        "hits_at_100": {},
-        "historical_public_names_proxy_count": [
-          39,
-          76,
-          97,
-          4,
-          85,
-          85
-        ]
+        "fivefold_masked_positives": 608,
+        "hits_at_100": {
+          "deterministic_random": 39,
+          "highest_degree": 76,
+          "near_known": 97,
+          "farthest_finite": 4,
+          "reverse_to_known": 85,
+          "dual_root_farthest": 85
+        },
+        "historical_public_names_proxy_count": 152
       },
       {
         "revision": "esp32c3_rev3_rom.elf",
@@ -108,16 +108,16 @@
         "isolated_nodes": 1278,
         "root_reachable_candidates_frozen": 119,
         "weakly_disconnected_candidates_frozen": 1041,
-        "fivefold_masked_positives": 1041,
-        "hits_at_100": {},
-        "historical_public_names_proxy_count": [
-          50,
-          86,
-          105,
-          6,
-          99,
-          87
-        ]
+        "fivefold_masked_positives": 619,
+        "hits_at_100": {
+          "deterministic_random": 50,
+          "highest_degree": 86,
+          "near_known": 105,
+          "farthest_finite": 6,
+          "reverse_to_known": 99,
+          "dual_root_farthest": 87
+        },
+        "historical_public_names_proxy_count": 0
       }
     ]
   },
