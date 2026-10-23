@@ -184,7 +184,7 @@ def analyze(payload,max_instructions=40000):
   "rooted_call_count":len(rooted_targets),
   "paired_AUIPC_JALR_candidates":sum(any(len(w["opcode_hex"])==16 for w in row["witnesses"]) for row in entries),
   "unrooted_halfword_candidate_count":len(entries),
-  "candidate_records":entries[:1000],
+  "candidate_records":entries,
   "ranked_possible_entries":[x["entry_pc"] for x in entries],
   "ranked_raw_link_baseline":[x["entry_pc"] for x in raw_order],
   "unresolved":unknown[:500],"unresolved_total":len(unknown),
