@@ -1,0 +1,53 @@
+name: ROM-003 blinded inverse-distance 3-revision POC
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_distance_blind_poc.py'
+      - 'rom_automation/test_rom_distance_blind_poc.py'
+      - '.github/workflows/rom-distance-blind-poc.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  deterministic-blind-three-revisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch historical ROM-001 artifact and validate original SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rom003" rom_automation/output/rom003_distance
+          curl -fL --retry 3 --connect-timeout 25 -H "Authorization: Bearer $GH_TOKEN" \
+            'https://api.github.com/repos/mokumaisancho/esp32c3-ir-remote/actions/artifacts/12345165056/zip' \
+            -o "$RUNNER_TEMP/rom003/original.zip"
+          echo "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a  $RUNNER_TEMP/rom003/original.zip" | sha256sum -c
+      - name: Falsify root reachability, leakage, graph mutation, unstable ordering
+        env:
+          ROM003_PINNED_ZIP: ${{ runner.temp }}/rom003/original.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_distance_blind_poc.py' -v 2>&1 \
+            | tee rom_automation/output/rom003_distance/falsification_tests.log
+      - name: Evaluate five-fold sensitivity and frozen masked cohort across 3 ROMs
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_distance_blind_poc.py \
+            --artifact "$RUNNER_TEMP/rom003/original.zip" \
+            --out rom_automation/output/rom003_distance/three_revision_blind_metrics.json \
+            2>&1 | tee rom_automation/output/rom003_distance/metrics.log
+          sha256sum rom_automation/output/rom003_distance/three_revision_blind_metrics.json \
+            | tee rom_automation/output/rom003_distance/sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-3rev-blinded-distance-poc
+          path: rom_automation/output/rom003_distance/
+          retention-days: 90
+          if-no-files-found: error
