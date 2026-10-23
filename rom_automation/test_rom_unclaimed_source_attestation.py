@@ -67,13 +67,21 @@ class CandidateSourceProof(unittest.TestCase):
   dest=direct(SECOND_HALF_CJAL,SOURCE)[0]
   c,g,p=data(raw,SOURCE,dest,SECOND_HALF_CJAL)
   c["candidate_records"][0]["witnesses"][0]["opcode_hex"]=bytes.fromhex("1930").hex()
-  with self.assertRaisesRegex(ValueError,"WITNESS_NOT_A_BYTE_CORRECT_CALL"):audit(c,g,p)
+  with self.assertRaisesRegex(ValueError,"SOURCE_WITNESS_BYTES_DO_NOT_MATCH_OFFICIAL_ROM"):audit(c,g,p)
  def test_fabricated_raw_source_witness_rejected_even_without_named_symbol(self):
   raw=CALL+b"\x01\x00"*10
   source=BASE+4
   dest=direct(SECOND_HALF_CJAL,source)[0]
   c,g,p=data(raw,source,dest,SECOND_HALF_CJAL)
   with self.assertRaisesRegex(ValueError,"SOURCE_WITNESS_BYTES_DO_NOT_MATCH_OFFICIAL_ROM"):
+   audit(c,g,p)
+ def test_true_machine_branch_target_mismatch_rejected(self):
+  raw=bytes.fromhex("93001934")+b"\x01\x00"*8
+  dest=direct(SECOND_HALF_CJAL,SOURCE)[0]
+  c,g,p=data(raw,SOURCE,dest,SECOND_HALF_CJAL)
+  c["candidate_records"][0]["entry_pc"]=hex(dest+2)
+  c["ranked_possible_entries"]=[hex(dest+2)]
+  with self.assertRaisesRegex(ValueError,"WITNESS_NOT_A_BYTE_CORRECT_CALL"):
    audit(c,g,p)
  def test_merged_duplicate_names_do_not_double_witness(self):
   raw=bytes.fromhex("93001934")+b"\x01\x00"*8
