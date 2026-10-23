@@ -56,7 +56,7 @@ class ByteFrontierTest(unittest.TestCase):
  def test_clipping_destination_outside_region_rejected(self):
   data=inp(CALL8+RET)
   result=analyze(data)
-  self.assertEqual(result["rooted_entry_candidates"],[hex(BASE+8)])
+  self.assertEqual(result["rooted_entry_candidates"],[])
   self.assertEqual(result["ranked_possible_entries"],[])
   self.assertTrue(any(x["reason"]=="OUT_OF_EXEC_DIRECT_TARGET" for x in result["unresolved"]))
  def test_raw_scan_does_not_mistake_nonlink_jal_as_call(self):
