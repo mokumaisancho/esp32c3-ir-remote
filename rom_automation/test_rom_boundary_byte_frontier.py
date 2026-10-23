@@ -2,7 +2,7 @@
 """E1: actual RV32I/C bytes, roots vs unrooted syntactically valid code-looking data."""
 import copy,unittest
 from rom_boundary_source_seal import CANDIDATE_SCHEMA,digest
-from rom_boundary_byte_frontier import analyze,direct
+from rom_boundary_byte_frontier import analyze,direct,paired_auipc_jalr,regmap
 
 BASE=0x40000000
 RET=bytes.fromhex("67800000")
@@ -64,6 +64,35 @@ class ByteFrontierTest(unittest.TestCase):
   raw=bytes.fromhex("6f008000")+RET+NOP+RET
   result=analyze(inp(raw))
   self.assertNotIn(hex(BASE+8),result["ranked_possible_entries"])
+ def test_paired_auipc_jalr_exact_target_is_rv32_call(self):
+  # auipc x5,0; jalr x1,12(x5); at pc+12 a c.nop instruction.
+  b=bytes.fromhex("97020000e780c200")+RET+NOP+RET
+  self.assertEqual(paired_auipc_jalr(regmap(inp(b)),BASE),
+                   (BASE+12,"DIRECT_CALL",b[:8].hex()))
+  result=analyze(inp(b))
+  self.assertIn(hex(BASE+12),result["rooted_entry_candidates"])
+  self.assertTrue(any(len(x["opcode_hex"])==16 for row in result["candidate_records"]
+       for x in row["witnesses"]))
+ def test_paired_source_register_mutation_is_rejected(self):
+  # jalr x1,12(x6) rather than x5 is NOT an AUIPC def-use match.
+  b=bytes.fromhex("97020000e700c300")+RET+NOP+RET
+  self.assertIsNone(paired_auipc_jalr(regmap(inp(b)),BASE))
+  result=analyze(inp(b))
+  self.assertNotIn(hex(BASE+12),result["rooted_entry_candidates"])
+ def test_nonlink_paired_tail_jump_is_not_a_called_function(self):
+  b=bytes.fromhex("970200006780c200")+RET+NOP+RET
+  self.assertEqual(paired_auipc_jalr(regmap(inp(b)),BASE)[1],"DIRECT_JUMP")
+  result=analyze(inp(b))
+  self.assertNotIn(hex(BASE+12),result["ranked_possible_entries"])
+ def test_unrooted_pair_bytes_are_not_promoted_to_proven_code(self):
+  b=RET+bytes.fromhex("97020000e780c200")+RET+NOP+RET
+  result=analyze(inp(b))
+  self.assertEqual(result["rooted_entry_candidates"],[])
+  target=hex(BASE+4+12)
+  row=next(x for x in result["candidate_records"] if x["entry_pc"]==target)
+  self.assertEqual(row["rooted_call_witnesses"],0)
+  self.assertFalse(row["real_function_proven"])
+
  def test_output_has_no_private_evaluator_name(self):
   result=analyze(inp(CALL8+RET+NOP+RET))
   for prohibited in ("symbol_function_records","aliases","function_size","oracle_sha256"):
