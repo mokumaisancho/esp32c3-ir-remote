@@ -82,6 +82,9 @@ def audit(candidate,oracle,raw_input):
   for w in item["witnesses"]:
    source=int(w["from_pc"],16)
    raw=bytes.fromhex(w["opcode_hex"])
+   source_bytes=next((b[source-base:source-base+len(raw)]
+     for base,b in regions if base<=source and source+len(raw)<=base+len(b)),None)
+   need(source_bytes==raw,"SOURCE_WITNESS_BYTES_DO_NOT_MATCH_OFFICIAL_ROM")
    parsed=(direct(raw,source) if len(raw) in (2,4) else None)
    need(parsed is not None and parsed[1]=="DIRECT_CALL" and parsed[0]==dest,
         "WITNESS_NOT_A_BYTE_CORRECT_CALL")
