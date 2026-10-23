@@ -198,13 +198,14 @@
         "zero claims of novelty"
       ],
       "evidence": [
-        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988163344"
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39989755063"
       ],
       "on_success": "release T4",
       "on_failure": "repair scorer or report blocked",
       "status": "passed",
       "attempts": 1,
-      "retry_limit": 2
+      "retry_limit": 2,
+      "result": "Independent E2 benchmark 3 ROMs complete; 11 verifier + 6 extent falsification tests PASS, no oracle present in E1 generator job; 252 unclaimed but all 0 rooted; complete candidate provenance saved."
     },
     {
       "task_id": "T4",
@@ -237,7 +238,7 @@
         "measured delta or reason-coded inconclusive"
       ],
       "evidence": [
-        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988795700"
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39989755063"
       ],
       "on_success": "release T5",
       "on_failure": "skip graph novelty optimization",
@@ -277,14 +278,14 @@
         "final verdict proven or zero confirmed"
       ],
       "evidence": [
-        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988795700"
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39989755063"
       ],
       "on_success": "close original issue only if verified usable API",
       "on_failure": "preserve UNKNOWN",
       "status": "blocked",
       "attempts": 1,
       "retry_limit": 1,
-      "result": "No byte-proven unnamed executable entry with independently witnessed call/control path; 252 unclaimed extent candidates are all unrooted syntactic byte matches, not verified new functions. Novel API qualification requires new control-flow witness or authorized silicon."
+      "result": "No true new usable ROM API proven; no rooted edge to any 252 symbol-unclaimed byte candidates. Independent prior-art verification of genuinely callable new entry not actionable until such a witness appears."
     }
   ],
   "dependency_graph": [
@@ -350,7 +351,7 @@
       "digest": "sha256:f88ae08c9be47300817161a5d4636aa2fdad67198270df32bd2bdea6856ac6c8"
     },
     "E2_coarse_posthoc_extent_triage": {
-      "method": "Comparison of E1 symbol-free candidates with E0 separate evaluator STT_FUNC start+size intervals, not an actual source of negatives for E1",
+      "method": "Independent E2 scorer process, machine-readable full witness list; source rom_boundary_extent_triage.py, attached GitHub artifact 12516473461",
       "rev0": {
         "named_start": 367,
         "inside_named_body": 1713,
@@ -375,6 +376,22 @@
         "All 252 unclaimed-extent candidates have no rooted call evidence.",
         "ELF STT_FUNC extents themselves are imperfect ground truth."
       ]
+    },
+    "FINAL_E1_E2_TRIAGE_RUN": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39989755063",
+    "FINAL_E1_CANDIDATES": {
+      "artifact_id": 12516403780,
+      "digest_sha256": "9616169a007acf4f4e9ce48e1f3cd994ca986582da18728bdf6f0da9a8936d71"
+    },
+    "FINAL_E2_EVALUATION": {
+      "artifact_id": 12516473461,
+      "digest_sha256": "55e33884b06fd07a65377ce082d60266cb8517cfb40a1cc6cdbf91702318f62a"
+    },
+    "FINAL_TESTS": {
+      "E0_previous_ci": 11,
+      "E1": 14,
+      "E2_independent": 11,
+      "E2_extent_triage": 6,
+      "aggregate_current_run": 31
     }
   },
   "execution_history": [
@@ -407,12 +424,22 @@
       "date": "2026-10-24",
       "task": "T5",
       "event": "Evaluator-only posthoc interval classification of final E1 artifacts: 81/76/95 candidates outside named extents; none with rooted machine control witness. No novel usable API claim; blocked pending independent witness."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T3",
+      "event": "Reproduced E2 extent categories by checked-in independent scorer and 6 negative tests PASS: named 367/403/371, inside named 1713/1872/1692, unclaimed 81/76/95; rooted unclaimed 0 in every rev."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T4",
+      "event": "Final 3 CI jobs PASS and 31 test cases total. E1 rooted 102/103/102, AUIPC JALR source candidates 0 on all official ROMs. No gain; stop this branch."
     }
   ],
-  "next_action": "Resolve B1 by obtaining a provable independent incoming control-flow edge or safe authorized runtime trace for an unclaimed executable region. Current farthest-distance scoring and AUIPC+JALR heuristic should not be repeated without new evidence.",
+  "next_action": "Only resume if new rooted/indirect vector or safe hardware call witness appears for one of the 252 unresolved symbol-free candidates. Otherwise pause semantic novelty claims. See E2 artifact and Issues #5/#6.",
   "resume_conditions": [
-    "New SHA-pinned rooted/indirect vector or physical call witness into one of 252 unclaimed candidate addresses",
-    "Actual Ghidra independent code boundary corroboration and dated prior-art review if such witness exists"
+    "Independent byte-level call link or rooted branch into symbol-unclaimed executable region",
+    "If new witness: independently qualify as function start, compare against official/public prior art, then safe revision-matched ABI test"
   ],
   "overall_status": "BLOCKED",
   "mvp_all_ACs_met": false
