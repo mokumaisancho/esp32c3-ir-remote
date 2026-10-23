@@ -126,8 +126,8 @@ jobs:
         with:
           name: rom003-e1-input-only-no-function-symbols
           path: ${{ runner.temp }}/raw
-      - name: Install pinned independent RV32C machine decoder in evaluator only
-        run: python -m pip install --disable-pip-version-check capstone==5.0.6
+      - name: Install pinned RV32C and ELF schema validation libraries
+        run: python -m pip install --disable-pip-version-check capstone==5.0.6 pyelftools==0.32
       - name: E2 real three ROM boundary-blind evaluation + mutation/negative tests
         env:
           ROM003_E2_CANDIDATE_DIR: ${{ runner.temp }}/candidates
