@@ -63,10 +63,10 @@ def evaluate(public_results,gold,source_proofs=None):
    "rooted_plus_byte_witness_rank":candidate["ranked_possible_entries"],
    "byte_link_address_order":sorted(candidate["ranked_raw_link_baseline"],key=lambda x:int(x,16))
   }
-  required=set(methods["rooted_calls"])
-  ensure(required<=set(methods["rooted_plus_byte_witness_rank"])|
-         set(candidate["unresolved"][i]["pc"] for i in range(len(candidate["unresolved"]))),
+  ensure(set(methods["rooted_calls"])<=set(methods["rooted_plus_byte_witness_rank"]),
          "ROOTED_CANDIDATE_LOST_WITHOUT_REASON")
+  ensure("symbol_function_records" not in json.dumps(candidate),
+         "GOLDEN_SYMBOL_RECORD_LEAK_IN_CANDIDATE")
   results={method:score(ranks,starts) for method,ranks in methods.items()}
   revisions.append({"revision":rev,"symbol_record_count":len(records),
    "unique_start_size_pairs":len(pairs),"unique_true_start_pcs":len(starts),
