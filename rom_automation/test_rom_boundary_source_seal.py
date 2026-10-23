@@ -96,6 +96,19 @@ class RawOnlyBoundaryOracleTests(unittest.TestCase):
     "THE CANDIDATE INPUT MUST BE INDEPENDENT OF SYMBOL-NAME MUTATIONS")
   self.assertNotEqual(oracle_a,oracle_b,
     "Evaluator oracle MUST reflect modified symbol metadata")
+ def test_true_entrypoints_deduplicate_symbol_aliases(self):
+  path=os.environ.get("ROM003_E0_PINNED_ARCHIVE")
+  if not path:self.skipTest("Pinned official ROM tar not supplied")
+  out=split_official_archive(pathlib.Path(path))
+  expected_unique={REVS[0]:1968,REVS[1]:2100,REVS[2]:2040}
+  for revision,(public,oracle) in out.items():
+   records=oracle["symbol_function_records"]
+   distinct={(e["entry_pc"],e["size_bytes"]) for e in records}
+   self.assertEqual(len(distinct),expected_unique[revision],
+     "PINNED_ELF_FUNCTION_START_SIZE_RANGE_CHANGED")
+   self.assertEqual(len(records)-len(distinct),18,
+     "DUPLICATE_SYMBOL_ALIAS_MUST_NOT_COUNT_AS_18_NEW_FUNCTIONS")
+
  def test_save_splits_not_mixed(self):
   import tempfile
   with tempfile.TemporaryDirectory() as d:
