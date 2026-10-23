@@ -1,0 +1,322 @@
+{
+  "schema": "ROM003_EXECUTION_QUEUE_V2",
+  "original_issue": {
+    "id": "ESP32C3-ROM-001",
+    "objective": "Discover and independently verify previously unknown usable ESP32-C3 ROM/SoC functions or capabilities; never conflate unknown boundary and usable novel API",
+    "related": [
+      "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/2",
+      "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/5",
+      "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/6"
+    ]
+  },
+  "mvp": {
+    "id": "ROM003-MVP1",
+    "description": "Independently extract byte-evidenced unknown function entry candidates from all three C3 ROM images without leaked function labels/boundaries, measure exact-entry recovery on a sealed oracle against byte-only baselines and retain graded unknown/error status; do not claim novel API without separate proof."
+  },
+  "acceptance_criteria": [
+    {
+      "id": "AC-E0",
+      "criteria": "Pinned ELF ROM bytes and evaluator-only function oracle are logically separated with mutation rejection and alias dedup."
+    },
+    {
+      "id": "AC-E1",
+      "criteria": "Byte-only RV32I/C scan and bounded rooted CFG produce traceable call/link candidates, basic block destinations distinguished, unknown indirect/data remains unknown."
+    },
+    {
+      "id": "AC-E2",
+      "criteria": "Sealed evaluator measures EXACT start PC for 3 ROM revisions without oracle access to candidate generation; raw baseline, rooted baseline and independent negative tests; no false precision."
+    },
+    {
+      "id": "AC-E3",
+      "criteria": "New indirect edges require machine-byte def-use witnesses and crossrevision normalization; otherwise UNKNOWN."
+    },
+    {
+      "id": "AC-E4",
+      "criteria": "Novel/callable/hardware capability confirmed only through independent dated prior art, ABI and revision-matched hardware evidence; if none verified, 0."
+    },
+    {
+      "id": "AC-STATE",
+      "criteria": "DAG/AC task JSON pinned in GitHub; each claimed passed task has GitHub Actions logs and reproducible verdict."
+    }
+  ],
+  "constraints": [
+    "GitHub and CI allowed; no unapproved real silicon RF writes",
+    "No using ELF names or function extents in generator",
+    "3 pinned Espressif ROM revisions and exact SHA",
+    "No answer leakage or fabricated silicon result",
+    "timeboxed CI, 2 repair attempts per stage",
+    "only read actual CI logs to claim PASS"
+  ],
+  "tasks": [
+    {
+      "task_id": "T0",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-STATE"
+      ],
+      "task": "Create dependency DAG and evidence-bound execution queue",
+      "dependencies": [],
+      "priority": "P0",
+      "critical_path": true,
+      "required_data": [
+        "previous ROM003 results and issue #6"
+      ],
+      "quality_criteria": [
+        "acyclic",
+        "AC traceability"
+      ],
+      "data_source": [
+        "GitHub Issue #6",
+        "ROM003_FEASIBILITY_ROADMAP_20261024.md"
+      ],
+      "execution_method": "GitHub create_file JSON",
+      "preconditions": [],
+      "acceptance_criteria": [
+        "entire DAG and next actions persisted"
+      ],
+      "evidence": [],
+      "on_success": "release T1 and T2",
+      "on_failure": "report save failure",
+      "status": "running",
+      "attempts": 1,
+      "retry_limit": 2
+    },
+    {
+      "task_id": "T1",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E0"
+      ],
+      "task": "Reuse SHA-pinned separated candidate/exact function oracle",
+      "dependencies": [
+        "T0"
+      ],
+      "priority": "P0",
+      "critical_path": true,
+      "required_data": [
+        "official ROM archive artifact"
+      ],
+      "quality_criteria": [
+        "11/11 existing CI PASS"
+      ],
+      "data_source": [
+        "GitHub Actions 39985074956"
+      ],
+      "execution_method": "read verified previous receipt",
+      "preconditions": [
+        "T0"
+      ],
+      "acceptance_criteria": [
+        "E0 original proof present"
+      ],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39985074956"
+      ],
+      "on_success": "release T2",
+      "on_failure": "gate T2",
+      "status": "pending",
+      "attempts": 0,
+      "retry_limit": 1
+    },
+    {
+      "task_id": "T2",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E1"
+      ],
+      "task": "Implement RV32IC raw byte-only rooted and unrooted call candidate extraction and negative tests",
+      "dependencies": [
+        "T1"
+      ],
+      "priority": "P0",
+      "critical_path": true,
+      "required_data": [
+        "E0 public candidate-only JSON"
+      ],
+      "quality_criteria": [
+        "exact control encoding",
+        "no symtab import",
+        "invalid bytes cannot promote",
+        "typed unresolved"
+      ],
+      "data_source": [
+        "rom_boundary_source_seal.py output"
+      ],
+      "execution_method": "Python Capstone 5.0.6, GitHub Actions",
+      "preconditions": [
+        "T1"
+      ],
+      "acceptance_criteria": [
+        "3 rev candidate lists with machine-byte witnesses",
+        "mutated opcode rejects",
+        "no function-name fields",
+        "root-only budget bounded"
+      ],
+      "evidence": [],
+      "on_success": "release T3",
+      "on_failure": "one RCA and bounded patch",
+      "status": "pending",
+      "attempts": 0,
+      "retry_limit": 2
+    },
+    {
+      "task_id": "T3",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E2"
+      ],
+      "task": "Run actual boundary-hidden evaluator in separate GitHub Actions job",
+      "dependencies": [
+        "T2"
+      ],
+      "priority": "P0",
+      "critical_path": true,
+      "required_data": [
+        "candidate ZIP",
+        "sealed oracle ZIP"
+      ],
+      "quality_criteria": [
+        "candidate process cannot open oracle",
+        "dedup 18 aliases/rev",
+        "exact PC/ROM matches",
+        "unjudged!=negative"
+      ],
+      "data_source": [
+        "GitHub Actions artifact from T2 and E0"
+      ],
+      "execution_method": "independent Python evaluator with no candidate imports",
+      "preconditions": [
+        "T2"
+      ],
+      "acceptance_criteria": [
+        "recall@k and false classification data all rev",
+        "no data leak",
+        "zero claims of novelty"
+      ],
+      "evidence": [],
+      "on_success": "release T4",
+      "on_failure": "repair scorer or report blocked",
+      "status": "pending",
+      "attempts": 0,
+      "retry_limit": 2
+    },
+    {
+      "task_id": "T4",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E3"
+      ],
+      "task": "Test whether typed indirect CFG edges materially improve benchmark rather than tuning weights",
+      "dependencies": [
+        "T3"
+      ],
+      "priority": "P1",
+      "critical_path": false,
+      "required_data": [
+        "per-category exact entry misses"
+      ],
+      "quality_criteria": [
+        "byte-level witnesses",
+        "no dynamic simulation promoted"
+      ],
+      "data_source": [
+        "rom_p0a_cfg_defuse.py",
+        "T3 metrics"
+      ],
+      "execution_method": "small negative-control POC only if decision-changing",
+      "preconditions": [
+        "T3"
+      ],
+      "acceptance_criteria": [
+        "measured delta or reason-coded inconclusive"
+      ],
+      "evidence": [],
+      "on_success": "release T5",
+      "on_failure": "skip graph novelty optimization",
+      "status": "pending",
+      "attempts": 0,
+      "retry_limit": 1
+    },
+    {
+      "task_id": "T5",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E4"
+      ],
+      "task": "Prior art / callable ROM API / physical capability independent adjudication",
+      "dependencies": [
+        "T3"
+      ],
+      "priority": "P1",
+      "critical_path": false,
+      "required_data": [
+        "new boundary candidates",
+        "prior-art register",
+        "authorized silicon only if needed"
+      ],
+      "quality_criteria": [
+        "no novelty score used as proof"
+      ],
+      "data_source": [
+        "Espressif source and academic studies"
+      ],
+      "execution_method": "independent checks only for genuine new byte-proven boundary",
+      "preconditions": [
+        "T3"
+      ],
+      "acceptance_criteria": [
+        "final verdict proven or zero confirmed"
+      ],
+      "evidence": [],
+      "on_success": "close original issue only if verified usable API",
+      "on_failure": "preserve UNKNOWN",
+      "status": "pending",
+      "attempts": 0,
+      "retry_limit": 1
+    }
+  ],
+  "dependency_graph": [
+    [
+      "T0",
+      "T1"
+    ],
+    [
+      "T1",
+      "T2"
+    ],
+    [
+      "T2",
+      "T3"
+    ],
+    [
+      "T3",
+      "T4"
+    ],
+    [
+      "T3",
+      "T5"
+    ]
+  ],
+  "execution_queue": [
+    "T0"
+  ],
+  "current_task": "T0",
+  "completed_tasks": [],
+  "blockers": [],
+  "evidence_registry": {
+    "E0": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39985074956"
+  },
+  "execution_history": [
+    {
+      "date": "2026-10-24",
+      "task": "T0",
+      "event": "Create execution queue before new implementation; E0 historical PASS independently verified in prior conversation"
+    }
+  ],
+  "next_action": "Finalize T0, mark T1 prior-evidence PASS, implement T2 then T3 without further user turns",
+  "resume_conditions": [
+    "read CI logs/outputs and update task claims only when evidence is present"
+  ],
+  "overall_status": "INTERRUPTED_UNTIL_EXECUTION_FINISHES",
+  "mvp_all_ACs_met": false
+}
