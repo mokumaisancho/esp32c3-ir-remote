@@ -44,11 +44,31 @@ def regmap(payload):
  validate_candidate_input(payload)
  return [(int(r["start_pc"],16),bytes.fromhex(r["raw_hex"])) for r in payload["exec_regions"]]
 
-def fetch(regions,pc):
+def fetch(regions,pc,length=4):
  for base,raw in regions:
   if base<=pc<base+len(raw):
-   return raw[pc-base:pc-base+4]
+   return raw[pc-base:pc-base+length]
  return b""
+
+def paired_auipc_jalr(regions,pc):
+ """Constant AUIPC rd; immediately JALR link,imm(rd): exact local def-use.
+
+ A pair at an unrooted halfword boundary is untrusted possible DATA. For
+ rooted traversal, both individual 32-bit encodings must also decode.
+ Calls/CFG joins between the 2 instructions are not possible in this local
+ two-instruction sequence; an external jump INTO the second PC is a separate
+ source and does not validate using AUIPC as its register definition.
+ """
+ b=fetch(regions,pc,8)
+ if len(b)!=8 or (b[0]&3)!=3 or (b[4]&3)!=3:return None
+ w=int.from_bytes(b[:4],"little");j=int.from_bytes(b[4:],"little")
+ if (w&127)!=0x17 or (j&127)!=0x67 or ((j>>12)&7)!=0:return None
+ rd=(w>>7)&31;src=(j>>15)&31;link=(j>>7)&31
+ if rd==0 or src!=rd:return None
+ imm_hi=sx(w&0xfffff000,32)
+ imm_lo=sx((j>>20)&0xfff,12)
+ dest=((pc+imm_hi+imm_lo)&MASK)&~1
+ return dest,("DIRECT_CALL" if link!=0 else "DIRECT_JUMP"),b.hex()
 
 def machine(pc,regions,disassembler):
  chunk=fetch(regions,pc)
@@ -69,6 +89,16 @@ def rooted_walk(regions,root,budget=40000):
   i=machine(pc,regions,dec)
   if not i:
    unknown.append({"pc":hex(pc),"reason":"INVALID_OR_UNMAPPED_INSTRUCTION"});continue
+  pair=paired_auipc_jalr(regions,pc)
+  if pair and machine(pc+4,regions,dec) is not None:
+   dest,kind,raw8=pair
+   seen.add(pc);seen.add(pc+4)
+   evidence.append({"from_pc":hex(pc),"to_pc":hex(dest),"opcode_hex":raw8,
+                    "kind":kind,"source_provenance":"ROOTED_MACHINE_AUIPC_JALR_PAIR"})
+   if fetch(regions,dest):todo.append(dest)
+   else:unknown.append({"pc":hex(pc),"reason":"OUT_OF_EXEC_PAIRED_TARGET","target":hex(dest)})
+   if kind=="DIRECT_CALL":todo.append((pc+8)&MASK)
+   continue
   seen.add(pc)
   raw=bytes.fromhex(i["raw"]);parsed=direct(raw,pc)
   fall=(pc+i["length"])&MASK
@@ -95,6 +125,14 @@ def unrooted_link_scan(regions):
   for off in range(0,len(b)-1,2):
    pc=base+off
    if b[off]&3==3:
+    if b[off]&127==0x17:
+     pair=paired_auipc_jalr(regions,pc)
+     if pair and pair[1]=="DIRECT_CALL":
+      dest,_kind,raw8=pair
+      if fetch(regions,dest):
+       links[dest].append({"from_pc":hex(pc),"opcode_hex":raw8,
+         "source_provenance":"UNROOTED_AUIPC_JALR_MAY_BE_DATA"})
+     continue
     if off+4>len(b) or b[off]&127!=0x6f:continue
     word=int.from_bytes(b[off:off+4],"little")
     if (word>>7)&31==0:continue
@@ -119,7 +157,7 @@ def analyze(payload,max_instructions=40000):
   if e["kind"]=="DIRECT_CALL":
    dest=int(e["to_pc"],16)
    raw_calls[dest].append({"from_pc":e["from_pc"],"opcode_hex":e["opcode_hex"],
-                           "source_provenance":"ROOTED_MACHINE_INSTRUCTION"})
+     "source_provenance":e["source_provenance"]})
  dec=Cs(CS_ARCH_RISCV,CS_MODE_RISCV32|CS_MODE_RISCVC)
  entries=[]
  for pc,items in raw_calls.items():
@@ -129,7 +167,7 @@ def analyze(payload,max_instructions=40000):
    continue
   unique={(x["from_pc"],x["opcode_hex"]):x for x in items}
   witnesses=list(unique.values())
-  proven=[x for x in witnesses if x["source_provenance"]=="ROOTED_MACHINE_INSTRUCTION"]
+  proven=[x for x in witnesses if x["source_provenance"].startswith("ROOTED_MACHINE_")]
   entries.append({"entry_pc":hex(pc),"candidate_type":"POSSIBLE_FUNCTION_ENTRY_NOT_CERTIFIED",
    "rooted_call_witnesses":len(proven),"encoded_link_sources":len(witnesses),
    "machine_first_instruction":target,
@@ -144,6 +182,7 @@ def analyze(payload,max_instructions=40000):
   "rooted_entry_candidates":rooted_targets,
   "rooted_basic_block_only_targets":branch_targets,
   "rooted_call_count":len(rooted_targets),
+  "paired_AUIPC_JALR_candidates":sum(any(len(w["opcode_hex"])==16 for w in row["witnesses"]) for row in entries),
   "unrooted_halfword_candidate_count":len(entries),
   "candidate_records":entries[:1000],
   "ranked_possible_entries":[x["entry_pc"] for x in entries],
