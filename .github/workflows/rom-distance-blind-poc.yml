@@ -5,6 +5,8 @@ on:
     paths:
       - 'rom_automation/rom_distance_blind_poc.py'
       - 'rom_automation/test_rom_distance_blind_poc.py'
+      - 'rom_automation/rom_distance_state_guard.py'
+      - 'rom_automation/state/ROM003_DISTANCE_POC_20261023.json'
       - '.github/workflows/rom-distance-blind-poc.yml'
   workflow_dispatch:
 permissions:
@@ -45,6 +47,31 @@ jobs:
             2>&1 | tee rom_automation/output/rom003_distance/metrics.log
           sha256sum rom_automation/output/rom003_distance/three_revision_blind_metrics.json \
             | tee rom_automation/output/rom003_distance/sha256.log
+      - name: Independently reconcile tracked study conclusions with generated 3-revision fold metrics
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_distance_state_guard.py \
+            --metrics rom_automation/output/rom003_distance/three_revision_blind_metrics.json \
+            --state rom_automation/state/ROM003_DISTANCE_POC_20261023.json \
+            2>&1 | tee rom_automation/output/rom003_distance/state_integrity.log
+          python - <<'PY'
+          import copy
+          import json
+          import sys
+          sys.path.insert(0,"rom_automation")
+          from rom_distance_state_guard import verify
+          metrics=json.load(open("rom_automation/output/rom003_distance/three_revision_blind_metrics.json"))
+          state=json.load(open("rom_automation/state/ROM003_DISTANCE_POC_20261023.json"))
+          wrong=copy.deepcopy(state)
+          wrong["validation"]["fivefold_total_hits_at_100"]["near_known"]+=1
+          try:
+           verify(metrics,wrong)
+          except ValueError as err:
+           assert "TOTAL_METHOD_COUNTS_MISMATCH" in str(err),str(err)
+          else:
+           raise AssertionError("MUTATED_SUMMARY_NOT_REJECTED")
+          print("STATE_SUMMARY_NEGATIVE_MUTATION_DETECTED")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: rom003-3rev-blinded-distance-poc
