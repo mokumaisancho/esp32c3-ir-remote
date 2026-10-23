@@ -137,7 +137,7 @@ def analyze(payload,max_instructions=40000):
    "real_function_proven":False,"new_rom_api_proven":False})
  entries.sort(key=lambda x:(-int(x["rooted_call_witnesses"]>0),-x["encoded_link_sources"],int(x["entry_pc"],16)))
  raw_order=sorted(entries,key=lambda x:(-x["encoded_link_sources"],int(x["entry_pc"],16)))
- rooted_targets=sorted({e["to_pc"] for e in edges if e["kind"]=="DIRECT_CALL"})
+ rooted_targets=sorted({x["entry_pc"] for x in entries if x["rooted_call_witnesses"]>0},key=lambda v:int(v,16))
  branch_targets=sorted({e["to_pc"] for e in edges if e["kind"]=="BASIC_BLOCK_BRANCH"})
  return {"schema":SCHEMA,"revision":payload["revision"],"root":payload["root_pc"],
   "instructions_rooted":len(seen),"rooted_control_edges":len(edges),
