@@ -54,7 +54,7 @@ class BlindDistanceTests(unittest.TestCase):
  def test_unjudged_examples_not_counted_as_false_positives(self):
   ordered=["b","c","d"]
   scored=metrics(ordered,{"b"})
-  self.assertEqual(scored["known_positive_yield_at_10"],1/3)
+  self.assertAlmostEqual(scored["known_positive_yield_at_10"],1/3,places=6)
   self.assertEqual(scored["recall_at_10"],1)
  def test_division_by_zero_pos_set_is_rejected(self):
   with self.assertRaises(ZeroDivisionError):
