@@ -1,0 +1,82 @@
+name: ROM-003 E0 sealed raw RV32C input
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rom_automation/rom_boundary_source_seal.py'
+      - 'rom_automation/test_rom_boundary_source_seal.py'
+      - '.github/workflows/rom-boundary-source-seal.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  raw-executable-vs-symbol-oracle-separation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pyelftools==0.32
+      - name: Download vendor ROM release and verify frozen source SHA
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/e0" rom_automation/output/e0
+          curl -fL --retry 3 --connect-timeout 30 \
+            'https://github.com/espressif/esp-rom-elfs/releases/download/20260528/esp-rom-elfs-20260528.tar.gz' \
+            -o "$RUNNER_TEMP/e0/official_rom.tar.gz"
+          echo "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46  $RUNNER_TEMP/e0/official_rom.tar.gz" | sha256sum -c
+      - name: Run 10 negative controls including symbol metadata mutation on genuine ELF
+        env:
+          ROM003_E0_PINNED_ARCHIVE: ${{ runner.temp }}/e0/official_rom.tar.gz
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s rom_automation -p 'test_rom_boundary_source_seal.py' -v \
+            2>&1 | tee rom_automation/output/e0/seal_tests.log
+      - name: Produce physically separate JSON input/oracle directories from 3 official ELF files
+        run: |
+          set -euo pipefail
+          python rom_automation/rom_boundary_source_seal.py \
+            --rom "$RUNNER_TEMP/e0/official_rom.tar.gz" \
+            --outdir rom_automation/output/e0/deliverables \
+            2>&1 | tee rom_automation/output/e0/run.log
+          python - <<'PY'
+          import json,pathlib,sys
+          sys.path.insert(0,"rom_automation")
+          from rom_boundary_source_seal import REVS,validate_candidate_input
+          root=pathlib.Path("rom_automation/output/e0/deliverables")
+          manifest=json.loads((root/"manifest.json").read_text())
+          assert len(manifest["revisions"])==3
+          for rev in REVS:
+           public=json.loads((root/"candidate"/(rev+".json")).read_text())
+           assert validate_candidate_input(public)
+           assert set(public)=={"schema","revision","isa","root_pc","exec_regions"}
+           assert all(set(r)=={"start_pc","raw_hex","byte_count","sha256"}
+               for r in public["exec_regions"])
+          print("RAW_CANDIDATE_NO_ELF_STT_FUNC_METADATA_PASS",len(REVS))
+          PY
+          sha256sum rom_automation/output/e0/deliverables/manifest.json \
+            | tee rom_automation/output/e0/sha256.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e0-candidate-bytes-no-symbols
+          path: rom_automation/output/e0/deliverables/candidate/
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e0-evaluator-only-symbol-oracle
+          path: rom_automation/output/e0/deliverables/evaluator_sealed/
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rom003-e0-evidence-logs-manifest
+          path: |
+            rom_automation/output/e0/seal_tests.log
+            rom_automation/output/e0/run.log
+            rom_automation/output/e0/sha256.log
+            rom_automation/output/e0/deliverables/manifest.json
+          retention-days: 90
+          if-no-files-found: error
