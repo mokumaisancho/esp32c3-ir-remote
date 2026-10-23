@@ -16,8 +16,8 @@
 
 ### E0について本ターンに実施した実証
 - 新規 [`rom_boundary_source_seal.py`](https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/rom_boundary_source_seal.py)：SHA-256固定の公式ROM tar → `ELF`内の実行可能セクション（`SHT_PROGBITS`・`SHF_EXECINSTR`）の生バイト、アドレス、ROMエントリのみを探索入力へ出力。関数名・個別関数開始/サイズは独立した評価用JSONへ出力。
-- [GitHub CI・10/10 PASS](https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39984280108)。実際のELFの `.strtab` の関数名を1文字変更しても、探索入力JSON全体は不変、評価側JSONは変化するという負例テストも通過。
-- 3revの探索用実行可能バイト列：363,582 / 367,052 / 365,968バイト。独立した評価側に保持する関数シンボル記録：1,986 / 2,118 / 2,058件。
+- [GitHub CI・11/11 PASS](https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39985074956)。実際のELFの `.strtab` の関数名を1文字変更しても、探索入力JSON全体は不変、評価側JSONは変化するという負例テストも通過。
+- 3revの探索用実行可能バイト列：363,582 / 367,052 / 365,968バイト。独立した評価側に保持する関数シンボル記録：1,986 / 2,118 / 2,058件。**重複した別名が各rev 18件**あり、独立した開始・サイズ組は1,968 / 2,100 / 2,040件とCIで一致した。E2では別名を二重に正解計上しない。
 - CI artifacts：candidate bytes `12515240963`、evaluator-only oracle `12515560388`、ログ/マニフェスト `12514747073`。**これは論理的な入力の分離であり、完全なアクセス制御の証明ではない。** ROMはまだ再逆アセンブルしていないので新入口発見数は未測定。
 
 ## 1. なぜ残課題が解決しにくいのか
