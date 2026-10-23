@@ -9,6 +9,8 @@ on:
       - 'rom_automation/test_rom_boundary_blind_evaluator.py'
       - 'rom_automation/rom_boundary_extent_triage.py'
       - 'rom_automation/test_rom_boundary_extent_triage.py'
+      - 'rom_automation/rom_unclaimed_source_attestation.py'
+      - 'rom_automation/test_rom_unclaimed_source_attestation.py'
       - '.github/workflows/rom-boundary-frontier-e2.yml'
   workflow_dispatch:
 permissions:
@@ -120,6 +122,12 @@ jobs:
         with:
           name: rom003-e2-privileged-evaluator-oracle
           path: ${{ runner.temp }}/oracle
+      - uses: actions/download-artifact@v4
+        with:
+          name: rom003-e1-input-only-no-function-symbols
+          path: ${{ runner.temp }}/raw
+      - name: Install pinned independent RV32C machine decoder in evaluator only
+        run: python -m pip install --disable-pip-version-check capstone==5.0.6
       - name: E2 real three ROM boundary-blind evaluation + mutation/negative tests
         env:
           ROM003_E2_CANDIDATE_DIR: ${{ runner.temp }}/candidates
@@ -141,8 +149,18 @@ jobs:
             --evaluator-dir "$ROM003_E2_ORACLE_DIR" \
             --output rom_automation/output/e2/posthoc_extent_triage.json \
             2>&1 | tee rom_automation/output/e2/extent_results.log
+          ROM003_T5_REAL_DIR="$RUNNER_TEMP" python -m unittest discover -s rom_automation \
+            -p 'test_rom_unclaimed_source_attestation.py' -v \
+            2>&1 | tee rom_automation/output/e2/source_attestation_tests.log
+          python rom_automation/rom_unclaimed_source_attestation.py \
+            --candidate-dir "$ROM003_E2_CANDIDATE_DIR" \
+            --oracle-dir "$ROM003_E2_ORACLE_DIR" \
+            --raw-dir "$RUNNER_TEMP/raw" \
+            --out rom_automation/output/e2/independent_source_attestation.json \
+            2>&1 | tee rom_automation/output/e2/source_attestation.log
           sha256sum rom_automation/output/e2/boundary_blind_comparison.json \
             rom_automation/output/e2/posthoc_extent_triage.json \
+            rom_automation/output/e2/independent_source_attestation.json \
             | tee rom_automation/output/e2/sha256.log
       - uses: actions/upload-artifact@v4
         with:
