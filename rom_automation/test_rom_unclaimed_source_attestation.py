@@ -49,7 +49,7 @@ class CandidateSourceProof(unittest.TestCase):
   self.assertEqual(r["witness_source_categories"]["INSIDE_32BIT_INSTRUCTION_FROM_NAMED_ENTRY"],1)
   self.assertEqual(r["candidates_with_independent_rooted_proof"],0)
  def test_source_without_named_extent_stays_unverified(self):
-  raw=CALL+b"\x01\x00"*10
+  raw=CALL+SECOND_HALF_CJAL+b"\x01\x00"*10
   source=BASE+4
   pc=direct(SECOND_HALF_CJAL,source)[0]
   c,g,p=data(raw,source,pc,SECOND_HALF_CJAL)
@@ -68,6 +68,13 @@ class CandidateSourceProof(unittest.TestCase):
   c,g,p=data(raw,SOURCE,dest,SECOND_HALF_CJAL)
   c["candidate_records"][0]["witnesses"][0]["opcode_hex"]=bytes.fromhex("1930").hex()
   with self.assertRaisesRegex(ValueError,"WITNESS_NOT_A_BYTE_CORRECT_CALL"):audit(c,g,p)
+ def test_fabricated_raw_source_witness_rejected_even_without_named_symbol(self):
+  raw=CALL+b"\x01\x00"*10
+  source=BASE+4
+  dest=direct(SECOND_HALF_CJAL,source)[0]
+  c,g,p=data(raw,source,dest,SECOND_HALF_CJAL)
+  with self.assertRaisesRegex(ValueError,"SOURCE_WITNESS_BYTES_DO_NOT_MATCH_OFFICIAL_ROM"):
+   audit(c,g,p)
  def test_merged_duplicate_names_do_not_double_witness(self):
   raw=bytes.fromhex("93001934")+b"\x01\x00"*8
   dest=direct(SECOND_HALF_CJAL,SOURCE)[0]
