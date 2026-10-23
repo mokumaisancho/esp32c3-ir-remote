@@ -236,12 +236,15 @@
       "acceptance_criteria": [
         "measured delta or reason-coded inconclusive"
       ],
-      "evidence": [],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988795700"
+      ],
       "on_success": "release T5",
       "on_failure": "skip graph novelty optimization",
-      "status": "ready",
-      "attempts": 0,
-      "retry_limit": 1
+      "status": "passed",
+      "attempts": 1,
+      "retry_limit": 1,
+      "result": "AUIPC+JALR local proof implemented and four mutation controls passed; 0 such candidate pairs across 3 actual ROM revisions and no recall improvement; reject this optimization for current source."
     },
     {
       "task_id": "T5",
@@ -273,12 +276,15 @@
       "acceptance_criteria": [
         "final verdict proven or zero confirmed"
       ],
-      "evidence": [],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988795700"
+      ],
       "on_success": "close original issue only if verified usable API",
       "on_failure": "preserve UNKNOWN",
-      "status": "ready",
-      "attempts": 0,
-      "retry_limit": 1
+      "status": "blocked",
+      "attempts": 1,
+      "retry_limit": 1,
+      "result": "No byte-proven unnamed executable entry with independently witnessed call/control path; 252 unclaimed extent candidates are all unrooted syntactic byte matches, not verified new functions. Novel API qualification requires new control-flow witness or authorized silicon."
     }
   ],
   "dependency_graph": [
@@ -303,18 +309,26 @@
       "T5"
     ]
   ],
-  "execution_queue": [
-    "T4",
-    "T5"
-  ],
-  "current_task": "T4",
+  "execution_queue": [],
+  "current_task": null,
   "completed_tasks": [
     "T0",
     "T1",
     "T2",
-    "T3"
+    "T3",
+    "T4"
   ],
-  "blockers": [],
+  "blockers": [
+    {
+      "id": "B1",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E4"
+      ],
+      "reason": "0 verified genuinely unnamed independently callable ROM entries; no authorized silicon evidence; all 252 symbol-unclaimed candidates are unrooted scanner hypotheses",
+      "resolution": "Establish independent rooted/vector/indirect edge into unclaimed bytes or a real call trace; only then evaluate API novelty."
+    }
+  ],
   "evidence_registry": {
     "E0": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39985074956",
     "E1E2_CI": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988163344",
@@ -325,6 +339,42 @@
     "E2_evaluation_artifact": {
       "id": 12516850854,
       "digest": "sha256:04a1453c5fc7bdd03c7c9f0fa281c5f781d705334c379a995499799a86ee0577"
+    },
+    "E3_CI": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988795700",
+    "E3_candidate_artifact": {
+      "id": 12517670142,
+      "digest": "sha256:07cb1fa691ba9c1ed778ab9c1b57d9b512c82dcf4230473bdec173349edea1d2"
+    },
+    "E2_final_artifact": {
+      "id": 12517006597,
+      "digest": "sha256:f88ae08c9be47300817161a5d4636aa2fdad67198270df32bd2bdea6856ac6c8"
+    },
+    "E2_coarse_posthoc_extent_triage": {
+      "method": "Comparison of E1 symbol-free candidates with E0 separate evaluator STT_FUNC start+size intervals, not an actual source of negatives for E1",
+      "rev0": {
+        "named_start": 367,
+        "inside_named_body": 1713,
+        "outside_named_extent": 81,
+        "rooted_outside": 0
+      },
+      "rev101": {
+        "named_start": 403,
+        "inside_named_body": 1872,
+        "outside_named_extent": 76,
+        "rooted_outside": 0
+      },
+      "rev3": {
+        "named_start": 371,
+        "inside_named_body": 1692,
+        "outside_named_extent": 95,
+        "rooted_outside": 0
+      },
+      "limitations": [
+        "Inside named body is not proof there is no additional nested routine.",
+        "Unclaimed extent and valid-looking call bytes are not proof of executable instruction.",
+        "All 252 unclaimed-extent candidates have no rooted call evidence.",
+        "ELF STT_FUNC extents themselves are imperfect ground truth."
+      ]
     }
   },
   "execution_history": [
@@ -347,12 +397,23 @@
       "date": "2026-10-24",
       "task": "T4",
       "event": "Next bounded POC: AUIPC + JALR precise local def-use to improve missing direct calls; compare incremental delta against E1 before upgrading heuristic."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T4",
+      "event": "14 E1 tests and 11 E2 tests PASS in three separate GitHub CI jobs; modeled AUIPC+JALR added zero actual candidates, no recall gain; stop further pair optimization."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T5",
+      "event": "Evaluator-only posthoc interval classification of final E1 artifacts: 81/76/95 candidates outside named extents; none with rooted machine control witness. No novel usable API claim; blocked pending independent witness."
     }
   ],
-  "next_action": "Execute T4 paired AUIPC/JALR local raw-byte proof in scanner, rerun sealed E2 and compare against baseline; T5 independent novelty gate only for actual verified candidates",
+  "next_action": "Resolve B1 by obtaining a provable independent incoming control-flow edge or safe authorized runtime trace for an unclaimed executable region. Current farthest-distance scoring and AUIPC+JALR heuristic should not be repeated without new evidence.",
   "resume_conditions": [
-    "read CI logs/outputs and update task claims only when evidence is present"
+    "New SHA-pinned rooted/indirect vector or physical call witness into one of 252 unclaimed candidate addresses",
+    "Actual Ghidra independent code boundary corroboration and dated prior-art review if such witness exists"
   ],
-  "overall_status": "IN_PROGRESS",
+  "overall_status": "BLOCKED",
   "mvp_all_ACs_met": false
 }
