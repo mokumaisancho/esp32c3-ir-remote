@@ -74,10 +74,12 @@
       "acceptance_criteria": [
         "entire DAG and next actions persisted"
       ],
-      "evidence": [],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/state/ROM003_EXECUTION_QUEUE_V2.json"
+      ],
       "on_success": "release T1 and T2",
       "on_failure": "report save failure",
-      "status": "running",
+      "status": "passed",
       "attempts": 1,
       "retry_limit": 2
     },
@@ -114,8 +116,8 @@
       ],
       "on_success": "release T2",
       "on_failure": "gate T2",
-      "status": "pending",
-      "attempts": 0,
+      "status": "passed",
+      "attempts": 1,
       "retry_limit": 1
     },
     {
@@ -152,11 +154,13 @@
         "no function-name fields",
         "root-only budget bounded"
       ],
-      "evidence": [],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988163344"
+      ],
       "on_success": "release T3",
       "on_failure": "one RCA and bounded patch",
-      "status": "pending",
-      "attempts": 0,
+      "status": "passed",
+      "attempts": 1,
       "retry_limit": 2
     },
     {
@@ -193,11 +197,13 @@
         "no data leak",
         "zero claims of novelty"
       ],
-      "evidence": [],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988163344"
+      ],
       "on_success": "release T4",
       "on_failure": "repair scorer or report blocked",
-      "status": "pending",
-      "attempts": 0,
+      "status": "passed",
+      "attempts": 1,
       "retry_limit": 2
     },
     {
@@ -233,7 +239,7 @@
       "evidence": [],
       "on_success": "release T5",
       "on_failure": "skip graph novelty optimization",
-      "status": "pending",
+      "status": "ready",
       "attempts": 0,
       "retry_limit": 1
     },
@@ -270,7 +276,7 @@
       "evidence": [],
       "on_success": "close original issue only if verified usable API",
       "on_failure": "preserve UNKNOWN",
-      "status": "pending",
+      "status": "ready",
       "attempts": 0,
       "retry_limit": 1
     }
@@ -298,25 +304,55 @@
     ]
   ],
   "execution_queue": [
-    "T0"
+    "T4",
+    "T5"
   ],
-  "current_task": "T0",
-  "completed_tasks": [],
+  "current_task": "T4",
+  "completed_tasks": [
+    "T0",
+    "T1",
+    "T2",
+    "T3"
+  ],
   "blockers": [],
   "evidence_registry": {
-    "E0": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39985074956"
+    "E0": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39985074956",
+    "E1E2_CI": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39988163344",
+    "E1E2_candidate_artifact": {
+      "id": 12516566639,
+      "digest": "sha256:3acb08d0bb6b2add9600ba4140652fe182c4621d7f7ed977c9b44d778ad57f3e"
+    },
+    "E2_evaluation_artifact": {
+      "id": 12516850854,
+      "digest": "sha256:04a1453c5fc7bdd03c7c9f0fa281c5f781d705334c379a995499799a86ee0577"
+    }
   },
   "execution_history": [
     {
       "date": "2026-10-24",
       "task": "T0",
       "event": "Create execution queue before new implementation; E0 historical PASS independently verified in prior conversation"
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T2",
+      "event": "E1 10 negative tests PASS; rev0/101/3 raw candidate counts 2161/2351/2158; rooted direct call candidates 102/103/102; byte witness output saved."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T3",
+      "event": "Sealed independent E2 job 11 tests PASS, frozen ELF exact-entry at any rank 367/403/371 of 1968/2100/2040; at top100 all rooted/byte ranked 100 each, still public functions not novel; unjudged not counted as false positives."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T4",
+      "event": "Next bounded POC: AUIPC + JALR precise local def-use to improve missing direct calls; compare incremental delta against E1 before upgrading heuristic."
     }
   ],
-  "next_action": "Finalize T0, mark T1 prior-evidence PASS, implement T2 then T3 without further user turns",
+  "next_action": "Execute T4 paired AUIPC/JALR local raw-byte proof in scanner, rerun sealed E2 and compare against baseline; T5 independent novelty gate only for actual verified candidates",
   "resume_conditions": [
     "read CI logs/outputs and update task claims only when evidence is present"
   ],
-  "overall_status": "INTERRUPTED_UNTIL_EXECUTION_FINISHES",
+  "overall_status": "IN_PROGRESS",
   "mvp_all_ACs_met": false
 }
