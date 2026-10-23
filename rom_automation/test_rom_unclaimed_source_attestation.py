@@ -109,6 +109,15 @@ class CandidateSourceProof(unittest.TestCase):
    self.assertEqual(result["unclaimed_candidates"],{"esp32c3_rev0_rom.elf":81,
      "esp32c3_rev101_rom.elf":76,"esp32c3_rev3_rom.elf":95}[rev])
    self.assertEqual(result["candidates_with_independent_rooted_proof"],0)
+   expected_inside={"esp32c3_rev0_rom.elf":3,"esp32c3_rev101_rom.elf":5,
+                    "esp32c3_rev3_rom.elf":3}[rev]
+   count=result["witness_source_categories"]
+   self.assertEqual(count.get("INSIDE_32BIT_INSTRUCTION_FROM_NAMED_ENTRY",0),
+                    expected_inside)
+   self.assertEqual(count.get("NO_ELF_NAMED_SOURCE",0),
+                    result["total_raw_incoming_witnesses"]-expected_inside)
+   self.assertEqual(set(count),{"INSIDE_32BIT_INSTRUCTION_FROM_NAMED_ENTRY",
+                                "NO_ELF_NAMED_SOURCE"})
    counter+=result["total_raw_incoming_witnesses"]
   self.assertEqual(counter,260)
 if __name__=="__main__":unittest.main()
