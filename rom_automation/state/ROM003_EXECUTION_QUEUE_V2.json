@@ -255,7 +255,8 @@
       ],
       "task": "Prior art / callable ROM API / physical capability independent adjudication",
       "dependencies": [
-        "T3"
+        "T3",
+        "T6"
       ],
       "priority": "P1",
       "critical_path": false,
@@ -285,7 +286,58 @@
       "status": "blocked",
       "attempts": 1,
       "retry_limit": 1,
-      "result": "No true new usable ROM API proven; no rooted edge to any 252 symbol-unclaimed byte candidates. Independent prior-art verification of genuinely callable new entry not actionable until such a witness appears."
+      "result": "No independently machine-rooted executable call into the 252 unclaimed entrypoints; 11 named-source pseudo-C.JAL encodings are interior of 32-bit instructions, 249 remaining source witnesses are unrooted outside named ELF function extents. Cannot qualify API novelty or physical usage."
+    },
+    {
+      "task_id": "T6",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E4"
+      ],
+      "task": "Independently attest machine call source witnesses for all 252 unclaimed ROM candidate entrypoints; no symbol access in scanner",
+      "dependencies": [
+        "T3"
+      ],
+      "priority": "P0",
+      "critical_path": true,
+      "required_data": [
+        "three-rev byte-only E0 input",
+        "E1 full call witnesses",
+        "sealed ELF-only oracle",
+        "pinned original ROM-001 static CFG archive"
+      ],
+      "quality_criteria": [
+        "candidate scanner cannot access ELF function start oracle",
+        "every raw source attested by byte equality",
+        "RV32C instruction-boundary from known function entry independently checked",
+        "no pseudo-call silently promoted to callable new API"
+      ],
+      "data_source": [
+        "GitHub E0/E1/E2 official sha-pinned input artifacts",
+        "rom_automation/rom_unclaimed_source_attestation.py",
+        "rom_automation/rom_boundary_extent_triage.py"
+      ],
+      "execution_method": "Capstone 5.0.6 evaluator-only machine boundary check on all 3 rev + 11 mutation/negative controls in GitHub Actions",
+      "preconditions": [
+        "T3 passed",
+        "official ROM byte digest pinned"
+      ],
+      "acceptance_criteria": [
+        "260 incoming raw witnesses verified byte-by-byte and target decoded",
+        "11 straddling named instruction sources typed conflict",
+        "249 unclaimed raw sources reason-coded unproven",
+        "all verdicts archived and confirmed by CI"
+      ],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40028774232",
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_T5_SOURCE_WITNESS_AUDIT_20261024.md"
+      ],
+      "on_success": "E4 remains pending actual independently rooted source -> callable API proof",
+      "on_failure": "fail closed, preserve no new confirmed API",
+      "status": "passed",
+      "attempts": 3,
+      "retry_limit": 3,
+      "result": "42 test cases PASS in run (14 E1, 11 E2, 6 extent, 11 source). 252 unclaimed target PCs; 260 raw incoming witness references: 11 correspond to 2nd halfword of 32-bit named-function instructions (rev0 3, rev101 5, rev3 3); 249 remaining are from unclaimed unrooted regions. 0 independently proven usable new APIs."
     }
   ],
   "dependency_graph": [
@@ -308,6 +360,14 @@
     [
       "T3",
       "T5"
+    ],
+    [
+      "T3",
+      "T6"
+    ],
+    [
+      "T6",
+      "T5"
     ]
   ],
   "execution_queue": [],
@@ -317,7 +377,8 @@
     "T1",
     "T2",
     "T3",
-    "T4"
+    "T4",
+    "T6"
   ],
   "blockers": [
     {
@@ -326,8 +387,12 @@
       "ac_ids": [
         "AC-E4"
       ],
-      "reason": "0 verified genuinely unnamed independently callable ROM entries; no authorized silicon evidence; all 252 symbol-unclaimed candidates are unrooted scanner hypotheses",
-      "resolution": "Establish independent rooted/vector/indirect edge into unclaimed bytes or a real call trace; only then evaluate API novelty."
+      "reason": "252 target PCs outside named ELF extents, 260 pseudo-link source references; named-function source PC in 11 cases is the second halfword of valid 4-byte RISC-V machine instructions, and 249 other raw source PC witnesses have no independently confirmed executable root; 0 new callable ROM APIs verified.",
+      "resolution": "Obtain one independently rooted execution CFG path to an unclaimed call source, or authenticated authorized silicon PC trace, then determine actual direct/indirect target, function boundary, prior-art status and safe callable ABI.",
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40028774232",
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_T5_SOURCE_WITNESS_AUDIT_20261024.md"
+      ]
     }
   ],
   "evidence_registry": {
@@ -392,6 +457,42 @@
       "E2_independent": 11,
       "E2_extent_triage": 6,
       "aggregate_current_run": 31
+    },
+    "T6_CI": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40028774232",
+    "T6_attestation_artifact": {
+      "id": 12533239278,
+      "sha256": "47e152475a48244ef26f3cd917d4ab7504c3bb54d5ff66d2d9dcb41b59d4d4b7"
+    },
+    "T6_method": "rom_automation/rom_unclaimed_source_attestation.py",
+    "T6_source_records": {
+      "rev0": {
+        "targets": 81,
+        "raw_incoming_refs": 81,
+        "straddle_4_byte_instruction": 3,
+        "unclaimed_source": 78,
+        "rooted_proof": 0
+      },
+      "rev101": {
+        "targets": 76,
+        "raw_incoming_refs": 77,
+        "straddle_4_byte_instruction": 5,
+        "unclaimed_source": 72,
+        "rooted_proof": 0
+      },
+      "rev3": {
+        "targets": 95,
+        "raw_incoming_refs": 102,
+        "straddle_4_byte_instruction": 3,
+        "unclaimed_source": 99,
+        "rooted_proof": 0
+      },
+      "total": {
+        "targets": 252,
+        "raw_incoming_refs": 260,
+        "straddle_4_byte_instruction": 11,
+        "unclaimed_source": 249,
+        "rooted_proof": 0
+      }
     }
   },
   "execution_history": [
@@ -434,12 +535,24 @@
       "date": "2026-10-24",
       "task": "T4",
       "event": "Final 3 CI jobs PASS and 31 test cases total. E1 rooted 102/103/102, AUIPC JALR source candidates 0 on all official ROMs. No gain; stop this branch."
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T6",
+      "event": "Performed SHA-pinned independent source byte/target checks and Capstone named-entry RV32IC alignment across 252 unclaimed targets (260 incoming raw references), plus 11 mutation and negative tests. 11 named source pseudo C.JAL halfwords straddle 32-bit instructions; all 249 others outside named source extents remain UNKNOWN; zero proven rooted new entries.",
+      "evidence": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40028774232"
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T5",
+      "event": "Prior ROM-001 branch, strict-indirect, local constant CFG, trap vector reports each show zero proven into gap; memory pointer match roots do not overlap the 252. Independent actual new callable or physical novelty verdict remains BLOCKED.",
+      "evidence": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_T5_SOURCE_WITNESS_AUDIT_20261024.md"
     }
   ],
-  "next_action": "Only resume if new rooted/indirect vector or safe hardware call witness appears for one of the 252 unresolved symbol-free candidates. Otherwise pause semantic novelty claims. See E2 artifact and Issues #5/#6.",
+  "next_action": "Only decision-changing work: verify independently rooted instruction or actual authorized execution PC reaching one of the 249 unclaimed source addresses. Do NOT treat prior pseudo-C.JAL halfwords of named 32-bit instructions as true calls without countervailing alternate rooted control path. If proven, trace exact destination then prior art, ABI and optional safe silicon.",
   "resume_conditions": [
-    "Independent byte-level call link or rooted branch into symbol-unclaimed executable region",
-    "If new witness: independently qualify as function start, compare against official/public prior art, then safe revision-matched ABI test"
+    "Independent decoded rooted CFG or safe instrumented physical PC trace to an unclaimed call-source machine instruction (of 249), with revision/bytes hash and no symbol leakage",
+    "Call target is a proven function entry distinct from unclaimed branch/data; then independent prior art and ABI tests"
   ],
   "overall_status": "BLOCKED",
   "mvp_all_ACs_met": false
