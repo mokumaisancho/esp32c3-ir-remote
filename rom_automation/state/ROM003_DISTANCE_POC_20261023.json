@@ -1,0 +1,173 @@
+{
+  "schema": "ROM003_DISTANCE_BLIND_POC_EVIDENCE_V1",
+  "date_jst": "2026-10-23",
+  "status": "MVP_POC_COMPLETE__TRUE_UNNAMED_DISCOVERY_NOT_TESTED",
+  "source_repo": "mokumaisancho/esp32c3-ir-remote",
+  "task_issue": "https://github.com/mokumaisancho/esp32c3-ir-remote/issues/5",
+  "actions_run": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/39959531829",
+  "commit_at_verified_run": "a93cc582f66f62d21a4b85c0e484724a55cc90e3",
+  "source_artifact_sha256": "685cd51f50fddd43ba2aa94bcdee778a9ebd4850d9efee96d573a4df94bee27a",
+  "original_esp_rom_archive_sha256": "caa463d3cbef2430a5a35847c1d9f2f152403b17a802050927ff60c8da54fe46",
+  "ci_artifact": {
+    "id": 12502984495,
+    "digest_sha256": "09e8d0f681d8e1745c511acb902177451455a620c5c99af91248fe67fdaa5612",
+    "json_file": "three_revision_blind_metrics.json",
+    "json_sha256": "bf317a0c05400f66c445104e0be4f2cc683b842cf698713d3eddc1dd61994c32"
+  },
+  "validation": {
+    "tests": 13,
+    "passed": 13,
+    "failed": 0,
+    "frozen_holdout_positives_per_revision": 124,
+    "frozen_hits_at_100_by_revision": {
+      "esp32c3_rev0_rom.elf": {
+        "deterministic_random": 8,
+        "highest_degree": 14,
+        "near_known": 18,
+        "farthest_finite": 0,
+        "reverse_to_known": 16,
+        "dual_root_farthest": 15
+      },
+      "esp32c3_rev101_rom.elf": {
+        "deterministic_random": 9,
+        "highest_degree": 14,
+        "near_known": 16,
+        "farthest_finite": 0,
+        "reverse_to_known": 15,
+        "dual_root_farthest": 15
+      },
+      "esp32c3_rev3_rom.elf": {
+        "deterministic_random": 11,
+        "highest_degree": 16,
+        "near_known": 17,
+        "farthest_finite": 1,
+        "reverse_to_known": 19,
+        "dual_root_farthest": 15
+      }
+    },
+    "fivefold_masks_per_revision": 5,
+    "methods": [
+      "deterministic_random",
+      "highest_degree",
+      "near_known",
+      "farthest_finite",
+      "reverse_to_known",
+      "dual_root_farthest"
+    ],
+    "selected_metrics": "hits@100, labeled-recall@100 and known-positive yield@100, NOT true precision on unknown code",
+    "fivefold_total_hits_at_100": {
+      "deterministic_random": null,
+      "highest_degree": null,
+      "near_known": null,
+      "farthest_finite": null,
+      "reverse_to_known": null,
+      "dual_root_farthest": null
+    },
+    "fivefold_total_labeled_positives": 3122,
+    "fivefold_per_revision": [
+      {
+        "revision": "esp32c3_rev0_rom.elf",
+        "nodes": 1968,
+        "interfunction_direct_edges": 1147,
+        "isolated_nodes": 1222,
+        "root_reachable_candidates_frozen": 116,
+        "weakly_disconnected_candidates_frozen": 984,
+        "fivefold_masked_positives": 984,
+        "hits_at_100": {},
+        "historical_public_names_proxy_count": [
+          34,
+          77,
+          106,
+          6,
+          92,
+          89
+        ]
+      },
+      {
+        "revision": "esp32c3_rev101_rom.elf",
+        "nodes": 2100,
+        "interfunction_direct_edges": 1206,
+        "isolated_nodes": 1277,
+        "root_reachable_candidates_frozen": 121,
+        "weakly_disconnected_candidates_frozen": 1097,
+        "fivefold_masked_positives": 1097,
+        "hits_at_100": {},
+        "historical_public_names_proxy_count": [
+          39,
+          76,
+          97,
+          4,
+          85,
+          85
+        ]
+      },
+      {
+        "revision": "esp32c3_rev3_rom.elf",
+        "nodes": 2040,
+        "interfunction_direct_edges": 1165,
+        "isolated_nodes": 1278,
+        "root_reachable_candidates_frozen": 119,
+        "weakly_disconnected_candidates_frozen": 1041,
+        "fivefold_masked_positives": 1041,
+        "hits_at_100": {},
+        "historical_public_names_proxy_count": [
+          50,
+          86,
+          105,
+          6,
+          99,
+          87
+        ]
+      }
+    ]
+  },
+  "verdict": "PURE_FARTHEST_DISTANCE_NO_GO; COMBINED_ROOT_FARTHER_BEATS_RANDOM_ON_PUBLIC_MASK_BUT_LOSES_TO_NEAREST_KNOWN; NO_NEW_UNNAMED_API_DISCOVERED",
+  "out_of_distribution_rev101_prior_152_hits_at_100": {
+    "deterministic_random": 6,
+    "highest_degree": 1,
+    "near_known": 3,
+    "farthest_finite": 5,
+    "reverse_to_known": 5,
+    "dual_root_farthest": 1
+  },
+  "limitations": [
+    "All scored candidate nodes are already named STT_FUNC ELF functions; name/root membership masked but function boundaries visible to the graph.",
+    "Masked positives are public-known roots, systematically favoring strong connectivity; results do NOT validate real unknown routine discovery.",
+    "Disconnected graph node is UNKNOWN distance not large distance; indirect edges and data/code symbol gaps are missing.",
+    "No independently verified silicon experiment or novel ROM API; 3 revisions share code ancestry, no independent statistical replication.",
+    "Other unlabeled candidates are unjudged, not false positives. Do not treat known-positive yield as new-function precision.",
+    "Farthest method top-ranked sparse components with no rooted execution evidence; dual root-directed evidence covers a small minority.",
+    "Results should not be used to tune on frozen holdout then claim unbiased confirmation; boundary-hidden tests needed."
+  ],
+  "followups": [
+    {
+      "id": "ROM003_P0",
+      "priority": "P0",
+      "task": "Extend graph with byte-rooted unclassified executable gaps and reason-coded indirect CFG edges.",
+      "acceptance": "No graph node promoted as code without machine-byte witness and control-flow predecessor or known reset/vector proof."
+    },
+    {
+      "id": "ROM003_P1",
+      "priority": "P0",
+      "task": "True function-boundary-hiding blind challenge on ELF images; no boundary or alias passed to candidate generator.",
+      "acceptance": "Compare exact-entry recall@k, budget-normalized scans, and known-data false-positive count with baseline."
+    },
+    {
+      "id": "ROM003_P2",
+      "priority": "P1",
+      "task": "Cross-revision normalized byte signatures and CFG signatures.",
+      "acceptance": "Renamed/relocated same behavior not called new; byte signatures stored and compared."
+    },
+    {
+      "id": "ROM003_P3",
+      "priority": "P1",
+      "task": "Then compare frontier-near-known/reverse and confidence-weighted discovery ranking on P1 boundary-hidden dataset.",
+      "acceptance": "Only consider launch if held-out P1 improves over plain byte/CFG and degree; frozen blind test, no answer leakage."
+    }
+  ],
+  "exact_script": "rom_automation/rom_distance_blind_poc.py",
+  "exact_tests": "rom_automation/test_rom_distance_blind_poc.py",
+  "CI_log_file": "falsification_tests.log",
+  "new_callable_unknown_ROM_function_count": 0,
+  "hardware_experiment_count": 0
+}
