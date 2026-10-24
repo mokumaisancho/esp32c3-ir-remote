@@ -35,6 +35,18 @@ class SupersetTests(unittest.TestCase):
   self.assertIsNotNone(path)
   self.assertEqual(path[0]["from_pc"],hex(B))
   self.assertEqual(path[0]["to_pc"],hex(B+8))
+ def test_normal_csr_instruction_falls_through_before_call(self):
+  # csrrs x5, mstatus, x0 is sequential, unlike MRET or JALR.
+  csr=bytes.fromhex("f3220030")
+  data=csr+JAL8+RET+NOP+RET
+  nodes,edges,reverse,_=supergraph(pub(data))
+  self.assertTrue(any(target==B+4 and kind=="SEQUENTIAL" for target,kind,why,raw in edges[B]))
+  tree,_=seeded_paths(nodes,edges,[B])
+  self.assertIn(B+12,tree)
+ def test_mret_system_instruction_does_not_fallthrough(self):
+  data=bytes.fromhex("73002030")+JAL8+RET+NOP+RET
+  nodes,edges,reverse,_=supergraph(pub(data))
+  self.assertEqual(edges.get(B),[])
  def test_no_false_linear_fallthrough_after_return(self):
   data=RET+JAL8+RET+NOP+NOP+NOP
   nodes,edges,reverse,_=supergraph(pub(data))
