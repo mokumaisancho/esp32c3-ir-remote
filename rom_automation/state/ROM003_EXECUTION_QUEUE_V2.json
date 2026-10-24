@@ -256,7 +256,8 @@
       "task": "Prior art / callable ROM API / physical capability independent adjudication",
       "dependencies": [
         "T3",
-        "T6"
+        "T6",
+        "T7"
       ],
       "priority": "P1",
       "critical_path": false,
@@ -286,7 +287,7 @@
       "status": "blocked",
       "attempts": 1,
       "retry_limit": 1,
-      "result": "No independently machine-rooted executable call into the 252 unclaimed entrypoints; 11 named-source pseudo-C.JAL encodings are interior of 32-bit instructions, 249 remaining source witnesses are unrooted outside named ELF function extents. Cannot qualify API novelty or physical usage."
+      "result": "After SHA-pinned independent Amace-inspired 16-bit-boundary CFG over the 3 ROMs, zero of 260 raw sources is reachable from boot or seeded known ELF function entry via supported direct control edges. 0 verified unclaimed callable ROM functions. Must obtain new indirect/vector/external entry or verified guest CPU-PC trace before actual novel API adjudication."
     },
     {
       "task_id": "T6",
@@ -338,6 +339,62 @@
       "attempts": 3,
       "retry_limit": 3,
       "result": "42 test cases PASS in run (14 E1, 11 E2, 6 extent, 11 source). 252 unclaimed target PCs; 260 raw incoming witness references: 11 correspond to 2nd halfword of 32-bit named-function instructions (rev0 3, rev101 5, rev3 3); 249 remaining are from unclaimed unrooted regions. 0 independently proven usable new APIs."
+    },
+    {
+      "task_id": "T7",
+      "original_issue_id": "ESP32C3-ROM-001",
+      "ac_ids": [
+        "AC-E4"
+      ],
+      "task": "Assess Amace-inspired every-16bit RV32C superset static CFG and inverted predecessor-path coverage for 260 unclaimed raw-source witnesses before costly full backward dataflow",
+      "dependencies": [
+        "T6"
+      ],
+      "priority": "P0",
+      "critical_path": true,
+      "required_data": [
+        "ROM003 E0 3-rev public executable raw bytes",
+        "sealed ELF function-start oracle in separate evaluator",
+        "ROM003 E1 raw candidate bytes",
+        "PLDI 2026 Analyzing Bytes source+paper",
+        "C extension official ISA"
+      ],
+      "quality_criteria": [
+        "all 260 source records accounted",
+        "no function-start oracle given to candidate generator",
+        "boot path coverage sanity compared to original E1",
+        "avoid CSR-system transfer false barrier",
+        "return/overlap false call negative controls",
+        "no paths promoted to silicon proof"
+      ],
+      "data_source": [
+        "official SHA-pinned esp-rom-elfs release",
+        "https://github.com/nhuhuan/amace",
+        "https://docs.riscv.org/reference/isa/unpriv/c-st-ext",
+        "GitHub Actions artifact 12558309102"
+      ],
+      "execution_method": "Capstone==5.0.6 halfword superset CFG + evaluator-only multi-source predecessor reverse witness extraction + three GitHub Jobs",
+      "preconditions": [
+        "T6 passed",
+        "E0/E1/E2 verified existing CI"
+      ],
+      "acceptance_criteria": [
+        "full 3rev superset built with machine-byte provenance",
+        "260/260 source records classified as boot-rooted/named-rooted/unreached",
+        "12 adversarial tests and source integrity tests pass",
+        "no false novelty or physical execution assertions",
+        "measured comparative GO/NO-GO of full Amace port"
+      ],
+      "evidence": [
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40091304811",
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_B1_RV32C_SUPERSET_POC_20261024.md"
+      ],
+      "on_success": "Stop full Amace port when 0 proven new incoming paths; defer to new indirect/vector/runtime PC evidence",
+      "on_failure": "mark POC failed not novel; check CSR and overflow failure; preserve baseline",
+      "status": "passed",
+      "attempts": 3,
+      "retry_limit": 3,
+      "result": "GitHub Actions 3 jobs PASS: E1 14 tests + E2 11 + extent triage 6 + T6 source 11 + T7 12 = 54 test cases. Three rev nodes 164070/167340/165261 and edges 170299/173715/171568; boot reach 4753/4743/4746. Named-entry-seeded reach 62477/64417/64087, but 0/260 pseudo call sources have root-backed or symbol-seed-backed paths. First iteration discovered incorrect CSR barrier with 2-node boot reach; corrected. Full Amace global SP/register analysis NOT implemented and is NO-GO for current goal because it cannot supply missing independent incoming edges."
     }
   ],
   "dependency_graph": [
@@ -368,6 +425,14 @@
     [
       "T6",
       "T5"
+    ],
+    [
+      "T6",
+      "T7"
+    ],
+    [
+      "T7",
+      "T5"
     ]
   ],
   "execution_queue": [],
@@ -378,7 +443,8 @@
     "T2",
     "T3",
     "T4",
-    "T6"
+    "T6",
+    "T7"
   ],
   "blockers": [
     {
@@ -387,11 +453,11 @@
       "ac_ids": [
         "AC-E4"
       ],
-      "reason": "252 target PCs outside named ELF extents, 260 pseudo-link source references; named-function source PC in 11 cases is the second halfword of valid 4-byte RISC-V machine instructions, and 249 other raw source PC witnesses have no independently confirmed executable root; 0 new callable ROM APIs verified.",
-      "resolution": "Obtain one independently rooted execution CFG path to an unclaimed call source, or authenticated authorized silicon PC trace, then determine actual direct/indirect target, function boundary, prior-art status and safe callable ABI.",
+      "reason": "Three-rev 16-bit superset CFG after correctly handling CSR fallthrough yields no static path from boot or conditional named-function entry seeds to any of 260 possible raw CALL sources for 252 unclaimed target PCs. Indirect JALR/exception/vector/external callers and actual ROM guest PC runtime are unmodeled. This bounded negative does not establish absence of functions.",
+      "resolution": "Identify an independently byte-proven indirect/vector/control transfer or genuine authorized emulator/silicon guest CPU-PC trace to one unclaimed source. Emulator HLE ROM stubs must be measured/excluded. Then independently test function boundary, public prior art, safe ABI; otherwise no-go.",
       "evidence": [
-        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40028774232",
-        "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_T5_SOURCE_WITNESS_AUDIT_20261024.md"
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40091304811",
+        "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_B1_RV32C_SUPERSET_POC_20261024.md"
       ]
     }
   ],
@@ -493,7 +559,57 @@
         "unclaimed_source": 249,
         "rooted_proof": 0
       }
-    }
+    },
+    "T7_CI": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40091304811",
+    "T7_report": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_B1_RV32C_SUPERSET_POC_20261024.md",
+    "T7_code": "rom_automation/rom_rv32c_superset_reverse_poc.py",
+    "T7_tests": "rom_automation/test_rom_rv32c_superset_reverse_poc.py",
+    "T7_output_artifact": {
+      "id": 12558309102,
+      "digest_sha256": "69d976260c31edcdc48a3b62b13489e28b3ca5aac25c714b38ead91c04a0f0c2"
+    },
+    "T7_measurements": {
+      "esp32c3_rev0_rom.elf": {
+        "candidate_nodes": 164070,
+        "graph_edges": 170299,
+        "boot_reach": 4753,
+        "named_entry_conditional_reach": 62477,
+        "raw_source_witnesses": 81,
+        "supported_new_path": 0
+      },
+      "esp32c3_rev101_rom.elf": {
+        "candidate_nodes": 167340,
+        "graph_edges": 173715,
+        "boot_reach": 4743,
+        "named_entry_conditional_reach": 64417,
+        "raw_source_witnesses": 77,
+        "supported_new_path": 0
+      },
+      "esp32c3_rev3_rom.elf": {
+        "candidate_nodes": 165261,
+        "graph_edges": 171568,
+        "boot_reach": 4746,
+        "named_entry_conditional_reach": 64087,
+        "raw_source_witnesses": 102,
+        "supported_new_path": 0
+      }
+    },
+    "T7_research": [
+      {
+        "paper": "Analyzing Bytes",
+        "url": "https://doi.org/10.1145/3808292",
+        "source": "https://github.com/nhuhuan/amace",
+        "finding": "x86 C++ artifact, incompatible direct RV32C import"
+      },
+      {
+        "source": "https://docs.riscv.org/reference/isa/unpriv/c-st-ext",
+        "finding": "IALIGN=16 and RV32C C.JAL semantics"
+      },
+      {
+        "source": "https://github.com/espressif/esp-emulator",
+        "finding": "supports ROM override and GDB but HLE ROM-function interception blocks unqualified ROM PC claims"
+      }
+    ]
   },
   "execution_history": [
     {
@@ -547,12 +663,18 @@
       "task": "T5",
       "event": "Prior ROM-001 branch, strict-indirect, local constant CFG, trap vector reports each show zero proven into gap; memory pointer match roots do not overlap the 252. Independent actual new callable or physical novelty verdict remains BLOCKED.",
       "evidence": "https://github.com/mokumaisancho/esp32c3-ir-remote/blob/main/rom_automation/ROM003_T5_SOURCE_WITNESS_AUDIT_20261024.md"
+    },
+    {
+      "date": "2026-10-24",
+      "task": "T7",
+      "event": "Implemented RV32C every-halfword superset CFG with conditional ELF-seeded/boot-root reverse parent witness, 12 unit controls, three-revision CI. Found/fixed CSR misclassification that initially shrank boot reach to 2. Final CI run all 54 tests and graph coverage gate PASS. All 260 potential source records unrooted in this defined explicit-edge graph. Stop full Amace port as it cannot invent missing indirect edges.",
+      "evidence": "https://github.com/mokumaisancho/esp32c3-ir-remote/actions/runs/40091304811"
     }
   ],
-  "next_action": "Only decision-changing work: verify independently rooted instruction or actual authorized execution PC reaching one of the 249 unclaimed source addresses. Do NOT treat prior pseudo-C.JAL halfwords of named 32-bit instructions as true calls without countervailing alternate rooted control path. If proven, trace exact destination then prior art, ABI and optional safe silicon.",
+  "next_action": "B1 requires NEW EVIDENCE, not more distance weighting. Check viability of ESP32-C3 ROM CPU-PC tracing in Espressif esp-emulator with --rom revision override and recorded ROM-HLE stubs; only use genuine CPU ROM instruction PC (not stub/perfetto task timeline) as potential source attestation. If incompatible and no authorized device, retain BLOCKED. Existing 249 candidate source raw bytes alone are not sufficient.",
   "resume_conditions": [
-    "Independent decoded rooted CFG or safe instrumented physical PC trace to an unclaimed call-source machine instruction (of 249), with revision/bytes hash and no symbol leakage",
-    "Call target is a proven function entry distinct from unclaimed branch/data; then independent prior art and ABI tests"
+    "New authenticated ROM machine PC runtime event for a source in unclaimed region with revision+firmware hashes and stub accounting",
+    "New independently justified indirect/vector control-flow edge connecting known boot/entry to previously unrooted source with mutation tests"
   ],
   "overall_status": "BLOCKED",
   "mvp_all_ACs_met": false
