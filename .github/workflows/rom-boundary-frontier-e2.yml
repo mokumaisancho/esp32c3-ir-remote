@@ -169,6 +169,20 @@ jobs:
             --raw-dir "$RUNNER_TEMP/raw" \
             --out rom_automation/output/e2/rv32c_superset_reverse.json \
             2>&1 | tee rom_automation/output/e2/superset_experiment.log
+          python - <<'PY'
+          import json
+          p="rom_automation/output/e2/rv32c_superset_reverse.json"
+          r=json.load(open(p))
+          assert len(r["revisions"])==3
+          assert sum(x["raw_source_witnesses"] for x in r["revisions"])==260
+          for x in r["revisions"]:
+            assert x["boot_syntactically_reachable_nodes"]>=4000, "BAD_BOOT_CFG_COVERAGE"
+            assert x["named_seeded_syntactically_reachable_nodes"]>=30000, "BAD_NAMED_CFG_COVERAGE"
+            assert sum(x["source_grade_counts"].values())==x["raw_source_witnesses"]
+            assert x["hardware_execution_traces"]==0
+            assert x["new_verified_usable_ROM_APIs"]==0
+          print("ROM003_B1_REVERSE_INTEGRITY_GATE_PASS")
+          PY
           sha256sum rom_automation/output/e2/boundary_blind_comparison.json \
             rom_automation/output/e2/posthoc_extent_triage.json \
             rom_automation/output/e2/independent_source_attestation.json \
