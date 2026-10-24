@@ -11,6 +11,8 @@ on:
       - 'rom_automation/test_rom_boundary_extent_triage.py'
       - 'rom_automation/rom_unclaimed_source_attestation.py'
       - 'rom_automation/test_rom_unclaimed_source_attestation.py'
+      - 'rom_automation/rom_rv32c_superset_reverse_poc.py'
+      - 'rom_automation/test_rom_rv32c_superset_reverse_poc.py'
       - '.github/workflows/rom-boundary-frontier-e2.yml'
   workflow_dispatch:
 permissions:
@@ -158,9 +160,19 @@ jobs:
             --raw-dir "$RUNNER_TEMP/raw" \
             --out rom_automation/output/e2/independent_source_attestation.json \
             2>&1 | tee rom_automation/output/e2/source_attestation.log
+          python -m unittest discover -s rom_automation \
+            -p 'test_rom_rv32c_superset_reverse_poc.py' -v \
+            2>&1 | tee rom_automation/output/e2/superset_unit_tests.log
+          python rom_automation/rom_rv32c_superset_reverse_poc.py \
+            --candidate-dir "$ROM003_E2_CANDIDATE_DIR" \
+            --oracle-dir "$ROM003_E2_ORACLE_DIR" \
+            --raw-dir "$RUNNER_TEMP/raw" \
+            --out rom_automation/output/e2/rv32c_superset_reverse.json \
+            2>&1 | tee rom_automation/output/e2/superset_experiment.log
           sha256sum rom_automation/output/e2/boundary_blind_comparison.json \
             rom_automation/output/e2/posthoc_extent_triage.json \
             rom_automation/output/e2/independent_source_attestation.json \
+            rom_automation/output/e2/rv32c_superset_reverse.json \
             | tee rom_automation/output/e2/sha256.log
       - uses: actions/upload-artifact@v4
         with:
