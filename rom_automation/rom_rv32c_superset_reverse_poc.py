@@ -36,7 +36,11 @@ def instruction_at(dec,base,raw,offset):
 
 def dynamic_barrier(bytecode, mnemonic):
  if len(bytecode)==4:
-  return (int.from_bytes(bytecode,"little")&127) in (0x67,0x73)  # JALR/CSR/system
+  word=int.from_bytes(bytecode,"little")
+  op=word&127
+  if op==0x67:return True  # JALR is indirect, target unresolved
+  if op==0x73:return ((word>>12)&7)==0  # only privileged/trap encodings stop; CSR ops continue
+  return False/system
  w=int.from_bytes(bytecode,"little")
  # quadrant 2, funct3=100, rs2=0, rs1!=0 : c.jr/c.jalr
  if w&3==2 and (w>>13)&7==4 and ((w>>2)&31)==0 and ((w>>7)&31):
