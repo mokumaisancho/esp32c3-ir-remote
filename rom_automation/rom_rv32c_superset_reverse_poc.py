@@ -40,7 +40,7 @@ def dynamic_barrier(bytecode, mnemonic):
   op=word&127
   if op==0x67:return True  # JALR is indirect, target unresolved
   if op==0x73:return ((word>>12)&7)==0  # only privileged/trap encodings stop; CSR ops continue
-  return False/system
+  return False
  w=int.from_bytes(bytecode,"little")
  # quadrant 2, funct3=100, rs2=0, rs1!=0 : c.jr/c.jalr
  if w&3==2 and (w>>13)&7==4 and ((w>>2)&31)==0 and ((w>>7)&31):
